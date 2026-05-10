@@ -794,47 +794,152 @@
     box-shadow:         0 0 0 3px rgba(var(--kep-accent-rgb),0.12) !important;
 }
 
-#ke-checkout-sheet button {
-    all:                unset !important;
-    box-sizing:         border-box !important;
-    cursor:             pointer !important;
-    pointer-events:     auto !important;
-    -webkit-appearance: none !important;
-    appearance:         none !important;
-    font-family:        var(--kep-font) !important;
+/* Narrow theme reset: only neutralize bare <button> defaults for buttons that
+   are NOT our styled action buttons. DO NOT use `all: unset` — it obliterates
+   every property on descendants (display/width/padding/border-radius/etc.)
+   and beats lower-specificity action-button rules. */
+#ke-checkout-sheet button:not(.ke-sheet-btn):not(.ke-stepper-btn):not(.ke-sheet-close) {
+    background:         transparent;
+    border:             none;
+    font-family:        var(--kep-font);
+    color:              inherit;
+    cursor:             pointer;
+    -webkit-appearance: none;
+    appearance:         none;
 }
 
-#ke-sheet-submit,
-#ke-sheet-continue,
-#ke-confirmation-done {
+/* ═══════════════════════════════════════════════════════════
+   Sheet action buttons — single source of truth.
+   Works on both <button> and <a> variants. High specificity
+   via #ke-checkout-sheet / #ke-resv-sheet prefix so it wins
+   over theme resets in both the ticket and reservation sheets.
+   ═══════════════════════════════════════════════════════════ */
+#ke-checkout-sheet .ke-sheet-btn,
+#ke-checkout-sheet .ke-sheet-btn-primary,
+#ke-checkout-sheet .ke-sheet-btn-secondary,
+#ke-checkout-sheet .ke-download-ticket-btn,
+#ke-checkout-sheet #ke-sheet-submit,
+#ke-checkout-sheet #ke-sheet-continue,
+#ke-checkout-sheet #ke-confirmation-done,
+#ke-checkout-sheet #ke-sheet-login-btn,
+#ke-checkout-sheet #ke-sheet-register-btn,
+#ke-resv-sheet .ke-sheet-btn,
+#ke-resv-sheet .ke-sheet-btn-primary,
+#ke-resv-sheet #ke-resv-continue,
+#ke-resv-sheet #ke-resv-submit,
+#ke-resv-sheet #ke-resv-done-btn {
     display:            flex !important;
     align-items:        center !important;
     justify-content:    center !important;
     gap:                8px !important;
     width:              100% !important;
-    padding:            15px !important;
+    padding:            14px 24px !important;
     border:             none !important;
-    border-radius:      var(--kep-r-pill) !important;
+    border-radius:      100px !important;
     font-family:        var(--kep-font) !important;
-    font-size:          16px !important;
+    font-size:          15px !important;
     font-weight:        600 !important;
+    line-height:        1.2 !important;
     letter-spacing:     -0.2px !important;
-    background:         var(--kep-accent-grad) !important;
-    background-color:   var(--kep-accent-1) !important;
-    color:              #ffffff !important;
-    box-shadow:         var(--kep-shadow-accent) !important;
+    text-align:         center !important;
+    text-decoration:    none !important;
+    text-shadow:        none !important;
+    box-shadow:         none !important;
     cursor:             pointer !important;
     pointer-events:     auto !important;
-    margin-bottom:      12px !important;
-    transition:         transform var(--kep-duration-fast) var(--kep-ease),
-                        box-shadow var(--kep-duration-fast) ease !important;
+    margin:             0 !important;
+    box-sizing:         border-box !important;
+    -webkit-appearance: none !important;
+    appearance:         none !important;
+    transition:         opacity 0.15s ease, filter 0.15s ease !important;
 }
 
-#ke-sheet-submit:disabled {
-    opacity:            0.5 !important;
-    cursor:             not-allowed !important;
+/* Primary (accent) variant — flat accent color, no gradient, no shadow. */
+#ke-checkout-sheet .ke-sheet-btn-primary,
+#ke-checkout-sheet .ke-download-ticket-btn,
+#ke-checkout-sheet #ke-sheet-submit,
+#ke-checkout-sheet #ke-sheet-continue,
+#ke-checkout-sheet #ke-confirmation-done,
+#ke-checkout-sheet #ke-sheet-login-btn,
+#ke-resv-sheet .ke-sheet-btn-primary,
+#ke-resv-sheet #ke-resv-continue,
+#ke-resv-sheet #ke-resv-submit,
+#ke-resv-sheet #ke-resv-done-btn {
+    background:         var(--kep-accent-1) !important;
+    background-color:   var(--kep-accent-1) !important;
+    background-image:   none !important;
+    color:              #ffffff !important;
+}
+
+#ke-checkout-sheet .ke-sheet-btn-primary:hover,
+#ke-checkout-sheet .ke-download-ticket-btn:hover,
+#ke-checkout-sheet #ke-sheet-submit:hover,
+#ke-checkout-sheet #ke-sheet-continue:hover,
+#ke-checkout-sheet #ke-confirmation-done:hover,
+#ke-checkout-sheet #ke-sheet-login-btn:hover,
+#ke-resv-sheet .ke-sheet-btn-primary:hover,
+#ke-resv-sheet #ke-resv-continue:hover,
+#ke-resv-sheet #ke-resv-submit:hover,
+#ke-resv-sheet #ke-resv-done-btn:hover {
+    opacity:            0.92 !important;
+    filter:             brightness(0.97) !important;
+    color:              #ffffff !important;
     transform:          none !important;
     box-shadow:         none !important;
+}
+
+#ke-checkout-sheet .ke-sheet-btn-primary:active,
+#ke-checkout-sheet .ke-download-ticket-btn:active,
+#ke-checkout-sheet #ke-sheet-submit:active,
+#ke-checkout-sheet #ke-sheet-continue:active,
+#ke-checkout-sheet #ke-confirmation-done:active,
+#ke-checkout-sheet #ke-sheet-login-btn:active,
+#ke-resv-sheet .ke-sheet-btn-primary:active,
+#ke-resv-sheet #ke-resv-continue:active,
+#ke-resv-sheet #ke-resv-submit:active,
+#ke-resv-sheet #ke-resv-done-btn:active {
+    opacity:            0.85 !important;
+    transform:          none !important;
+}
+
+#ke-checkout-sheet .ke-sheet-btn-primary:disabled,
+#ke-checkout-sheet #ke-sheet-submit:disabled,
+#ke-checkout-sheet #ke-sheet-continue:disabled,
+#ke-checkout-sheet #ke-confirmation-done:disabled,
+#ke-resv-sheet .ke-sheet-btn-primary:disabled,
+#ke-resv-sheet #ke-resv-continue:disabled,
+#ke-resv-sheet #ke-resv-submit:disabled {
+    opacity:            0.4 !important;
+    cursor:             not-allowed !important;
+    filter:             none !important;
+}
+
+/* Secondary (Create account) — neutral surface, beats primary where both
+   classes coexist, and beats theme <a> styles via specificity. */
+#ke-checkout-sheet .ke-sheet-btn-secondary,
+#ke-checkout-sheet #ke-sheet-register-btn {
+    background:         rgba(9,9,11,0.04) !important;
+    background-color:   rgba(9,9,11,0.04) !important;
+    background-image:   none !important;
+    color:              #09090b !important;
+    border:             none !important;
+}
+
+#ke-checkout-sheet .ke-sheet-btn-secondary:hover,
+#ke-checkout-sheet #ke-sheet-register-btn:hover {
+    background:         rgba(9,9,11,0.07) !important;
+    background-color:   rgba(9,9,11,0.07) !important;
+    color:              #09090b !important;
+    opacity:            1 !important;
+    filter:             none !important;
+    transform:          none !important;
+}
+
+#ke-checkout-sheet .ke-sheet-btn-secondary:active,
+#ke-checkout-sheet #ke-sheet-register-btn:active {
+    background:         rgba(9,9,11,0.10) !important;
+    background-color:   rgba(9,9,11,0.10) !important;
+    opacity:            1 !important;
 }
 
 #ke-sheet-minus,
@@ -866,19 +971,32 @@
     position:           absolute !important;
     top:                16px !important;
     right:              16px !important;
+    left:               auto !important;
     width:              32px !important;
     height:             32px !important;
     display:            flex !important;
     align-items:        center !important;
     justify-content:    center !important;
-    background:         var(--kep-surface-2) !important;
-    border:             1px solid var(--kep-border) !important;
+    background:         rgba(9,9,11,0.04) !important;
+    border:             none !important;
     border-radius:      50% !important;
     cursor:             pointer !important;
     pointer-events:     auto !important;
-    color:              var(--kep-ink-3) !important;
-    transition:         background var(--kep-duration-fast), color var(--kep-duration-fast) !important;
+    color:              #09090b !important;
+    padding:            0 !important;
+    transition:         background 0.15s ease !important;
     z-index:            10 !important;
+}
+
+#ke-sheet-close-btn:hover {
+    background:         rgba(9,9,11,0.08) !important;
+    color:              #09090b !important;
+}
+
+#ke-sheet-close-btn svg {
+    width:              16px !important;
+    height:             16px !important;
+    stroke-width:       2.5 !important;
 }
 
 /* Handle */
@@ -891,7 +1009,7 @@
 }
 
 .ke-sheet-header {
-    padding:            0 24px 20px;
+    padding:            0 56px 20px 24px;
     border-bottom:      1px solid var(--kep-border-soft);
 }
 
@@ -1020,55 +1138,59 @@
     letter-spacing:     -0.5px;
 }
 
-/* ─── Sheet action buttons ───────────────────────────────── */
+/* ─── Sheet action buttons (class-level; ID-scoped block above wins) ─── */
 .ke-sheet .ke-sheet-btn,
 .ke-sheet-btn {
-    all:                unset !important;
     box-sizing:         border-box;
     display:            flex;
     align-items:        center;
     justify-content:    center;
     gap:                8px;
     width:              100%;
-    padding:            15px;
+    padding:            14px 24px;
     border:             none;
-    border-radius:      var(--kep-r-pill);
+    border-radius:      100px;
     font-family:        var(--kep-font);
-    font-size:          16px;
+    font-size:          15px;
     font-weight:        600;
     letter-spacing:     -0.2px;
     cursor:             pointer;
     pointer-events:     auto;
     -webkit-appearance: none;
     appearance:         none;
-    transition:         transform var(--kep-duration-fast) var(--kep-ease),
-                        box-shadow var(--kep-duration-fast) ease;
-    margin-bottom:      12px;
+    text-decoration:    none;
+    transition:         opacity 0.15s ease, filter 0.15s ease;
+    margin:             0;
 }
 
 .ke-sheet .ke-sheet-btn-primary,
 .ke-sheet-btn-primary {
-    background:         var(--kep-accent-grad) !important;
+    background:         var(--kep-accent-1) !important;
     background-color:   var(--kep-accent-1) !important;
     color:              #ffffff !important;
-    box-shadow:         var(--kep-shadow-accent) !important;
+    box-shadow:         none !important;
+    text-shadow:        none !important;
 }
 
 .ke-sheet-btn-primary:hover {
-    transform:          translateY(-1px);
-    box-shadow:         0 12px 40px rgba(var(--kep-accent-rgb),0.45);
+    opacity:            0.92;
+    transform:          none;
+    filter:             brightness(0.97);
+    box-shadow:         none;
 }
 
 .ke-sheet-btn-primary:active {
-    transform:          scale(0.98);
+    opacity:            0.85;
+    transform:          none;
     transition-duration: 0.08s;
 }
 
 .ke-sheet-btn-primary:disabled {
-    opacity:            0.5;
+    opacity:            0.4;
     cursor:             not-allowed;
     transform:          none;
     box-shadow:         none;
+    filter:             none;
 }
 
 /* ─── Sheet form inputs ──────────────────────────────────── */
@@ -1127,6 +1249,55 @@
     box-shadow:         0 0 0 3px rgba(var(--kep-accent-rgb),0.12);
 }
 
+.ke-sheet-field select,
+.ke-sheet-field textarea {
+    width:              100%;
+    padding:            12px 14px;
+    background:         var(--kep-surface);
+    border:             1.5px solid var(--kep-border);
+    border-radius:      var(--kep-r-xs);
+    font-family:        var(--kep-font);
+    font-size:          15px;
+    color:              var(--kep-ink);
+    outline:            none;
+    transition:         border-color var(--kep-duration-fast) ease,
+                        box-shadow var(--kep-duration-fast) ease;
+}
+.ke-sheet-field select:focus,
+.ke-sheet-field textarea:focus {
+    border-color:       var(--kep-accent-1);
+    box-shadow:         0 0 0 3px rgba(var(--kep-accent-rgb),0.12);
+}
+.ke-sheet-field textarea {
+    min-height:         90px;
+    resize:             vertical;
+}
+.ke-field-label {
+    display:            block;
+    font-size:          12.5px;
+    font-weight:        600;
+    color:              var(--kep-ink-2);
+    margin-bottom:      6px;
+}
+.ke-field-helper {
+    margin-top:         6px;
+    font-size:          12px;
+    color:              var(--kep-ink-4);
+    line-height:        1.4;
+}
+/* Required-asterisk and optional-suffix — used by both ticket and
+   reservation sheets so labels look identical across flows. */
+.ke-required {
+    color:              var(--kep-accent-1);
+    font-weight:        700;
+    margin-left:        2px;
+}
+.ke-optional {
+    color:              var(--kep-ink-4);
+    font-weight:        500;
+    margin-left:        4px;
+}
+
 /* ─── Messages ───────────────────────────────────────────── */
 .ke-sheet-msg {
     display:            none;
@@ -1157,43 +1328,119 @@
     font-size:          11.5px;
     color:              var(--kep-ink-4);
     line-height:        1.5;
-    padding-bottom:     8px;
+    margin:             12px 0 0;
+    padding:            0;
 }
 
 .ke-sheet-footer {
+    display:            flex;
+    flex-direction:     column;
+    gap:                0;
     padding:            16px 24px 24px;
+}
+
+/* ─── Sheet: login-required (blocked) step ───────────────── */
+.ke-sheet-step-blocked .ke-sheet-header {
+    text-align:         center;
+    border-bottom:      none;
+    padding:            0 56px 0 56px;
+}
+
+.ke-sheet-step-blocked .ke-sheet-title {
+    font-size:          22px;
+    font-weight:        700;
+}
+
+.ke-sheet-step-blocked .ke-sheet-body {
+    display:            flex;
+    flex-direction:     column;
+    align-items:        center;
+    justify-content:    center;
+    text-align:         center;
+    padding:            24px 24px 8px;
+    gap:                18px;
+}
+
+.ke-sheet-blocked-icon {
+    display:            inline-flex;
+    align-items:        center;
+    justify-content:    center;
+    width:              96px;
+    height:             96px;
+    margin:             0 auto;
+    border-radius:      50%;
+    background:         rgba(var(--kep-accent-rgb),0.1);
+    color:              var(--kep-accent-1);
+}
+
+.ke-sheet-blocked-icon svg {
+    width:              40px;
+    height:             40px;
+}
+
+.ke-sheet-blocked-msg {
+    font-size:          15px;
+    line-height:        1.5;
+    color:              var(--kep-ink-2);
+    margin:             0 auto;
+    max-width:          320px;
+}
+
+.ke-sheet-step-blocked .ke-sheet-footer {
+    display:            flex;
+    flex-direction:     column;
+    gap:                10px;
+    padding:            20px 24px 24px;
+}
+
+.ke-sheet-btn-secondary {
+    background:         rgba(9,9,11,0.04) !important;
+    background-color:   rgba(9,9,11,0.04) !important;
+    color:              #09090b !important;
+    border:             none !important;
+    box-shadow:         none !important;
+    text-decoration:    none !important;
+}
+
+.ke-sheet-btn-secondary:hover {
+    background:         rgba(9,9,11,0.07) !important;
+    background-color:   rgba(9,9,11,0.07) !important;
+    color:              #09090b !important;
+    opacity:            1 !important;
+    filter:             none !important;
 }
 
 /* ─── Sheet close button ─────────────────────────────────── */
 .ke-sheet .ke-sheet-close,
 .ke-sheet-close {
-    all:                unset !important;
     box-sizing:         border-box;
     position:           absolute;
     top:                16px;
     right:              16px;
+    left:               auto;
     width:              32px;
     height:             32px;
     display:            flex;
     align-items:        center;
     justify-content:    center;
-    background:         var(--kep-surface-2);
-    border:             1px solid var(--kep-border);
+    background:         rgba(9,9,11,0.04);
+    border:             none;
     border-radius:      50%;
     cursor:             pointer;
     pointer-events:     auto;
+    padding:            0;
     -webkit-appearance: none;
     appearance:         none;
-    color:              var(--kep-ink-3);
-    transition:         background var(--kep-duration-fast), color var(--kep-duration-fast);
+    color:              #09090b;
+    transition:         background 0.15s ease;
     flex-shrink:        0;
     z-index:            10;
 }
 
 .ke-sheet .ke-sheet-close:hover,
 .ke-sheet-close:hover {
-    background:         var(--kep-border);
-    color:              var(--kep-ink);
+    background:         rgba(9,9,11,0.08);
+    color:              #09090b;
 }
 
 /* ─── Confirmation screen ────────────────────────────────── */
@@ -1279,28 +1526,39 @@
 }
 
 .ke-download-ticket-btn {
-    display:            block !important;
+    display:            flex !important;
+    align-items:        center !important;
+    justify-content:    center !important;
+    gap:                8px !important;
     width:              100% !important;
-    padding:            13px 20px !important;
-    background:         var(--kep-accent-grad) !important;
+    padding:            14px 24px !important;
+    background:         var(--kep-accent-1) !important;
     background-color:   var(--kep-accent-1) !important;
     color:              #ffffff !important;
     text-align:         center !important;
     text-decoration:    none !important;
-    border-radius:      var(--kep-r-pill) !important;
+    border-radius:      100px !important;
     font-size:          15px !important;
     font-weight:        600 !important;
     font-family:        var(--kep-font) !important;
     margin-top:         8px !important;
     box-sizing:         border-box !important;
-    box-shadow:         var(--kep-shadow-accent) !important;
-    transition:         transform var(--kep-duration-fast) ease !important;
+    box-shadow:         none !important;
+    text-shadow:        none !important;
+    transition:         opacity var(--kep-duration-fast) ease,
+                        filter var(--kep-duration-fast) ease !important;
 }
 .ke-download-ticket-btn:hover {
     opacity:            0.92 !important;
     color:              #ffffff !important;
     text-decoration:    none !important;
-    transform:          translateY(-1px) !important;
+    transform:          none !important;
+    filter:             brightness(0.97) !important;
+    box-shadow:         none !important;
+}
+.ke-download-ticket-btn:active {
+    opacity:            0.85 !important;
+    transform:          none !important;
 }
 
 /* ─── Spinner ────────────────────────────────────────────── */
@@ -1763,3 +2021,1164 @@
         display:        none;
     }
 }
+
+/* ── Share buttons — liquid glass style (matches .ke-meta-item) ──────────── */
+.ke-hero-share {
+    display:    flex;
+    gap:        6px;
+    flex-wrap:  wrap;
+    margin-top: 12px;
+}
+
+.ke-share-pill {
+    width:                    32px;
+    height:                   32px;
+    display:                  inline-flex;
+    align-items:              center;
+    justify-content:          center;
+    background:               rgba(255, 255, 255, 0.10);
+    backdrop-filter:          blur(16px) saturate(160%);
+    -webkit-backdrop-filter:  blur(16px) saturate(160%);
+    border:                   1px solid rgba(255, 255, 255, 0.18);
+    border-radius:            50%;
+    color:                    rgba(255, 255, 255, 0.90);
+    text-decoration:          none;
+    cursor:                   pointer;
+    transition:               background 0.2s ease, transform 0.2s ease, color 0.2s ease;
+    padding:                  0;
+    -webkit-appearance:       none;
+    appearance:               none;
+}
+
+.ke-share-pill:hover {
+    background:      rgba(255, 255, 255, 0.18);
+    color:           #ffffff;
+    transform:       translateY(-1px);
+    text-decoration: none;
+}
+
+.ke-share-pill:active {
+    transform: scale(0.95);
+}
+
+.ke-share-pill svg {
+    flex-shrink: 0;
+    opacity:     0.95;
+}
+
+.ke-share-copied {
+    background:   rgba(16, 185, 129, 0.20) !important;
+    border-color: rgba(16, 185, 129, 0.40) !important;
+    color:        #10b981 !important;
+}
+
+@media (max-width: 640px) {
+    .ke-hero-share {
+        gap:        5px;
+        margin-top: 10px;
+    }
+    .ke-share-pill {
+        width:  30px;
+        height: 30px;
+    }
+}
+
+/* ── Hero social link pills ──────────────────────────────────────────────── */
+.ke-hero-socials {
+    display:        flex;
+    gap:            8px;
+    flex-wrap:      wrap;
+    margin-top:     14px;
+}
+
+.ke-social-pill {
+    display:         inline-flex;
+    align-items:     center;
+    gap:             6px;
+    padding:         7px 14px;
+    border-radius:   100px;
+    font-size:       13px;
+    font-weight:     500;
+    text-decoration: none;
+    color:           rgba(255,255,255,.90);
+    background:      rgba(255,255,255,.10);
+    border:          1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    transition:      background .18s, transform .18s, border-color .18s;
+    white-space:     nowrap;
+}
+.ke-social-pill:hover {
+    background:      rgba(255,255,255,.20);
+    border-color:    rgba(255,255,255,.30);
+    transform:       translateY(-1px);
+    color:           #fff;
+}
+.ke-social-pill svg { flex-shrink: 0; }
+
+/* ─── Event extras ────────────────────────────────────── */
+.ke-extra { margin-top: 32px; }
+
+/* Sold-out bar */
+.ke-soldout-bar {
+    width: 100%;
+    height: 12px;
+    background: #f1f5f9;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+.ke-soldout-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .4s cubic-bezier(.16,1,.3,1);
+}
+.ke-soldout-caption {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+.ke-soldout-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 13px;
+    background: #0f172a;
+    color: #fff;
+}
+.ke-soldout-badge--live {
+    background: var(--kep-accent-1, #6366f1);
+}
+.ke-soldout-circle {
+    --pct: 0;
+    --color: var(--kep-accent-1, #6366f1);
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: conic-gradient(var(--color) calc(var(--pct) * 1%), #f1f5f9 0);
+    display: grid; place-items: center;
+    position: relative;
+}
+.ke-soldout-circle::before {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    background: #fff;
+    border-radius: 50%;
+}
+.ke-soldout-circle span {
+    position: relative;
+    font-weight: 700;
+    font-size: 20px;
+    color: #0f172a;
+}
+
+/* Countdown */
+.ke-countdown-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+    max-width: 520px;
+}
+.ke-countdown-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 8px;
+    background: #f8fafc;
+    border-radius: 14px;
+}
+.ke-countdown-num {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.ke-countdown-unit {
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+}
+.ke-countdown-live {
+    margin-top: 12px;
+    font-weight: 600;
+    color: #059669;
+}
+
+/* Lineup — horizontal scroll row of circular avatars */
+.ke-extra-lineup .ke-section-label {
+    color: var(--kep-accent-1, #6366f1);
+}
+.ke-lineup-scroll {
+    display: flex;
+    gap: 22px;
+    margin-top: 12px;
+    padding: 4px 2px 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+.ke-lineup-scroll::-webkit-scrollbar { height: 6px; }
+.ke-lineup-scroll::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.15);
+    border-radius: 4px;
+}
+.ke-lineup-card {
+    flex: 0 0 auto;
+    width: 96px;
+    text-align: center;
+    scroll-snap-align: start;
+}
+.ke-lineup-photo {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: #e2e8f0 center / cover no-repeat;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 6px 18px rgba(15, 23, 42, 0.10);
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+.ke-lineup-card:hover .ke-lineup-photo {
+    box-shadow: 0 0 0 3px var(--kep-accent-1, #6366f1), 0 10px 22px rgba(var(--kep-accent-rgb, 99, 102, 241), 0.25);
+    transform: translateY(-2px);
+}
+.ke-lineup-photo--placeholder {
+    display: grid;
+    place-items: center;
+    background: var(--kep-accent-grad, linear-gradient(135deg, #6366f1, #6366f1));
+    color: #fff;
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1;
+}
+.ke-lineup-name {
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+    .ke-lineup-scroll { gap: 16px; }
+    .ke-lineup-card { width: 72px; }
+    .ke-lineup-photo { width: 72px; height: 72px; }
+    .ke-lineup-photo--placeholder { font-size: 26px; }
+    .ke-lineup-name { font-size: 12px; margin-top: 8px; }
+}
+
+/* Gallery — snap-scroll carousel + lightbox */
+.ke-extra-gallery {
+    --ke-gal-gap: 12px;
+    --ke-gal-perview: 3;
+}
+.ke-extra-gallery .ke-section-label {
+    color: var(--kep-accent-1, #6366f1);
+}
+
+.ke-gallery-wrap {
+    position: relative;
+    margin-top: 12px;
+}
+
+.ke-gallery-carousel {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--ke-gal-gap);
+    padding: 4px 2px 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+.ke-gallery-carousel::-webkit-scrollbar { height: 6px; }
+.ke-gallery-carousel::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.15);
+    border-radius: 4px;
+}
+
+.ke-gallery-slide {
+    position: relative;
+    flex: 0 0 calc((100% - (var(--ke-gal-perview) - 1) * var(--ke-gal-gap)) / var(--ke-gal-perview));
+    aspect-ratio: 4 / 3;
+    /* Fallback for browsers that ignore aspect-ratio (or themes that override img height). */
+    min-height: 180px;
+    padding: 0;
+    border: none !important;
+    outline: none !important;
+    margin: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    background: transparent;
+    cursor: pointer;
+    scroll-snap-align: start;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.ke-gallery-slide:hover,
+.ke-gallery-slide:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    outline: none;
+    border: none !important;
+}
+.ke-gallery-slide img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    object-fit: cover;
+    transition: transform .3s ease;
+}
+.ke-gallery-slide:hover img { transform: scale(1.03); }
+.ke-gallery-caption-overlay {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 18px 14px 12px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.35;
+    background: linear-gradient(to top, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0) 100%);
+    pointer-events: none;
+}
+
+/* Arrows — desktop only, fade in on hover. */
+.ke-gallery-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: var(--kep-accent-1, #6366f1);
+    color: #fff;
+    cursor: pointer;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity .2s ease, transform .15s ease;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.18);
+    padding: 0;
+}
+.ke-gallery-arrow:hover { transform: translateY(-50%) scale(1.05); }
+.ke-gallery-arrow:active { transform: translateY(-50%) scale(0.96); }
+.ke-gallery-arrow-prev { left: -8px; }
+.ke-gallery-arrow-next { right: -8px; }
+.ke-gallery-wrap:hover .ke-gallery-arrow,
+.ke-gallery-arrow:focus-visible { opacity: 1; }
+
+/* Tablet — 2 per view */
+@media (max-width: 1024px) {
+    .ke-extra-gallery { --ke-gal-perview: 2; }
+}
+
+/* Mobile — peek 1.2, hide arrows, force visible dimensions. */
+@media (max-width: 767px) {
+    .ke-extra-gallery { --ke-gal-perview: 1.2; --ke-gal-gap: 10px; }
+    .ke-gallery-slide {
+        border-radius: 14px;
+        min-width: 78vw;
+        min-height: calc(78vw * 0.75);
+    }
+    .ke-gallery-arrow { display: none; }
+    .ke-gallery-caption-overlay { font-size: 12px; padding: 16px 12px 10px; }
+}
+
+/* Lightbox */
+.ke-gallery-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.ke-gallery-lightbox.is-open { display: flex; }
+.ke-gallery-lightbox .ke-lb-img {
+    max-width: min(92vw, 1400px);
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.ke-gallery-lightbox .ke-lb-close,
+.ke-gallery-lightbox .ke-lb-prev,
+.ke-gallery-lightbox .ke-lb-next {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    transition: background .15s;
+}
+.ke-gallery-lightbox .ke-lb-prev,
+.ke-gallery-lightbox .ke-lb-next,
+.ke-gallery-lightbox .ke-lb-close {
+    top: 50%;
+    transform: translateY(-50%);
+}
+.ke-gallery-lightbox .ke-lb-close { transform: none; }
+.ke-gallery-lightbox .ke-lb-close:hover,
+.ke-gallery-lightbox .ke-lb-prev:hover,
+.ke-gallery-lightbox .ke-lb-next:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+.ke-gallery-lightbox .ke-lb-close { top: 18px; right: 18px; font-size: 16px; }
+.ke-gallery-lightbox .ke-lb-prev  { left: 18px; }
+.ke-gallery-lightbox .ke-lb-next  { right: 18px; }
+.ke-gallery-lightbox .ke-lb-caption {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 80vw;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 14px;
+    border-radius: 8px;
+    text-align: center;
+    display: none;
+}
+@media (max-width: 640px) {
+    .ke-gallery-lightbox { padding: 12px; }
+    .ke-gallery-lightbox .ke-lb-prev  { left: 10px; }
+    .ke-gallery-lightbox .ke-lb-next  { right: 10px; }
+    .ke-gallery-lightbox .ke-lb-close { top: 12px; right: 12px; }
+}
+
+/* Testimonials */
+.ke-extra-testimonials { margin-top: 28px; }
+
+.ke-testi-form {
+    margin-top: 14px;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+}
+.ke-testi-rating {
+    display: inline-flex;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.ke-testi-star {
+    background: none;
+    border: 0;
+    padding: 2px;
+    cursor: pointer;
+    color: #d1d5db;
+    transition: color .12s, transform .08s;
+    line-height: 0;
+}
+.ke-testi-star:hover { transform: scale(1.08); }
+.ke-testi-star.is-on { color: #f59e0b; }
+
+.ke-testi-textarea {
+    display: block;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    color: #0f172a;
+    resize: vertical;
+    min-height: 72px;
+    box-sizing: border-box;
+}
+.ke-testi-textarea:focus {
+    outline: none;
+    border-color: var(--kep-accent-1, #6366f1);
+    box-shadow: 0 0 0 3px var(--kep-accent-soft, rgba(99,102,241,0.12));
+}
+
+.ke-testi-form-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+.ke-testi-status {
+    font-size: 12px;
+    color: #64748b;
+    min-height: 16px;
+}
+.ke-testi-submit {
+    padding: 9px 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--kep-accent-grad, linear-gradient(135deg,#6366f1,#818cf8));
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: transform .08s, box-shadow .12s;
+}
+.ke-testi-submit:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--kep-shadow-accent, 0 8px 20px rgba(99,102,241,.3));
+}
+.ke-testi-submit:disabled { opacity: .6; cursor: not-allowed; }
+
+.ke-testi-login {
+    margin-top: 14px;
+    padding: 18px;
+    text-align: center;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 16px;
+}
+.ke-testi-login-link {
+    color: var(--kep-accent-1, #6366f1);
+    font-weight: 600;
+    text-decoration: none;
+}
+.ke-testi-login-link:hover { text-decoration: underline; }
+
+.ke-testi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 18px;
+}
+.ke-testi-empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.ke-testi-card {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    transition: box-shadow .15s;
+}
+.ke-testi-card:hover { box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+.ke-testi-card.is-pinned {
+    background: linear-gradient(180deg, #fffbeb 0%, #ffffff 60%);
+    border-color: #fde68a;
+}
+
+.ke-testi-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #e2e8f0;
+}
+.ke-testi-body { flex: 1; min-width: 0; }
+.ke-testi-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 600;
+}
+.ke-testi-pin { font-size: 13px; }
+.ke-testi-stars {
+    display: inline-flex;
+    gap: 2px;
+    margin: 4px 0;
+    color: #d1d5db;
+}
+.ke-testi-star-sm.is-on { color: #f59e0b; }
+.ke-testi-text {
+    margin: 4px 0 6px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #334155;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.ke-testi-date {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.ke-testi-more {
+    display: block;
+    margin: 18px auto 0;
+    padding: 9px 22px;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #fff;
+    color: #475569;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+.ke-testi-more:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+.ke-testi-more:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Schedule — vertical timeline */
+.ke-extra-schedule .ke-section-label {
+    color: var(--kep-accent-1, #6366f1);
+    letter-spacing: .08em;
+}
+.ke-schedule-timeline {
+    list-style: none;
+    margin: 18px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+.ke-schedule-slot {
+    display: grid;
+    grid-template-columns: 96px 32px 1fr;
+    gap: 14px;
+    padding: 0;
+    position: relative;
+}
+.ke-schedule-slot + .ke-schedule-slot { margin-top: 2px; }
+
+.ke-schedule-time {
+    padding: 14px 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    line-height: 1.2;
+}
+
+.ke-schedule-marker {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+/* Connector line — drawn from the dot downward. */
+.ke-schedule-marker::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--kep-accent-soft, rgba(99,102,241,0.18));
+}
+/* Don't extend the line past the last slot. */
+.ke-schedule-slot:last-child .ke-schedule-marker::before {
+    bottom: 50%;
+}
+/* Don't extend the line above the first slot. */
+.ke-schedule-slot:first-child .ke-schedule-marker::before {
+    top: 22px;
+}
+.ke-schedule-dot {
+    position: relative;
+    z-index: 1;
+    margin-top: 18px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--kep-accent-1, #6366f1);
+    box-shadow: 0 0 0 4px #fff, 0 0 0 6px var(--kep-accent-soft, rgba(99,102,241,0.18));
+}
+
+.ke-schedule-body {
+    padding: 14px 0 18px;
+}
+.ke-schedule-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.3;
+}
+.ke-schedule-desc {
+    margin-top: 4px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+@media (max-width: 640px) {
+    .ke-schedule-slot { grid-template-columns: 24px 1fr; gap: 12px; }
+    .ke-schedule-time {
+        grid-column: 2 / 3;
+        grid-row: 1;
+        padding: 10px 0 0;
+        text-align: left;
+        font-size: 13px;
+        color: var(--kep-accent-1, #6366f1);
+    }
+    .ke-schedule-marker {
+        grid-column: 1 / 2;
+        grid-row: 1 / span 2;
+    }
+    .ke-schedule-body {
+        grid-column: 2 / 3;
+        grid-row: 2;
+        padding: 4px 0 14px;
+    }
+    .ke-schedule-dot { margin-top: 14px; }
+    .ke-schedule-slot:first-child .ke-schedule-marker::before { top: 18px; }
+}
+
+/* FAQ — accordion (scoped to .ke-extra-faq to avoid Menu/FAQ class collisions) */
+.ke-extra-faq .ke-section-label {
+    color: var(--kep-accent-1, #6366f1);
+    letter-spacing: .08em;
+}
+.ke-extra-faq .ke-faq-list {
+    margin-top: 18px;
+    border-top: 1px solid #e2e8f0;
+}
+.ke-extra-faq .ke-faq-item {
+    border-bottom: 1px solid #e2e8f0;
+}
+.ke-extra-faq .ke-faq-question {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 18px 4px;
+    background: none;
+    border: 0;
+    text-align: left;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+    cursor: pointer;
+    transition: color .15s;
+}
+.ke-extra-faq .ke-faq-question:hover { color: var(--kep-accent-1, #6366f1); }
+.ke-extra-faq .ke-faq-question:focus-visible {
+    outline: 2px solid var(--kep-accent-1, #6366f1);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+.ke-extra-faq .ke-faq-q-text {
+    flex: 1;
+    line-height: 1.4;
+}
+.ke-extra-faq .ke-faq-chevron {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    color: #475569;
+    transition: transform .25s ease, background .15s, color .15s;
+    flex-shrink: 0;
+}
+.ke-extra-faq .ke-faq-item.is-open .ke-faq-chevron {
+    transform: rotate(180deg);
+    background: var(--kep-accent-soft, rgba(99,102,241,0.12));
+    color: var(--kep-accent-1, #6366f1);
+}
+
+.ke-extra-faq .ke-faq-answer {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height .25s ease, opacity .2s ease;
+    opacity: 0;
+}
+.ke-extra-faq .ke-faq-item.is-open .ke-faq-answer { opacity: 1; }
+.ke-extra-faq .ke-faq-answer-inner {
+    padding: 2px 4px 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #475569;
+    word-break: break-word;
+}
+
+@media (max-width: 640px) {
+    .ke-extra-faq .ke-faq-question {
+        padding: 14px 2px;
+        font-size: 14px;
+    }
+    .ke-extra-faq .ke-faq-answer-inner { padding-bottom: 14px; font-size: 13px; }
+}
+
+/* Menu / FAQ (legacy "sections" extra — scoped to avoid FAQ class collisions) */
+.ke-extra-menu-faq .ke-faq-list {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+}
+.ke-extra-menu-faq .ke-faq-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+}
+.ke-extra-menu-faq .ke-faq-item summary {
+    cursor: pointer;
+    padding: 14px 18px;
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 15px;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.ke-extra-menu-faq .ke-faq-item summary::-webkit-details-marker { display: none; }
+.ke-extra-menu-faq .ke-faq-item summary::after {
+    content: '▾';
+    color: #94a3b8;
+    transition: transform .2s;
+}
+.ke-extra-menu-faq .ke-faq-item[open] summary::after { transform: rotate(180deg); }
+.ke-extra-menu-faq .ke-faq-body {
+    padding: 0 18px 16px;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.6;
+}
+.ke-extra-menu-faq .ke-faq-body p { margin: 0 0 8px; }
+.ke-extra-menu-faq .ke-faq-body p:last-child { margin-bottom: 0; }
+
+/* ════════════════════════════════════════════════════════════════
+   RESERVATIONS — public single-event section + bottom sheet
+   Lives parallel to tickets. Uses the same --kep-* tokens so the
+   admin's accent color flows through identically.
+   ════════════════════════════════════════════════════════════════ */
+
+.ke-reservations-section { /* anchor only, no extra spacing — uses content-section defaults */ }
+
+.ke-resv-description {
+    margin: 6px 0 0;
+    max-width: 600px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #6b7280;
+}
+
+.ke-resv-card {
+    position: relative;
+    margin-top: 14px;
+    padding: 20px 24px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 12px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.ke-resv-card::before,
+.ke-resv-card::after { content: none !important; }
+.ke-resv-card--full {
+    background: #fafafa;
+    border-color: #e4e4e7;
+}
+
+.ke-resv-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.ke-resv-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ke-resv-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    background: #f4f4f5;
+    color: #52525b;
+    border: 1px solid #e4e4e7;
+}
+.ke-resv-pill--auto {
+    background: rgba(16, 185, 129, 0.08);
+    color: #047857;
+    border-color: rgba(16, 185, 129, 0.25);
+}
+.ke-resv-pill--manual {
+    background: rgba(245, 158, 11, 0.10);
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.30);
+}
+
+.ke-resv-card-capacity {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    line-height: 1;
+}
+.ke-resv-capacity-num {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--kep-accent-1, #6366f1);
+    letter-spacing: -0.5px;
+}
+.ke-resv-card--full .ke-resv-capacity-num { color: #71717a; }
+.ke-resv-capacity-sub {
+    font-size: 12.5px;
+    color: #71717a;
+    font-weight: 500;
+}
+
+.ke-resv-hint {
+    margin: 0;
+    font-size: 13px;
+    color: #71717a;
+    line-height: 1.5;
+}
+
+.ke-resv-cta {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: var(--kep-accent-grad, linear-gradient(135deg, #6366f1, #6366f1));
+    color: #ffffff;
+    font: inherit;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.2px;
+    padding: 14px 22px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: none;
+    transition: transform .12s ease, opacity .2s ease, filter .15s ease;
+}
+.ke-resv-cta:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.ke-resv-cta:active { transform: translateY(0); }
+.ke-resv-cta:disabled {
+    background: #e4e4e7;
+    color: #a1a1aa;
+    box-shadow: none;
+    cursor: not-allowed;
+    filter: none;
+}
+
+/* ─── Reservation sheet — extends the existing .ke-sheet rules ─── */
+
+.ke-resv-sheet .ke-sheet-body {
+    /* Slightly tighter than the ticket sheet so the form fits without
+       crowding on small phones. Inherits scroll behavior. */
+}
+
+/* Reservation contact-form fields reuse .ke-sheet-field / .ke-field-label /
+   .ke-required from the shared design system above (lines ~1200-1280).
+   No reservation-specific overrides — both sheets must match exactly. */
+
+/* ─── Areas: radio-card pattern ─────────────────────────────────────
+   Each <label class="ke-area-card"> wraps a hidden radio. The CSS owns
+   the selected/sold-out visuals — no JS toggling of styles, no inline
+   colors, no flood-fill defaults. */
+.ke-resv-areas {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.ke-area-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px 18px;
+    background: #ffffff;
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+    margin-bottom: 10px;
+    position: relative;
+}
+.ke-area-card:last-child { margin-bottom: 0; }
+
+.ke-area-card:hover {
+    border-color: rgba(0, 0, 0, 0.18);
+    background: #fafafa;
+}
+
+.ke-area-card.is-selected {
+    border-color: var(--kep-accent-1);
+    background: color-mix(in srgb, var(--kep-accent-1) 6%, #ffffff);
+    border-width: 2px;
+    /* Compensate for the thicker border so total card size doesn't jump. */
+    padding: 15.5px 17.5px;
+}
+
+.ke-area-card.is-selected::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--kep-accent-1);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+    background-size: 12px;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.ke-area-card.is-soldout {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* The hidden radio — kept in the DOM for keyboard/SR semantics. */
+.ke-area-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+}
+
+.ke-area-name {
+    font-weight: 700;
+    font-size: 15px;
+    color: #111;
+    line-height: 1.3;
+    /* Reserve room for the check icon so long names don't collide. */
+    padding-right: 28px;
+}
+.ke-area-desc {
+    font-weight: 400;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+}
+.ke-area-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+}
+.ke-area-soldout-badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(0, 0, 0, 0.06);
+    color: #555;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+
+/* Success step */
+.ke-resv-success {
+    text-align: center;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+.ke-resv-success-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.10);
+    color: #059669;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ke-resv-success-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    color: #18181b;
+    letter-spacing: -0.4px;
+}
+.ke-resv-success-msg {
+    margin: 0;
+    font-size: 14px;
+    color: #52525b;
+    line-height: 1.6;
+    max-width: 380px;
+}
+.ke-resv-success-code {
+    margin-top: 6px;
+    padding: 14px 18px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 200px;
+}
+.ke-resv-code-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #71717a;
+    font-weight: 700;
+}
+.ke-resv-code-value {
+    font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--kep-accent-1, #6366f1);
+    letter-spacing: 2px;
+}
+
+/* Mobile tweaks */
+@media (max-width: 480px) {
+    .ke-resv-card { padding: 18px 18px 16px; }
+    .ke-resv-card-capacity { width: 100%; justify-content: flex-end; }
+    .ke-resv-description { font-size: 14px; }
+}
+

@@ -98,6 +98,22 @@ jQuery(document).ready(function($) {
             success: function(data) {
                 fees = data.fees || [];
                 renderFeeList();
+                
+                if (data.notifications) {
+                    $('#ke-admin-email-enabled').prop('checked', data.notifications.admin_email_enabled !== false);
+                    if (data.notifications.global_bcc) {
+                        $('#ke-global-bcc').val(data.notifications.global_bcc);
+                    }
+                }
+
+                if (data.access) {
+                    $('#ke-require-login').prop('checked', !!data.access.require_login);
+                    if (typeof data.access.login_url === 'string')       $('#ke-login-url').val(data.access.login_url);
+                    if (typeof data.access.register_url === 'string')    $('#ke-register-url').val(data.access.register_url);
+                    if (typeof data.access.login_required_message === 'string' && data.access.login_required_message) {
+                        $('#ke-login-required-message').val(data.access.login_required_message);
+                    }
+                }
             }
         });
     }
@@ -346,5 +362,124 @@ jQuery(document).ready(function($) {
             setTimeout(function() { $el.fadeOut(400); }, 3500);
         }
     }
+
+    // ══════════════════════════════════════════════════════
+    // NOTIFICATIONS
+    // ══════════════════════════════════════════════════════
+
+    $('#ke-save-notifications-btn').on('click', function() {
+        const $btn = $(this);
+        const enabled = $('#ke-admin-email-enabled').is(':checked');
+        const bcc = $('#ke-global-bcc').val().trim();
+
+        $btn.prop('disabled', true).text('Saving...');
+
+        $.ajax({
+            url: API + 'settings/notifications',
+            method: 'POST',
+            beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', NONCE); },
+            data: JSON.stringify({ admin_email_enabled: enabled, global_bcc: bcc }),
+            contentType: 'application/json',
+            success: function(resp) {
+                showMsg('#ke-notifications-msg', 'Notification settings saved.', 'success');
+            },
+            error: function(xhr) {
+                showMsg('#ke-notifications-msg', 'Could not save notifications settings.', 'error');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Save Notifications');
+            }
+        });
+    });
+
+    // Delegated so it survives any DOM re-render and binds even if the button is
+    // rendered after jQuery(ready) fires. Also preventDefault guards against any
+    // parent <form> submitting the page before the fetch completes.
+    $(document).on('click', '#ke-save-access-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const $btn = $(this);
+        const payload = {
+            require_login:           $('#ke-require-login').is(':checked'),
+            login_url:               $('#ke-login-url').val().trim(),
+            register_url:            $('#ke-register-url').val().trim(),
+            login_required_message:  $('#ke-login-required-message').val().trim(),
+        };
+
+        console.log('[KE Access] Save clicked', payload);
+        $btn.prop('disabled', true).html('<span class="ke-spinner"></span> Saving...');
+        showMsg('#ke-access-msg', 'hide');
+
+        $.ajax({
+            url:         API + 'settings/access',
+            method:      'POST',
+            beforeSend:  function(xhr) { xhr.setRequestHeader('X-WP-Nonce', NONCE); },
+            data:        JSON.stringify(payload),
+            contentType: 'application/json',
+            success: function(resp) {
+                console.log('[KE Access] Save response', resp);
+                showMsg('#ke-access-msg', 'Settings saved.', 'success');
+            },
+            error: function(xhr, status, err) {
+                console.error('[KE Access] Save error', { status: xhr.status, statusText: xhr.statusText, body: xhr.responseJSON || xhr.responseText, ajaxStatus: status, err: err });
+                let msg = (xhr.responseJSON && xhr.responseJSON.message)
+                    || 'Could not save access control settings.';
+                if (xhr.status === 401 || xhr.status === 403) {
+                    msg = 'Permission denied (' + xhr.status + '). Your account may be missing the manage_kiwi_events capability.';
+                } else if (xhr.status === 404) {
+                    msg = 'Endpoint missing (404). Visit Settings → Permalinks and click Save to refresh REST routes.';
+                } else if (xhr.status === 0) {
+                    msg = 'Network error — request never reached the server.';
+                }
+                showMsg('#ke-access-msg', msg, 'error');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Save Access Control');
+            }
+        });
+    });
+
+    $('#ke-test-notification-btn').on('click', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).text('Sending...');
+
+        $.ajax({
+            url: API + 'settings/test-notification',
+            method: 'POST',
+            beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', NONCE); },
+            success: function(resp) {
+                showMsg('#ke-notifications-msg', 'Test notification sent! Check your inbox.', 'success');
+            },
+            error: function(xhr) {
+                const msg = xhr.responseJSON?.message || 'Could not send test notification.';
+                showMsg('#ke-notifications-msg', msg, 'error');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Send Test Notification');
+            }
+        });
+    });
+
+    // Copy the public scanner URL.
+    $('#ke-public-scanner-copy').on('click', function() {
+        const $btn   = $(this);
+        const $input = $('#ke-public-scanner-url');
+        const url    = $input.val();
+        if (!url) return;
+        const restore = () => $btn.text('Copy');
+        const flash   = () => { $btn.text('Copied!'); setTimeout(restore, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(flash, () => {
+                $input.trigger('select');
+                document.execCommand('copy');
+                flash();
+            });
+        } else {
+            $input.trigger('select');
+            document.execCommand('copy');
+            flash();
+        }
+    });
 
 });

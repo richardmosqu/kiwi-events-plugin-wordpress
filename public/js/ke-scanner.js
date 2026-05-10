@@ -1,246 +1,433 @@
 /**
- * KiwiEvents — QR Ticket Scanner (jsQR + camera)
+ * Kiwi Scanner — public client. Sequential 3-state flow with a persistent
+ * MediaStream that is paused (not torn down) between scans, so "Scan another"
+ * can never produce a black camera.
+ *
+ * Auth model: state 2 trades the organizer password for a session token via
+ * POST /scanner/auth. The token is stashed in sessionStorage so a refresh
+ * resumes directly to state 3 without re-prompting the gate.
  */
-(function() {
+(function () {
     'use strict';
 
-    const video      = document.getElementById('ke-scanner-video');
-    const canvas     = document.getElementById('ke-scanner-canvas');
-    const ctx        = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
-    const resultBox  = document.getElementById('ke-scanner-result');
-    const statusText = document.getElementById('ke-scanner-status');
-    const startBtn   = document.getElementById('ke-scanner-start');
+    const REST = (window.kePublicScanner && window.kePublicScanner.restUrl) || '/wp-json/ke/v1/';
+    const TOKEN_STORAGE_KEY = 'ke_scanner_session';
 
-    let scanning   = false;
-    let stream     = null;
-    let lastScanned = '';
-    let cooldown    = false;
+    const STATES = { EVENT_SELECT: 1, PASSWORD: 2, SCANNING: 3 };
 
-    // Audio feedback
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // ─── Module state ──────────────────────────────────────────────
+    let cameraStream    = null;     // MediaStream — initialized once
+    let scanningPaused  = false;    // gate the QR detection loop
+    let sessionToken    = null;     // active scanner session token
+    let tokenExpiresAt  = 0;        // unix seconds; 0 = unknown
+    let currentEventId  = 0;
+    let currentEventMeta = null;    // { name, organizer, total, checked_in }
+    let scanRafId       = 0;
+    let video           = null;
+    let canvas          = null;
+    let ctx             = null;
+    let lastScannedCode = '';       // de-dupe the same QR while it lingers in frame
+    let resumeTimeoutId = 0;
 
-    function beep(freq, duration) {
-        const osc  = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = freq;
-        gain.gain.value = 0.3;
-        osc.start();
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration / 1000);
-        osc.stop(audioCtx.currentTime + duration / 1000);
+    // ─── DOM lookup helper ─────────────────────────────────────────
+    const $ = (id) => document.getElementById(id);
+
+    // ─── State machine ─────────────────────────────────────────────
+    function showState(n) {
+        document.querySelectorAll('.ke-scanner-state').forEach((el) => {
+            el.classList.remove('is-active');
+            el.removeAttribute('hidden');
+        });
+        const target = $('ke-state-' + n);
+        if (target) target.classList.add('is-active');
     }
 
-    /**
-     * Start the camera
-     */
-    async function startCamera() {
+    // ─── Camera lifecycle ─────────────────────────────────────────
+    async function initCamera() {
+        if (cameraStream) return cameraStream; // idempotent — never re-grab
         try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'environment' } },
+                audio: false,
             });
-            video.srcObject = stream;
-            video.setAttribute('playsinline', 'true');
-            video.play();
-
-            scanning = true;
-            startBtn.textContent = '⏸ Stop Scanner';
-            statusText.textContent = 'Point camera at a QR code...';
-            statusText.className = 'ke-scanner-status';
-
-            requestAnimationFrame(scanFrame);
-        } catch (err) {
-            statusText.textContent = '❌ Camera access denied. Please allow camera permissions.';
-            statusText.className = 'ke-scanner-status ke-scanner-error';
-            console.error('Camera error:', err);
-        }
-    }
-
-    /**
-     * Stop the camera
-     */
-    function stopCamera() {
-        scanning = false;
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-        startBtn.textContent = '📷 Start Scanner';
-        statusText.textContent = 'Scanner stopped.';
-    }
-
-    /**
-     * Scan frame for QR code
-     */
-    function scanFrame() {
-        if (!scanning) return;
-
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width  = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert',
-            });
-
-            if (code && code.data && !cooldown) {
-                // Extract ticket code from URL
-                const ticketCode = extractTicketCode(code.data);
-                if (ticketCode && ticketCode !== lastScanned) {
-                    lastScanned = ticketCode;
-                    cooldown = true;
-                    validateTicket(ticketCode);
-
-                    // Reset cooldown after 3 seconds
-                    setTimeout(() => {
-                        cooldown = false;
-                        lastScanned = '';
-                    }, 3000);
-                }
-            }
-        }
-
-        requestAnimationFrame(scanFrame);
-    }
-
-    /**
-     * Extract ticket code from QR data.
-     * QR now encodes only the raw sha256 hex ticket_code.
-     * Fallback: also handle legacy /ke-verify/{code} URLs.
-     */
-    function extractTicketCode(data) {
-        if (!data) return null;
-        const trimmed = data.trim();
-
-        // Primary: raw hex string (sha256 = 64 chars, but accept 32+)
-        if (/^[a-f0-9]{32,}$/i.test(trimmed)) return trimmed.toLowerCase();
-
-        // Fallback: legacy /ke-verify/{code} URL format
-        const match = trimmed.match(/ke-verify\/([a-f0-9]{32,})/i);
-        if (match) return match[1].toLowerCase();
-
-        return null;
-    }
-
-    /**
-     * Validate ticket via REST API
-     */
-    async function validateTicket(ticketCode) {
-        statusText.textContent = '🔍 Validating...';
-        statusText.className = 'ke-scanner-status';
-
-        try {
-            const response = await fetch(keScannerData.restUrl + 'tickets/validate/' + ticketCode, {
-                method: 'POST',
-                headers: {
-                    'X-WP-Nonce': keScannerData.nonce,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            const result = await response.json();
-
-            showResult(result);
         } catch (err) {
             showResult({
-                status: 'error',
-                message: 'Network error. Please check your connection.',
+                kind: 'invalid',
+                title: 'Camera blocked',
+                detail: 'Allow camera access for this page and reload.',
             });
+            throw err;
+        }
+        if (!video) video = $('ke-camera-video');
+        if (video) {
+            video.srcObject = cameraStream;
+            try { await video.play(); } catch (_) { /* iOS sometimes resolves on user gesture */ }
+        }
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+            ctx = canvas.getContext('2d', { willReadFrequently: true });
+        }
+        scheduleScan();
+        return cameraStream;
+    }
+
+    function shutdownCamera() {
+        if (scanRafId) {
+            cancelAnimationFrame(scanRafId);
+            scanRafId = 0;
+        }
+        if (cameraStream) {
+            cameraStream.getTracks().forEach((t) => t.stop());
+            cameraStream = null;
+        }
+        if (video) {
+            try { video.srcObject = null; } catch (_) {}
         }
     }
 
-    /**
-     * Show scan result with visual + audio feedback
-     */
-    function showResult(result) {
-        resultBox.style.display = 'block';
+    // ─── Scan loop ─────────────────────────────────────────────────
+    function scheduleScan() {
+        if (scanRafId) cancelAnimationFrame(scanRafId);
+        scanRafId = requestAnimationFrame(scanTick);
+    }
 
-        let html = '';
-        let cssClass = '';
+    function scanTick() {
+        scanRafId = requestAnimationFrame(scanTick);
+        if (scanningPaused) return;
+        if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        if (!window.jsQR) return;
 
-        switch (result.status) {
-            case 'valid':
-                cssClass = 'ke-result-valid';
-                beep(800, 200);
-                setTimeout(() => beep(1200, 300), 250);
-                html = `
-                    <div class="ke-result-icon">✅</div>
-                    <div class="ke-result-title">VALID — Checked In!</div>
-                    ${result.ticket ? `
-                        <div class="ke-result-details">
-                            <div class="ke-result-row"><span>Attendee</span><strong>${escHtml(result.ticket.attendee_name)}</strong></div>
-                            <div class="ke-result-row"><span>Event</span><strong>${escHtml(result.ticket.event_name || '')}</strong></div>
-                            <div class="ke-result-row"><span>Ticket</span><strong>${escHtml(result.ticket.ticket_type_name || '')}</strong></div>
-                            <div class="ke-result-row"><span>Number</span><strong>#${String(result.ticket.attendee_number).padStart(4, '0')}</strong></div>
-                        </div>
-                    ` : ''}
-                `;
-                break;
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if (!w || !h) return;
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+        ctx.drawImage(video, 0, 0, w, h);
+        const data = ctx.getImageData(0, 0, w, h);
+        const code = window.jsQR(data.data, w, h, { inversionAttempts: 'dontInvert' });
+        if (!code || !code.data) return;
 
-            case 'already_used':
-                cssClass = 'ke-result-warning';
-                beep(400, 500);
-                html = `
-                    <div class="ke-result-icon">⚠️</div>
-                    <div class="ke-result-title">ALREADY CHECKED IN</div>
-                    <div class="ke-result-message">${escHtml(result.message)}</div>
-                    ${result.ticket ? `
-                        <div class="ke-result-details">
-                            <div class="ke-result-row"><span>Attendee</span><strong>${escHtml(result.ticket.attendee_name)}</strong></div>
-                            <div class="ke-result-row"><span>Event</span><strong>${escHtml(result.ticket.event_name || '')}</strong></div>
-                        </div>
-                    ` : ''}
-                `;
-                break;
+        if (code.data === lastScannedCode) return; // de-dupe held frame
+        lastScannedCode = code.data;
 
-            case 'invalid':
-            default:
-                cssClass = 'ke-result-invalid';
-                beep(200, 600);
-                html = `
-                    <div class="ke-result-icon">❌</div>
-                    <div class="ke-result-title">INVALID TICKET</div>
-                    <div class="ke-result-message">${escHtml(result.message)}</div>
-                `;
-                break;
+        scanningPaused = true;
+        validateAndShow(code.data);
+    }
+
+    // ─── Validate + render ────────────────────────────────────────
+    async function validateAndShow(rawCode) {
+        const code = String(rawCode || '').trim();
+        const match = code.match(/([a-f0-9]{8,})/i);
+        const tokenCode = match ? match[1].toLowerCase() : code.toLowerCase();
+
+        let resp, body;
+        try {
+            resp = await fetch(REST + 'tickets/validate/' + encodeURIComponent(tokenCode), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-KE-Scanner-Token': sessionToken || '',
+                },
+                body: JSON.stringify({}),
+            });
+            body = await resp.json().catch(() => ({}));
+        } catch (err) {
+            showResult({ kind: 'invalid', title: 'Network error', detail: 'Could not reach the server.' });
+            scheduleResume(false);
+            return;
         }
 
-        resultBox.className = 'ke-scanner-result ' + cssClass;
-        resultBox.innerHTML = html;
+        if (resp.status === 401 && body && (body.code === 'invalid_token' || body.code === 'rest_forbidden')) {
+            sessionExpired();
+            return;
+        }
 
-        // Auto-hide after 4 seconds
-        setTimeout(() => {
-            resultBox.style.display = 'none';
-        }, 4000);
+        if (body && body.status === 'valid') {
+            bumpCounter(+1);
+            showResult({
+                kind: 'valid',
+                title: '✓ Valid',
+                detail: (body.ticket && body.ticket.attendee_name) || 'Checked in',
+                ticketType: body.ticket && body.ticket.ticket_type,
+            });
+            navigator.vibrate?.(50);
+            scheduleResume(true);
+            return;
+        }
+        if (body && body.status === 'already_used') {
+            showResult({
+                kind: 'used',
+                title: '⚠ Already used',
+                detail: (body.ticket && body.ticket.attendee_name) || 'This ticket was already scanned.',
+                checkedAt: body.ticket && body.ticket.checked_in_at,
+            });
+            navigator.vibrate?.([100, 50, 100]);
+            scheduleResume(false);
+            return;
+        }
+        showResult({
+            kind: 'invalid',
+            title: '✗ Invalid',
+            detail: (body && body.message) || 'Ticket not recognized for this event.',
+        });
+        navigator.vibrate?.([100, 50, 100]);
+        scheduleResume(false);
     }
 
-    /**
-     * Escape HTML
-     */
-    function escHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+    function showResult(r) {
+        const area = $('ke-result-area');
+        if (!area) return;
+        const kindClass = 'is-' + (r.kind || 'invalid');
+        area.innerHTML = '';
+        const card = document.createElement('div');
+        card.className = 'ke-result-card ' + kindClass;
+        card.innerHTML =
+            '<div class="ke-result-title">' + esc(r.title || '') + '</div>' +
+            (r.detail ? '<div class="ke-result-detail">' + esc(r.detail) + '</div>' : '') +
+            (r.ticketType ? '<div class="ke-result-meta">' + esc(r.ticketType) + '</div>' : '') +
+            (r.checkedAt ? '<div class="ke-result-meta">' + esc(r.checkedAt) + '</div>' : '');
+        area.appendChild(card);
+
+        const btn = $('ke-scan-another');
+        if (btn) btn.hidden = (r.kind === 'valid'); // auto-resume hides; manual shows
     }
 
-    // ─── Event Listeners ────────────────────────────────
-    if (startBtn) {
-        startBtn.addEventListener('click', () => {
-            if (scanning) {
-                stopCamera();
-            } else {
-                startCamera();
-            }
+    function clearResult() {
+        const area = $('ke-result-area');
+        if (area) area.innerHTML = '';
+        const btn = $('ke-scan-another');
+        if (btn) btn.hidden = true;
+        lastScannedCode = '';
+    }
+
+    function scheduleResume(autoResume) {
+        if (resumeTimeoutId) {
+            clearTimeout(resumeTimeoutId);
+            resumeTimeoutId = 0;
+        }
+        if (autoResume) {
+            resumeTimeoutId = window.setTimeout(() => {
+                clearResult();
+                scanningPaused = false;
+            }, 2500);
+        }
+    }
+
+    function onScanAnotherClick() {
+        if (resumeTimeoutId) { clearTimeout(resumeTimeoutId); resumeTimeoutId = 0; }
+        clearResult();
+        scanningPaused = false;
+        // CRITICAL: never touch cameraStream here.
+    }
+
+    // ─── Counter ──────────────────────────────────────────────────
+    function setCounter(checked, total) {
+        const c = $('ke-counter-checked');
+        const t = $('ke-counter-total');
+        if (c) c.textContent = String(checked);
+        if (t) t.textContent = String(total);
+    }
+    function bumpCounter(delta) {
+        const c = $('ke-counter-checked');
+        if (!c) return;
+        const next = (parseInt(c.textContent, 10) || 0) + delta;
+        c.textContent = String(next);
+        c.classList.remove('ke-counter-pulse');
+        // Reflow to restart the CSS animation.
+        // eslint-disable-next-line no-unused-expressions
+        void c.offsetWidth;
+        c.classList.add('ke-counter-pulse');
+    }
+
+    // ─── Auth ─────────────────────────────────────────────────────
+    async function authenticate(eventId, password) {
+        const resp = await fetch(REST + 'scanner/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: eventId, password: password }),
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok || !body || !body.success) {
+            const msg = (body && body.message) || 'Authentication failed.';
+            const err = new Error(msg);
+            err.code = body && body.code;
+            err.status = resp.status;
+            throw err;
+        }
+        return body;
+    }
+
+    function persistSession(payload) {
+        sessionToken   = payload.token;
+        tokenExpiresAt = payload.expires_at | 0;
+        currentEventId = payload.event_id | 0;
+        currentEventMeta = {
+            name: payload.event_name || '',
+            organizer: payload.organizer_name || '',
+            total: payload.total_tickets | 0,
+            checked_in: payload.checked_in | 0,
+        };
+        try {
+            sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify({
+                token: sessionToken,
+                expires_at: tokenExpiresAt,
+                event_id: currentEventId,
+                meta: currentEventMeta,
+            }));
+        } catch (_) {}
+    }
+
+    function clearSession() {
+        sessionToken = null;
+        tokenExpiresAt = 0;
+        currentEventId = 0;
+        currentEventMeta = null;
+        try { sessionStorage.removeItem(TOKEN_STORAGE_KEY); } catch (_) {}
+    }
+
+    function sessionExpired() {
+        clearSession();
+        clearResult();
+        scanningPaused = true;
+        showState(STATES.PASSWORD);
+        const err = $('ke-password-error');
+        if (err) {
+            err.textContent = 'Session expired. Re-enter the password to keep scanning.';
+            err.hidden = false;
+        }
+    }
+
+    // ─── Wire-up ──────────────────────────────────────────────────
+    function bindEventSelect() {
+        const sel  = $('ke-event-select');
+        const cont = $('ke-event-continue');
+        if (!sel || !cont) return;
+        sel.addEventListener('change', () => {
+            cont.disabled = !sel.value;
+        });
+        cont.addEventListener('click', () => {
+            if (!sel.value) return;
+            const opt = sel.options[sel.selectedIndex];
+            const evtId    = parseInt(sel.value, 10) || 0;
+            const evtName  = opt ? (opt.textContent || '').split(' · ')[0] : '';
+            const orgName  = opt ? (opt.dataset.organizer || '') : '';
+            currentEventId = evtId;
+            const evNameEl  = $('ke-event-name');
+            const orgNameEl = $('ke-organizer-name');
+            if (evNameEl)  evNameEl.textContent  = evtName;
+            if (orgNameEl) orgNameEl.textContent = orgName;
+            const errEl = $('ke-password-error');
+            if (errEl) { errEl.textContent = ''; errEl.hidden = true; }
+            const pw = $('ke-password-input');
+            if (pw) pw.value = '';
+            showState(STATES.PASSWORD);
+            setTimeout(() => { if (pw) pw.focus(); }, 50);
         });
     }
 
-    // Auto-validate if code provided via URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const autoCode  = urlParams.get('validate');
-    if (autoCode) {
-        validateTicket(autoCode);
+    function bindPasswordGate() {
+        const back = $('ke-back-to-events');
+        const sub  = $('ke-password-submit');
+        const inp  = $('ke-password-input');
+        const err  = $('ke-password-error');
+        if (back) back.addEventListener('click', () => {
+            if (err) { err.textContent = ''; err.hidden = true; }
+            showState(STATES.EVENT_SELECT);
+        });
+        const trySubmit = async () => {
+            const pwd = inp ? inp.value : '';
+            if (!pwd) {
+                if (err) { err.textContent = 'Enter the password.'; err.hidden = false; }
+                return;
+            }
+            if (sub) { sub.disabled = true; sub.textContent = 'Unlocking…'; }
+            try {
+                const payload = await authenticate(currentEventId, pwd);
+                persistSession(payload);
+                if (err) { err.textContent = ''; err.hidden = true; }
+                await enterScanningState();
+            } catch (e) {
+                if (err) {
+                    err.textContent = e.message || 'Incorrect password.';
+                    err.hidden = false;
+                }
+            } finally {
+                if (sub) { sub.disabled = false; sub.textContent = 'Unlock scanner'; }
+            }
+        };
+        if (sub) sub.addEventListener('click', trySubmit);
+        if (inp) inp.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); trySubmit(); }
+        });
     }
 
+    function bindScanningState() {
+        const sw = $('ke-switch-event');
+        if (sw) sw.addEventListener('click', () => {
+            shutdownCamera();
+            clearSession();
+            clearResult();
+            scanningPaused = false;
+            showState(STATES.EVENT_SELECT);
+        });
+        const sa = $('ke-scan-another');
+        if (sa) sa.addEventListener('click', onScanAnotherClick);
+    }
+
+    async function enterScanningState() {
+        showState(STATES.SCANNING);
+        if (currentEventMeta) {
+            setCounter(currentEventMeta.checked_in || 0, currentEventMeta.total || 0);
+            const evNameEl = $('ke-event-name');
+            const orgNameEl = $('ke-organizer-name');
+            if (evNameEl)  evNameEl.textContent  = currentEventMeta.name || evNameEl.textContent;
+            if (orgNameEl) orgNameEl.textContent = currentEventMeta.organizer || orgNameEl.textContent;
+        }
+        clearResult();
+        scanningPaused = false;
+        try { await initCamera(); } catch (_) { /* showResult already surfaced the error */ }
+    }
+
+    function tryResumeFromStorage() {
+        let saved = null;
+        try { saved = JSON.parse(sessionStorage.getItem(TOKEN_STORAGE_KEY) || 'null'); } catch (_) {}
+        if (!saved || !saved.token) return false;
+        const now = Math.floor(Date.now() / 1000);
+        if (saved.expires_at && saved.expires_at <= now + 30) return false; // expired-ish
+        sessionToken     = saved.token;
+        tokenExpiresAt   = saved.expires_at || 0;
+        currentEventId   = saved.event_id || 0;
+        currentEventMeta = saved.meta || null;
+        return true;
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        bindEventSelect();
+        bindPasswordGate();
+        bindScanningState();
+
+        if (tryResumeFromStorage()) {
+            enterScanningState();
+        } else {
+            showState(STATES.EVENT_SELECT);
+        }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            scanningPaused = true;
+        } else {
+            const area = $('ke-result-area');
+            const hasResult = area && area.children.length > 0;
+            if (cameraStream && !hasResult) scanningPaused = false;
+        }
+    });
+
+    window.addEventListener('beforeunload', shutdownCamera);
 })();

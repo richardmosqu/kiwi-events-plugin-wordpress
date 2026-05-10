@@ -1,0 +1,556 @@
+/* ════════════════════════════════════════════════════════════════
+   Public Organizer Profile (/organizers/{slug})
+
+   Scoped under .ke-org-public so it never bleeds into theme styles.
+   Accent tokens (--kep-accent-*) are injected inline by
+   KE_Organizer_Public::enqueue_assets so the organizer's site-wide
+   accent color flows through unchanged.
+
+   IMPORTANT: every selector in this file MUST start with `.ke-org-public`,
+   `.ke-op-`, or an `#ke-op-` id — never a generic class like `.modal`,
+   `.popup`, `.drawer`, or a bare element selector. Cart drawers from
+   WooCommerce, Elementor, XOO, etc. share generic class names; styling
+   them by accident took down checkout in May 2026.
+   ════════════════════════════════════════════════════════════════ */
+
+.ke-org-public {
+    --op-bg: #fafafa;
+    --op-card-bg: #ffffff;
+    --op-ink-1: #0f172a;
+    --op-ink-2: #475569;
+    --op-ink-3: #94a3b8;
+    --op-border: rgba(15,23,42,.08);
+    --op-shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 2px 6px rgba(15,23,42,.05);
+    --op-shadow-md: 0 4px 12px rgba(15,23,42,.06), 0 12px 28px rgba(15,23,42,.08);
+    --op-radius: 16px;
+
+    background: var(--op-bg);
+    color: var(--op-ink-1);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
+
+.ke-org-public *,
+.ke-org-public *::before,
+.ke-org-public *::after { box-sizing: border-box; }
+
+.ke-org-public a { color: inherit; text-decoration: none; }
+.ke-org-public button { font: inherit; cursor: pointer; border: 0; background: transparent; }
+
+/* ── HERO ─────────────────────────────────────────────────────── */
+.ke-op-hero {
+    position: relative;
+    width: 100%;
+    min-height: 460px;
+    background-color: #1e293b;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 80px 20px 0;
+}
+.ke-op-hero.is-no-hero {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    min-height: 320px;
+}
+.ke-op-hero-inner {
+    width: 100%;
+    max-width: 1080px;
+    display: flex;
+    justify-content: center;
+    transform: translateY(64px);
+}
+
+.ke-op-card {
+    background: var(--op-card-bg);
+    border-radius: var(--op-radius);
+    box-shadow: var(--op-shadow-md);
+    padding: 28px 36px 28px;
+    text-align: center;
+    width: 100%;
+    max-width: 560px;
+    position: relative;
+}
+.ke-op-card-logo {
+    width: 96px;
+    height: 96px;
+    margin: -76px auto 16px;
+    border-radius: 50%;
+    background: var(--op-card-bg);
+    border: 4px solid var(--op-card-bg);
+    box-shadow: var(--op-shadow-sm);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ke-op-card-logo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.ke-op-card-logo-fallback {
+    font-size: 40px;
+    line-height: 1;
+}
+.ke-op-card-name {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--op-ink-1);
+    line-height: 1.2;
+}
+.ke-op-card-category {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 4px 14px;
+    background: rgba(var(--kep-accent-rgb), 0.1);
+    color: var(--kep-accent-1);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.ke-op-card-bio {
+    margin: 14px 0 0;
+    color: var(--op-ink-2);
+    font-size: 14.5px;
+    line-height: 1.55;
+}
+
+/* ── TABS ─────────────────────────────────────────────────────── */
+.ke-op-tabs {
+    margin: 96px auto 0;
+    max-width: 1080px;
+    padding: 0 20px;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    border-bottom: 1px solid var(--op-border);
+}
+.ke-op-tab {
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--op-ink-3);
+    border-bottom: 2px solid transparent;
+    transition: color .15s ease, border-color .15s ease;
+    margin-bottom: -1px;
+}
+.ke-op-tab:hover { color: var(--op-ink-2); }
+.ke-op-tab.is-active {
+    color: var(--kep-accent-1);
+    border-bottom-color: var(--kep-accent-1);
+}
+
+/* ── CONTENT ──────────────────────────────────────────────────── */
+.ke-op-content {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+}
+.ke-op-panel {
+    animation: ke-op-fade .2s ease;
+}
+.ke-op-panel[hidden] { display: none; }
+@keyframes ke-op-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.ke-op-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--op-ink-3);
+    grid-column: 1 / -1;
+}
+.ke-op-empty-icon {
+    font-size: 40px;
+    display: block;
+    margin-bottom: 8px;
+    opacity: .8;
+}
+.ke-op-empty p { margin: 0; font-size: 15px; }
+
+/* ── EVENTS ───────────────────────────────────────────────────── */
+.ke-op-events-toggle {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+.ke-op-pill {
+    padding: 8px 18px;
+    background: var(--op-card-bg);
+    border: 1px solid var(--op-border);
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--op-ink-2);
+    transition: all .15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.ke-op-pill:hover:not([disabled]) { border-color: var(--kep-accent-1); color: var(--kep-accent-1); }
+.ke-op-pill.is-active {
+    background: var(--kep-accent-1);
+    color: #fff;
+    border-color: var(--kep-accent-1);
+}
+.ke-op-pill[disabled] { opacity: .4; cursor: not-allowed; }
+.ke-op-pill-count {
+    font-size: 12px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(15,23,42,.08);
+    color: inherit;
+    font-weight: 700;
+}
+.ke-op-pill.is-active .ke-op-pill-count {
+    background: rgba(255,255,255,.22);
+}
+
+.ke-op-events-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+.ke-op-events-grid[hidden] { display: none; }
+
+.ke-op-event-card {
+    background: var(--op-card-bg);
+    border-radius: var(--op-radius);
+    overflow: hidden;
+    box-shadow: var(--op-shadow-sm);
+    transition: transform .2s ease, box-shadow .2s ease;
+    display: flex;
+    flex-direction: column;
+}
+.ke-op-event-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--op-shadow-md);
+}
+.ke-op-event-card.is-past { opacity: .72; }
+.ke-op-event-card.is-past:hover { opacity: 1; }
+
+.ke-op-event-thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    overflow: hidden;
+}
+.ke-op-event-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.ke-op-event-thumb-fallback {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    opacity: .4;
+}
+.ke-op-event-date {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(255,255,255,.95);
+    backdrop-filter: blur(6px);
+    border-radius: 10px;
+    padding: 6px 10px 4px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(15,23,42,.12);
+    min-width: 44px;
+}
+.ke-op-event-month {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--kep-accent-1);
+    line-height: 1;
+}
+.ke-op-event-day {
+    display: block;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--op-ink-1);
+    line-height: 1.1;
+}
+.ke-op-event-meta {
+    padding: 14px 16px 18px;
+    flex: 1;
+}
+.ke-op-event-title {
+    margin: 0 0 8px;
+    font-size: 15.5px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--op-ink-1);
+}
+.ke-op-event-sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 12.5px;
+    color: var(--op-ink-2);
+}
+
+/* ── GALLERY ──────────────────────────────────────────────────── */
+.ke-op-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+.ke-op-gallery-item {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f1f5f9;
+    cursor: pointer;
+    transition: transform .15s ease;
+    padding: 0;
+}
+.ke-op-gallery-item:hover { transform: scale(1.02); }
+.ke-op-gallery-item img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity .2s ease;
+}
+.ke-op-gallery-item:hover img { opacity: .92; }
+
+/* ── LIGHTBOX ─────────────────────────────────────────────────── */
+/* z-index intentionally kept BELOW WooCommerce / theme cart-drawer
+   layers (typically 99999+). Our lightbox should never need to
+   compete with cart UI; if a regression ever leaves it visible, the
+   cart drawer still renders above it and remains interactive.
+   `display: none !important` on [hidden] is belt-and-suspenders so a
+   theme rule like `[hidden] { display: block }` cannot accidentally
+   reveal an empty fixed-position overlay that would block clicks. */
+.ke-op-lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.92);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 60px;
+    animation: ke-op-fade .15s ease;
+}
+.ke-op-lightbox[hidden] { display: none !important; }
+.ke-op-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+.ke-op-lightbox-close,
+.ke-op-lightbox-prev,
+.ke-op-lightbox-next {
+    position: absolute;
+    color: #fff;
+    font-size: 36px;
+    line-height: 1;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.08);
+    transition: background .15s ease;
+}
+.ke-op-lightbox-close:hover,
+.ke-op-lightbox-prev:hover,
+.ke-op-lightbox-next:hover { background: rgba(255,255,255,.18); }
+.ke-op-lightbox-close { top: 20px; right: 20px; font-size: 28px; }
+.ke-op-lightbox-prev { left: 20px; top: 50%; transform: translateY(-50%); }
+.ke-op-lightbox-next { right: 20px; top: 50%; transform: translateY(-50%); }
+
+/* ── CALENDAR ─────────────────────────────────────────────────── */
+.ke-op-calendar {
+    background: var(--op-card-bg);
+    border-radius: var(--op-radius);
+    box-shadow: var(--op-shadow-sm);
+    padding: 20px;
+}
+.ke-op-cal-loading {
+    text-align: center;
+    color: var(--op-ink-3);
+    padding: 40px 0;
+}
+.ke-op-cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+.ke-op-cal-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--op-ink-1);
+}
+.ke-op-cal-nav { display: flex; gap: 6px; }
+.ke-op-cal-nav-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--op-border);
+    background: var(--op-card-bg);
+    color: var(--op-ink-2);
+    font-size: 16px;
+    transition: all .15s ease;
+}
+.ke-op-cal-nav-btn:hover {
+    border-color: var(--kep-accent-1);
+    color: var(--kep-accent-1);
+}
+.ke-op-cal-nav-today {
+    width: auto; padding: 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ke-op-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.ke-op-cal-weekday {
+    text-align: center;
+    padding: 8px 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--op-ink-3);
+    text-transform: uppercase;
+}
+.ke-op-cal-cell {
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    padding: 6px 8px;
+    background: #f8fafc;
+    color: var(--op-ink-2);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: background .15s ease;
+}
+.ke-op-cal-cell.is-other-month { opacity: .35; }
+.ke-op-cal-cell.is-today {
+    background: rgba(var(--kep-accent-rgb), 0.12);
+    color: var(--kep-accent-1);
+    font-weight: 700;
+}
+.ke-op-cal-cell.has-events { background: rgba(var(--kep-accent-rgb), 0.06); cursor: pointer; }
+.ke-op-cal-cell.has-events:hover { background: rgba(var(--kep-accent-rgb), 0.14); }
+.ke-op-cal-day {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+}
+.ke-op-cal-events {
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+.ke-op-cal-event {
+    font-size: 10.5px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--kep-accent-1);
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+.ke-op-cal-event-more {
+    font-size: 10px;
+    color: var(--kep-accent-1);
+    font-weight: 700;
+    margin-top: 1px;
+}
+
+/* Mobile vertical agenda */
+.ke-op-cal-agenda {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+}
+.ke-op-cal-agenda-item {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border-left: 3px solid var(--kep-accent-1);
+}
+.ke-op-cal-agenda-date {
+    text-align: center;
+    flex-shrink: 0;
+}
+.ke-op-cal-agenda-month {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--kep-accent-1);
+    letter-spacing: 0.08em;
+    line-height: 1;
+}
+.ke-op-cal-agenda-day {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--op-ink-1);
+    line-height: 1;
+    margin-top: 2px;
+}
+.ke-op-cal-agenda-title {
+    flex: 1;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--op-ink-1);
+    line-height: 1.3;
+}
+
+/* ── BREAKPOINTS ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .ke-op-events-grid { grid-template-columns: repeat(2, 1fr); }
+    .ke-op-gallery-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .ke-op-hero { min-height: 320px; padding: 60px 16px 0; }
+    .ke-op-hero-inner { transform: translateY(56px); }
+    .ke-op-card { padding: 24px 20px; max-width: 100%; }
+    .ke-op-card-logo { width: 80px; height: 80px; margin-top: -64px; }
+    .ke-op-card-name { font-size: 22px; }
+
+    .ke-op-tabs { margin-top: 80px; gap: 0; }
+    .ke-op-tab { padding: 12px 14px; font-size: 14px; flex: 1; }
+
+    .ke-op-content { padding: 24px 14px 60px; }
+
+    .ke-op-events-grid { grid-template-columns: 1fr; gap: 16px; }
+    .ke-op-gallery-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+    .ke-op-lightbox { padding: 20px; }
+    .ke-op-lightbox-prev, .ke-op-lightbox-next { font-size: 28px; width: 40px; height: 40px; }
+
+    /* Calendar collapses to vertical agenda on mobile. */
+    .ke-op-cal-grid,
+    .ke-op-cal-weekday-row { display: none; }
+    .ke-op-cal-agenda { display: flex; }
+}

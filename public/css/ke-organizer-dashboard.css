@@ -1,0 +1,1317 @@
+/* ──────────────────────────────────────────────────────────────────
+   Kiwi Events — Organizer self-service dashboard
+   Scoped under .ke-org-dash so the theme stylesheet doesn't leak in
+   (and our styles don't escape into the rest of the site).
+
+   Accent color tokens match the plugin-wide convention used by
+   public/css/ke-public.css and public/class-ke-public.php:
+     --kep-accent-1, --kep-accent-2, --kep-accent-rgb, --kep-accent-grad
+   They're written via wp_add_inline_style at runtime from the value of
+   ke_ui_settings.accent_color, so the dashboard always matches the
+   organizer's KiwiEvents brand color. The defaults below are only used
+   if the inline style somehow doesn't load.
+   ────────────────────────────────────────────────────────────────── */
+
+.ke-org-dash-body {
+    margin: 0;
+    background: #f8f8fb;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.ke-org-dash {
+    --kep-accent-1:      #6366f1;
+    --kep-accent-2:      #8b5cf6;
+    --kep-accent-rgb:    99, 102, 241;
+    --kep-accent-grad:   linear-gradient(135deg, var(--kep-accent-1) 0%, var(--kep-accent-2) 100%);
+
+    --kep-text:        #111827;
+    --kep-text-2:      #374151;
+    --kep-muted:       #6b7280;
+    --kep-muted-2:     #9ca3af;
+    --kep-border:      #e5e7eb;
+    --kep-border-soft: rgba(15, 23, 42, 0.06);
+    --kep-bg:          #ffffff;
+    --kep-page:        #f8f8fb;
+    --kep-success:     #10b981;
+    --kep-danger:      #ef4444;
+    --kep-warn:        #f59e0b;
+
+    --kep-radius:      18px;
+    --kep-radius-sm:   12px;
+    --kep-r-pill:      100px;            /* every button is a pill */
+    --kep-shadow:      0 1px 3px rgba(0, 0, 0, 0.04);
+    --kep-shadow-lg:   0 12px 30px rgba(15, 23, 42, 0.10);
+
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+    color: var(--kep-text);
+    line-height: 1.55;
+    min-height: 100vh;
+    background: var(--kep-page);
+}
+
+.ke-org-dash *,
+.ke-org-dash *::before,
+.ke-org-dash *::after { box-sizing: border-box; }
+
+/* ──────────────────────────────────────────────────────────────
+   Pill buttons (BUG 2)
+   Every <button> inside .ke-org-dash is pill-shaped by default.
+   Cards stay var(--kep-radius); inputs stay var(--kep-radius-sm).
+   ────────────────────────────────────────────────────────────── */
+
+.ke-org-dash button {
+    border-radius: var(--kep-r-pill);
+    font-family: inherit;
+    cursor: pointer;
+    transition: filter .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease, transform .05s ease;
+}
+.ke-org-dash button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Primary pill — SOLID accent + white BOLD text. No gradient or shadow:
+   any tinted shadow over a chromatic accent reads as a pink/rose halo on
+   some panels. SVG icons use currentColor and inherit the white from the
+   button to stay in lock-step with the text color. */
+.ke-btn-primary,
+.ke-org-login-submit,
+.ke-org-export--csv,
+.ke-org-export--csv-top,
+.ke-org-export--pdf-top,
+.ke-org-event-pdf-btn {
+    border: none;
+    background: var(--kep-accent-1);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: none;
+    text-shadow: none;
+}
+.ke-btn-primary svg,
+.ke-org-login-submit svg,
+.ke-org-export--csv svg,
+.ke-org-export--csv-top svg,
+.ke-org-export--pdf-top svg,
+.ke-org-event-pdf-btn svg {
+    color: #ffffff;
+    stroke: currentColor;
+}
+.ke-btn-primary:hover,
+.ke-org-login-submit:hover,
+.ke-org-export--csv:hover,
+.ke-org-export--csv-top:hover,
+.ke-org-export--pdf-top:hover,
+.ke-org-event-pdf-btn:hover {
+    filter: brightness(1.06);
+    box-shadow: none;
+}
+
+/* Secondary pill — low-emphasis neutral gray + dark text. Spec colors,
+   not theme tokens, so a tinted accent never bleeds through. */
+.ke-btn-secondary,
+.ke-org-logout,
+.ke-org-login-admin,
+.ke-org-pagination button {
+    border: none;
+    background: rgba(0, 0, 0, 0.04);
+    color: #09090b;
+    font-weight: 600;
+}
+.ke-btn-secondary:hover,
+.ke-org-logout:hover,
+.ke-org-login-admin:hover,
+.ke-org-pagination button:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.08);
+    color: #09090b;
+}
+
+/* ── Login state ─────────────────────────────────────────────────── */
+
+.ke-org-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+        radial-gradient(1200px 600px at 100% -10%, rgba(var(--kep-accent-rgb), 0.10), transparent 60%),
+        radial-gradient(800px 500px at -20% 110%, rgba(var(--kep-accent-rgb), 0.08), transparent 55%),
+        var(--kep-page);
+}
+
+.ke-org-login-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--kep-bg);
+    border-radius: var(--kep-radius);
+    box-shadow: var(--kep-shadow-lg);
+    padding: 40px 32px;
+    text-align: center;
+}
+
+.ke-org-login-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 20px;
+    display: block;
+}
+.ke-org-login-logo--text {
+    background: var(--kep-accent-grad);
+    color: #fff;
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 80px;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+}
+
+.ke-org-login-title {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--kep-text);
+    letter-spacing: -0.02em;
+}
+.ke-org-login-subtitle {
+    margin: 0 0 28px;
+    font-size: 13px;
+    color: var(--kep-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+}
+
+.ke-org-login-form { text-align: left; }
+
+.ke-org-login-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kep-text-2);
+    margin-bottom: 8px;
+}
+
+.ke-org-login-input-wrap {
+    position: relative;
+    margin-bottom: 16px;
+}
+.ke-org-login-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 48px 0 14px;
+    border: 1px solid var(--kep-border);
+    border-radius: var(--kep-radius-sm);
+    font-size: 15px;
+    background: #fafbfc;
+    color: var(--kep-text);
+    font-family: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.ke-org-login-input:focus {
+    outline: none;
+    border-color: var(--kep-accent-1);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.18);
+}
+
+/* Eye-icon password toggle — pill, neutral */
+.ke-org-login-toggle {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--kep-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--kep-r-pill);
+}
+.ke-org-login-toggle:hover { color: var(--kep-text); background: rgba(0,0,0,0.05); }
+
+.ke-org-login-error {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--kep-danger);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ke-org-login-submit {
+    width: 100%;
+    height: 48px;
+    font-size: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.ke-org-login-submit:active { transform: scale(0.99); }
+
+.ke-org-login-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    display: none;
+    animation: keOrgSpin .7s linear infinite;
+}
+.ke-org-login-submit.is-loading .ke-org-login-spinner { display: inline-block; }
+.ke-org-login-submit.is-loading .ke-org-login-submit-label { opacity: .85; }
+
+@keyframes keOrgSpin { to { transform: rotate(360deg); } }
+
+.ke-org-login-admin {
+    width: 100%;
+    margin-top: 12px;
+    height: 40px;
+    font-size: 13px;
+}
+
+.ke-org-login-help {
+    margin: 24px 0 0;
+    font-size: 13px;
+    color: var(--kep-muted);
+    text-align: center;
+}
+.ke-org-login-help a {
+    color: var(--kep-accent-1);
+    text-decoration: none;
+    font-weight: 500;
+}
+.ke-org-login-help a:hover { text-decoration: underline; }
+
+/* ── Authenticated dashboard ─────────────────────────────────────── */
+
+.ke-org-header {
+    background: var(--kep-bg);
+    border-bottom: 1px solid var(--kep-border-soft);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    backdrop-filter: saturate(140%) blur(8px);
+    -webkit-backdrop-filter: saturate(140%) blur(8px);
+}
+.ke-org-header-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ke-org-header-logo  {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: var(--kep-shadow);
+}
+.ke-org-header-logo--text {
+    background: var(--kep-accent-grad);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    text-transform: uppercase;
+}
+.ke-org-header-name  { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.ke-org-header-sub   {
+    margin: 0;
+    font-size: 11px;
+    color: var(--kep-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+}
+.ke-org-header-controls { display: flex; align-items: center; gap: 10px; }
+
+/* Date range — subtle white pill, NOT styled as a primary action. Thin
+   neutral border keeps it visually distinct from the solid-accent
+   primary buttons that sit beside it. */
+.ke-org-range {
+    height: 38px;
+    padding: 8px 18px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 100px;
+    background: #ffffff;
+    color: #09090b;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ke-org-range:hover { border-color: rgba(0, 0, 0, 0.16); }
+.ke-org-range:focus {
+    outline: none;
+    border-color: var(--kep-accent-1);
+    box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.15);
+}
+
+.ke-org-search {
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--kep-border);
+    border-radius: var(--kep-radius-sm);
+    background: #fff;
+    color: var(--kep-text);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: text;
+    transition: border-color .15s ease, box-shadow .15s ease;
+    min-width: 240px;
+}
+.ke-org-search:focus {
+    outline: none;
+    border-color: var(--kep-accent-1);
+    box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.15);
+}
+
+.ke-org-logout {
+    height: 38px;
+    padding: 0 18px;
+    font-size: 13px;
+}
+
+.ke-org-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 28px 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+/* Top-of-dashboard global export bar (BUG 5) */
+.ke-org-top-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+    align-items: center;
+}
+.ke-org-export--csv-top,
+.ke-org-export--pdf-top {
+    height: 44px;
+    padding: 0 22px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.ke-org-export--csv-top svg,
+.ke-org-export--pdf-top svg { width: 16px; height: 16px; }
+
+.ke-org-section { display: flex; flex-direction: column; gap: 12px; }
+.ke-org-section-eyebrow {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--kep-accent-1);
+}
+
+/* Card shell */
+.ke-org-card {
+    background: var(--kep-bg);
+    border-radius: var(--kep-radius);
+    box-shadow: var(--kep-shadow);
+    border: 1px solid var(--kep-border-soft);
+    overflow: hidden;
+}
+.ke-org-card-header {
+    padding: 20px 24px 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.ke-org-card-header--toolbar { flex-wrap: wrap; }
+.ke-org-card-titles  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ke-org-card-title    { margin: 0; font-size: 16px; font-weight: 700; color: var(--kep-text); letter-spacing: -0.01em; }
+.ke-org-card-subtitle { margin: 0; font-size: 13px; color: var(--kep-muted); }
+
+/* Stat cards */
+.ke-org-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+.ke-org-stats-loading {
+    grid-column: 1 / -1;
+    padding: 40px;
+    text-align: center;
+    color: var(--kep-muted);
+    background: var(--kep-bg);
+    border-radius: var(--kep-radius);
+    box-shadow: var(--kep-shadow);
+}
+.ke-org-stats-error {
+    grid-column: 1 / -1;
+    padding: 24px;
+    text-align: center;
+    color: var(--kep-danger);
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.18);
+    border-radius: var(--kep-radius);
+    font-size: 14px;
+    font-weight: 500;
+}
+.ke-org-stat {
+    background: var(--kep-bg);
+    border-radius: var(--kep-radius);
+    box-shadow: var(--kep-shadow);
+    border: 1px solid var(--kep-border-soft);
+    padding: 22px 22px 20px;
+    position: relative;
+    overflow: hidden;
+}
+.ke-org-stat-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    color: var(--kep-accent-1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+.ke-org-stat-icon svg { width: 18px; height: 18px; }
+.ke-org-stat-label {
+    font-size: 11px;
+    color: var(--kep-muted);
+    margin: 0 0 6px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+}
+.ke-org-stat-value {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--kep-text);
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+}
+.ke-org-stat-value--accent {
+    color: var(--kep-accent-1);
+}
+.ke-org-stat-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.ke-org-stat-trend--up   { color: var(--kep-success); }
+.ke-org-stat-trend--down { color: var(--kep-danger); }
+.ke-org-stat-trend--flat { color: var(--kep-muted); }
+.ke-org-stat-trend--new  {
+    color: var(--kep-accent-1);
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    padding: 2px 10px;
+    border-radius: var(--kep-r-pill);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+}
+.ke-org-stat-trend-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--kep-accent-1);
+    box-shadow: 0 0 0 0 rgba(var(--kep-accent-rgb), 0.6);
+    animation: keOrgPulse 2s infinite;
+}
+
+/* Chart */
+.ke-org-chart-wrap { padding: 8px 20px 22px; min-height: 280px; }
+.ke-org-chart-error {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--kep-muted);
+    font-size: 14px;
+}
+
+/* Events list (BUG 3 + 5) */
+.ke-org-events { padding: 8px; }
+.ke-org-event-row {
+    padding: 14px 16px;
+    border-radius: var(--kep-radius-sm);
+    display: grid;
+    grid-template-columns: 24px 1.4fr auto auto auto auto;
+    gap: 16px;
+    align-items: center;
+    transition: background .12s ease;
+}
+.ke-org-event-row.is-all-row {
+    grid-template-columns: 1fr;
+}
+.ke-org-event-row:hover     { background: rgba(15, 23, 42, 0.03); }
+.ke-org-event-row.is-active { background: rgba(var(--kep-accent-rgb), 0.07); }
+.ke-org-event-name { font-weight: 600; color: var(--kep-text); }
+.ke-org-event-date { font-size: 13px; color: var(--kep-muted); margin-top: 2px; }
+.ke-org-event-stat { font-size: 14px; color: var(--kep-text-2); white-space: nowrap; }
+.ke-org-event-pdf-btn {
+    height: 30px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+/* Chevron toggle for ticket-type breakdown */
+.ke-org-event-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--kep-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background .12s ease, color .12s ease, transform .15s ease;
+}
+.ke-org-event-toggle:hover { background: rgba(15, 23, 42, 0.06); color: var(--kep-text); }
+.ke-org-event-toggle .ke-org-event-chevron { width: 14px; height: 14px; transition: transform .15s ease; }
+.ke-org-event-row.is-expanded .ke-org-event-toggle .ke-org-event-chevron { transform: rotate(180deg); }
+.ke-org-event-toggle-spacer { width: 24px; height: 24px; display: inline-block; }
+
+/* Indented ticket-type breakdown sub-rows beneath an event */
+.ke-org-event-types {
+    display: none;
+    padding: 4px 16px 12px 56px; /* indent under chevron + name */
+    border-radius: var(--kep-radius-sm);
+}
+.ke-org-event-types.is-open { display: block; }
+.ke-org-event-types-empty {
+    font-size: 13px;
+    color: var(--kep-muted);
+    font-style: italic;
+    padding: 8px 0;
+}
+.ke-org-type-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 14px;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--kep-text-2);
+    border-bottom: 1px dashed var(--kep-border-soft);
+}
+.ke-org-type-row:last-child { border-bottom: none; }
+.ke-org-type-row--total {
+    margin-top: 2px;
+    padding-top: 8px;
+    font-weight: 700;
+    color: var(--kep-text);
+    border-top: 1px solid var(--kep-border);
+    border-bottom: none;
+}
+.ke-org-type-name { font-weight: 500; }
+.ke-org-type-name::before { content: "└─ "; color: var(--kep-muted); margin-right: 4px; }
+.ke-org-type-row--total .ke-org-type-name::before { content: ""; }
+.ke-org-type-sold { white-space: nowrap; color: var(--kep-text-2); }
+.ke-org-type-rev  { white-space: nowrap; color: var(--kep-text-2); }
+.ke-org-type-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.ke-org-type-badge--free {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--kep-success);
+}
+
+/* Attendees toolbar + table */
+.ke-org-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.ke-org-export--csv {
+    height: 38px;
+    padding: 0 18px;
+    font-size: 13px;
+}
+
+.ke-org-attendees { padding: 0; }
+.ke-org-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ke-org-table th, .ke-org-table td {
+    padding: 14px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--kep-border-soft);
+}
+.ke-org-table th {
+    font-weight: 700;
+    color: var(--kep-muted);
+    background: #fafbfc;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+}
+.ke-org-table tr:last-child td { border-bottom: none; }
+.ke-org-table tbody tr:hover  { background: rgba(15, 23, 42, 0.02); }
+
+.ke-org-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--kep-r-pill);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.ke-org-pill--in    { background: rgba(16, 185, 129, 0.12); color: var(--kep-success); }
+.ke-org-pill--out   { background: rgba(107, 114, 128, 0.12); color: var(--kep-muted); }
+.ke-org-pill--cxl   { background: rgba(239, 68, 68, 0.12); color: var(--kep-danger); }
+
+.ke-org-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-top: 1px solid var(--kep-border-soft);
+    font-size: 13px;
+    color: var(--kep-muted);
+}
+.ke-org-pagination button {
+    height: 32px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+/* Activity feed */
+.ke-org-activity { list-style: none; margin: 0; padding: 8px 0; }
+.ke-org-activity li {
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--kep-border-soft);
+}
+.ke-org-activity li:last-child { border-bottom: none; }
+.ke-org-activity-icon {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    color: var(--kep-accent-1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex: 0 0 auto;
+}
+.ke-org-activity-body { flex: 1; min-width: 0; }
+.ke-org-activity-text {
+    margin: 0;
+    font-size: 14px;
+    color: var(--kep-text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ke-org-activity-text strong { color: var(--kep-text); font-weight: 700; }
+.ke-org-activity-meta {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--kep-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ke-org-activity-right {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    text-align: right;
+}
+.ke-org-activity-amount {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--kep-text);
+}
+.ke-org-activity-amount--free {
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    color: var(--kep-accent-1);
+    padding: 2px 10px;
+    border-radius: var(--kep-r-pill);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.ke-org-activity-time {
+    font-size: 12px;
+    color: var(--kep-muted);
+}
+.ke-org-activity-pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--kep-success);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+    animation: keOrgPulse 2s infinite;
+}
+@keyframes keOrgPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+    70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.ke-org-empty { padding: 40px 24px; text-align: center; color: var(--kep-muted); font-size: 14px; }
+
+.ke-org-footer {
+    text-align: center;
+    color: var(--kep-muted-2);
+    font-size: 12px;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+}
+
+/* ── Live status bar (last-updated + retry banner) ───────────────── */
+
+.ke-org-status-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.ke-org-last-updated {
+    margin: 0;
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--kep-muted);
+    font-variant-numeric: tabular-nums;
+}
+.ke-org-last-updated-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--kep-success);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+    animation: keOrgPulse 2s infinite;
+}
+.ke-org-status-banner {
+    background: rgba(245, 158, 11, 0.10);
+    color: #92400e;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    border-radius: var(--kep-radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+
+/* Belt-and-suspenders: at no width should the dashboard cause the
+   document to scroll horizontally — narrow phones (360px) regularly
+   trigger this if any descendant has min-width set too large. */
+.ke-org-dash-body { overflow-x: hidden; }
+
+@media (max-width: 1024px) {
+    .ke-org-main { padding: 24px 20px 48px; gap: 28px; }
+    .ke-org-header { padding: 16px 20px; }
+    .ke-org-stats { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    /* Drop the date column once columns get tight; keep name + stats. */
+    .ke-org-event-row,
+    .ke-org-event-row.is-all-row {
+        grid-template-columns: 24px 1.4fr auto auto auto;
+    }
+    .ke-org-event-stat:nth-of-type(3) { display: none; } /* check-in column */
+    .ke-org-search { min-width: 180px; }
+}
+
+@media (max-width: 768px) {
+    /* Keep the header sticky + blurred but stack contents so the brand,
+       range, and sign-out don't fight for the same row on a phone. */
+    .ke-org-header {
+        padding: 12px 16px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .ke-org-header-brand { justify-content: flex-start; }
+    .ke-org-header-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    /* Full-width range selector on mobile (BUG 3 spec). */
+    .ke-org-range {
+        flex: 1 1 100%;
+        width: 100%;
+        height: 44px;
+        font-size: 15px;
+    }
+    .ke-org-logout {
+        flex: 1 1 100%;
+        width: 100%;
+        height: 44px;
+        font-size: 14px;
+    }
+
+    .ke-org-main { padding: 20px 16px 40px; gap: 24px; }
+
+    /* 1-col stats under 768px (BUG 3 spec). */
+    .ke-org-stats { grid-template-columns: 1fr; gap: 12px; }
+    .ke-org-stat { padding: 18px 16px; }
+
+    /* Last-updated indicator: align with the rest of the stacked content. */
+    .ke-org-last-updated { align-self: flex-start; }
+
+    .ke-org-card-header { padding: 16px 18px 12px; }
+    .ke-org-card-header--toolbar { flex-direction: column; align-items: stretch; }
+    .ke-org-toolbar { width: 100%; }
+    .ke-org-search {
+        min-width: 0;
+        flex: 1;
+        height: 44px;        /* 44px touch target */
+        font-size: 15px;
+    }
+
+    /* Vertical event-row layout under 768px (BUG 3 spec). Each stat
+       wraps to its own line; PDF button drops to full width. */
+    .ke-org-event-row,
+    .ke-org-event-row.is-all-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+        padding: 14px;
+    }
+    .ke-org-event-stat:nth-of-type(3) { display: block; } /* unhide check-in */
+    .ke-org-event-types { padding: 4px 0 12px 16px; }
+    .ke-org-event-pdf-btn { width: 100%; justify-content: center; height: 40px; }
+    .ke-org-event-toggle, .ke-org-event-toggle-spacer { display: none; }
+
+    /* Full-width primary buttons (BUG 3 spec) + 44px touch targets. */
+    .ke-org-top-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+    .ke-org-export--csv-top,
+    .ke-org-export--pdf-top {
+        width: 100%;
+        height: 48px;
+        font-size: 15px;
+    }
+    .ke-org-export--csv {
+        width: 100%;
+        height: 44px;
+        font-size: 14px;
+    }
+
+    /* Attendees as a stacked card list on mobile (BUG 3 spec). */
+    .ke-org-table thead { display: none; }
+    .ke-org-table, .ke-org-table tbody, .ke-org-table tr, .ke-org-table td { display: block; width: 100%; }
+    .ke-org-table tr {
+        padding: 14px 18px;
+        border: 1px solid var(--kep-border-soft);
+        border-radius: var(--kep-radius-sm);
+        margin: 0 0 10px;
+        background: #fff;
+    }
+    .ke-org-table td { padding: 4px 0; border: none; }
+    .ke-org-table td::before {
+        content: attr(data-label) ": ";
+        font-weight: 700;
+        color: var(--kep-muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-right: 6px;
+    }
+
+    .ke-org-pagination button { height: 44px; padding: 0 18px; }
+
+    .ke-org-activity li { padding: 14px 18px; gap: 12px; }
+    .ke-org-activity-text, .ke-org-activity-meta { white-space: normal; }
+}
+
+/* Narrowest common phone width — make sure nothing escapes the viewport. */
+@media (max-width: 360px) {
+    .ke-org-main { padding: 16px 12px 32px; }
+    .ke-org-header { padding: 12px; }
+    .ke-org-stat-value { font-size: 24px; }
+}
+
+/* ─── Reservations panel ─────────────────────────────────────────────
+   Lives inside the same .ke-org-section/.ke-org-card scaffolding used
+   by the rest of the dashboard, so spacing/typography match without
+   redefining the basics. Only the bits unique to reservations live
+   here: status pills, list rows, action buttons, detail drawer.
+   ────────────────────────────────────────────────────────────────── */
+
+.ke-org-toolbar--resv {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.ke-org-resv-event-filter,
+.ke-org-resv-date {
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 13px;
+    color: #18181b;
+    font-family: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ke-org-resv-event-filter:focus,
+.ke-org-resv-date:focus {
+    outline: none;
+    border-color: var(--kep-accent-1);
+    box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.15);
+}
+
+.ke-org-resv-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 20px 0;
+    margin-bottom: -4px;
+}
+.ke-org-resv-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid #e4e4e7;
+    border-radius: 999px;
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #52525b;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.ke-org-resv-pill:hover {
+    border-color: rgba(var(--kep-accent-rgb), 0.4);
+    color: #18181b;
+}
+.ke-org-resv-pill.is-active {
+    background: var(--kep-accent-1);
+    border-color: var(--kep-accent-1);
+    color: #ffffff;
+}
+.ke-org-resv-pill-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    padding: 0 6px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    font-size: 11px;
+    font-weight: 700;
+}
+.ke-org-resv-pill.is-active .ke-org-resv-pill-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+}
+
+.ke-org-reservations {
+    padding: 16px 20px 20px;
+    transition: opacity .15s ease;
+}
+.ke-org-reservations.is-refreshing { opacity: 0.55; }
+.ke-org-resv-loading,
+.ke-org-resv-error {
+    padding: 20px;
+    text-align: center;
+    color: #71717a;
+    font-size: 14px;
+}
+.ke-org-resv-error { color: #b91c1c; }
+
+.ke-org-resv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ke-org-resv-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid #f0f0f5;
+    border-radius: 12px;
+    background: #ffffff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ke-org-resv-row:hover {
+    border-color: rgba(var(--kep-accent-rgb), 0.4);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+.ke-org-resv-row-main { flex: 1 1 auto; min-width: 0; }
+.ke-org-resv-row-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #18181b;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ke-org-resv-row-code {
+    font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kep-accent-1);
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+}
+.ke-org-resv-row-meta {
+    font-size: 12px;
+    color: #71717a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ke-org-resv-row-party {
+    font-size: 12px;
+    color: #18181b;
+    font-weight: 500;
+    margin-top: 2px;
+}
+.ke-org-resv-row-side {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.ke-org-resv-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+.ke-org-resv-status--pending           { background: #fef3c7; color: #b45309; }
+.ke-org-resv-status--confirmed         { background: #dcfce7; color: #15803d; }
+.ke-org-resv-status--cancelled         { background: #f1f5f9; color: #475569; }
+.ke-org-resv-status--cancelled_no_show { background: #fee2e2; color: #b91c1c; }
+.ke-org-resv-status--cancelled_by_venue{ background: #fee2e2; color: #b91c1c; }
+.ke-org-resv-status--declined          { background: #fee2e2; color: #b91c1c; }
+
+.ke-org-resv-row-open {
+    height: 32px;
+    padding: 0 14px;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: #18181b;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+.ke-org-resv-row-open:hover {
+    background: #fafafa;
+    border-color: var(--kep-accent-1);
+    color: var(--kep-accent-1);
+}
+
+.ke-org-resv-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding-top: 14px;
+}
+.ke-org-resv-page-btn {
+    height: 32px;
+    padding: 0 14px;
+    border: 1px solid #e4e4e7;
+    border-radius: 8px;
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: #18181b;
+    cursor: pointer;
+}
+.ke-org-resv-page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ke-org-resv-page-info { font-size: 12px; color: #52525b; }
+
+/* ── Detail drawer ─────────────────────────────────────────────── */
+
+.ke-org-resv-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    display: flex;
+    justify-content: flex-end;
+}
+.ke-org-resv-drawer[hidden] { display: none; }
+.ke-org-resv-drawer-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+}
+.ke-org-resv-drawer-panel {
+    position: relative;
+    width: min(420px, 100%);
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    box-shadow: -16px 0 48px rgba(15, 23, 42, 0.18);
+    animation: keOrgResvDrawerIn .22s ease-out;
+}
+@keyframes keOrgResvDrawerIn {
+    from { transform: translateX(24px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+.ke-org-resv-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid #f0f0f5;
+}
+.ke-org-resv-drawer-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #18181b;
+    margin: 0;
+}
+.ke-org-resv-drawer-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 22px;
+    line-height: 1;
+    color: #71717a;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+}
+.ke-org-resv-drawer-close:hover {
+    background: #f4f4f5;
+    color: #18181b;
+}
+.ke-org-resv-drawer-body {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 18px 20px;
+}
+.ke-org-resv-detail-row {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f4f4f5;
+}
+.ke-org-resv-detail-row:last-child { border-bottom: none; }
+.ke-org-resv-detail-label {
+    flex: 0 0 110px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.ke-org-resv-detail-value {
+    flex: 1 1 auto;
+    font-size: 13px;
+    color: #18181b;
+    word-break: break-word;
+}
+.ke-org-resv-detail-extras {
+    margin-top: 18px;
+    padding: 12px 14px;
+    background: #fafafa;
+    border-radius: 12px;
+}
+.ke-org-resv-detail-extras h4 {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #71717a;
+    margin: 0 0 8px;
+}
+
+.ke-org-resv-drawer-actions {
+    padding: 14px 20px 20px;
+    border-top: 1px solid #f0f0f5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.ke-org-resv-actions-note {
+    margin: 0;
+    font-size: 12px;
+    color: #71717a;
+}
+.ke-org-resv-btn {
+    flex: 1 1 auto;
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid #e4e4e7;
+    border-radius: 10px;
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #18181b;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.ke-org-resv-btn:hover { background: #fafafa; border-color: var(--kep-accent-1); }
+.ke-org-resv-btn.is-loading,
+.ke-org-resv-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ke-org-resv-btn--primary {
+    background: var(--kep-accent-1);
+    border-color: var(--kep-accent-1);
+    color: #ffffff;
+    box-shadow: none;
+}
+.ke-org-resv-btn--primary:hover {
+    background: var(--kep-accent-2, var(--kep-accent-1));
+    border-color: var(--kep-accent-2, var(--kep-accent-1));
+    color: #ffffff;
+}
+.ke-org-resv-btn--danger {
+    color: #b91c1c;
+    border-color: #fecaca;
+    background: #ffffff;
+}
+.ke-org-resv-btn--danger:hover {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
+/* When the drawer is open, lock background scroll so it feels modal. */
+body.ke-org-resv-drawer-open { overflow: hidden; }
+
+@media (max-width: 640px) {
+    .ke-org-toolbar--resv { flex-direction: column; align-items: stretch; }
+    .ke-org-resv-row { flex-wrap: wrap; }
+    .ke-org-resv-row-side { width: 100%; justify-content: space-between; }
+    .ke-org-resv-drawer-panel { width: 100%; }
+    .ke-org-resv-detail-label { flex-basis: 90px; }
+}

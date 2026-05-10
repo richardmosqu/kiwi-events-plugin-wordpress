@@ -207,9 +207,6 @@ class KE_Admin_Ticket_Types {
                     + '<div class="ke-ticket-field"><label>Min Per Order</label><input type="number" name="ke_tt[' + idx + '][min_per_order]" value="1" min="1"></div>'
                     + '<div class="ke-ticket-field"><label>Max Per Order</label><input type="number" name="ke_tt[' + idx + '][max_per_order]" value="10" min="1"></div>'
                     + '<div class="ke-ticket-field"><label>Status</label><select name="ke_tt[' + idx + '][status]"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>'
-                    + '<div class="ke-ticket-section-label">Sale Window</div>'
-                    + '<div class="ke-ticket-field"><label>Sale Start</label><input type="datetime-local" name="ke_tt[' + idx + '][sale_start]"></div>'
-                    + '<div class="ke-ticket-field"><label>Sale End</label><input type="datetime-local" name="ke_tt[' + idx + '][sale_end]"></div>'
                     + '<div class="ke-ticket-section-label">Custom Fields</div>'
                     + '<div class="ke-ticket-field-full" style="grid-column:1/-1;">'
                     + '<p style="font-size:12px;color:#6b7280;margin:0 0 8px;">Ask attendees for extra information (e.g. T-shirt size, dietary requirements).</p>'
@@ -422,18 +419,6 @@ class KE_Admin_Ticket_Types {
                     </select>
                 </div>
 
-                <div class="ke-ticket-section-label">Sale Window</div>
-
-                <!-- Sale Dates -->
-                <div class="ke-ticket-field">
-                    <label>Sale Start</label>
-                    <input type="datetime-local" name="ke_tt[<?php echo $index; ?>][sale_start]" value="<?php echo esc_attr( $type->sale_start ? date( 'Y-m-d\TH:i', strtotime( $type->sale_start ) ) : '' ); ?>">
-                </div>
-                <div class="ke-ticket-field">
-                    <label>Sale End</label>
-                    <input type="datetime-local" name="ke_tt[<?php echo $index; ?>][sale_end]" value="<?php echo esc_attr( $type->sale_end ? date( 'Y-m-d\TH:i', strtotime( $type->sale_end ) ) : '' ); ?>">
-                </div>
-
                 <div class="ke-ticket-section-label">Custom Fields</div>
 
                 <!-- Custom Fields Builder -->
@@ -491,8 +476,6 @@ class KE_Admin_Ticket_Types {
                 'quantity_total' => absint( $tt['quantity_total'] ?? 0 ),
                 'min_per_order'  => max( 1, absint( $tt['min_per_order'] ?? 1 ) ),
                 'max_per_order'  => max( 1, absint( $tt['max_per_order'] ?? 10 ) ),
-                'sale_start'     => ! empty( $tt['sale_start'] ) ? sanitize_text_field( $tt['sale_start'] ) : null,
-                'sale_end'       => ! empty( $tt['sale_end'] ) ? sanitize_text_field( $tt['sale_end'] ) : null,
                 'show_remaining' => sanitize_text_field( $tt['show_remaining'] ?? 'yes' ),
                 'status'         => sanitize_text_field( $tt['status'] ?? 'active' ),
                 'custom_fields'  => $cf_clean,

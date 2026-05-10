@@ -24,6 +24,15 @@ class Kiwi_Events {
     /** @var KE_Scanner */
     private $scanner;
 
+    /** @var KE_Scanner_Password */
+    private $scanner_password;
+
+    /** @var KE_Organizer_Dashboard */
+    private $organizer_dashboard;
+
+    /** @var KE_Organizer_Public */
+    private $organizer_public;
+
     /**
      * Initialize all components
      */
@@ -66,5 +75,17 @@ class Kiwi_Events {
         // Scanner
         $this->scanner = new KE_Scanner();
         $this->scanner->init();
+
+        // Scanner password (organizer-level)
+        $this->scanner_password = new KE_Scanner_Password();
+        $this->scanner_password->init();
+
+        // Organizer self-service dashboard at /organizer/{slug}
+        $this->organizer_dashboard = new KE_Organizer_Dashboard();
+        $this->organizer_dashboard->init();
+
+        // Public organizer profile page at /organizers/{slug} (plural).
+        $this->organizer_public = new KE_Organizer_Public();
+        $this->organizer_public->init();
     }
 }

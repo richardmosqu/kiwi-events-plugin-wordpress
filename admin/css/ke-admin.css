@@ -1275,6 +1275,22 @@
     color: #dc2626;
 }
 
+.ke-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    vertical-align: -2px;
+    margin-right: 6px;
+    animation: ke-spin 0.7s linear infinite;
+}
+
+@keyframes ke-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* ─── Service fee form ─── */
 .ke-fee-form-wrap {
     background: rgba(248, 250, 252, 0.8);

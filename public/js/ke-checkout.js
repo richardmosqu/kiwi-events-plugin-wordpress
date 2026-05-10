@@ -15,6 +15,32 @@ jQuery(document).ready(function($) {
     const $sheet       = $('#ke-checkout-sheet');
     const $stepQty     = $('#ke-sheet-step-qty');
     const $stepDetails = $('#ke-sheet-step-details');
+    const $stepBlocked = $('#ke-sheet-step-blocked');
+
+    const accessCfg    = (typeof kePublic !== 'undefined' && kePublic.access) ? kePublic.access : null;
+    const userCfg      = (typeof kePublic !== 'undefined' && kePublic.user)   ? kePublic.user   : null;
+
+    function withRedirect(url) {
+        if (!url) return '#';
+        const redirect = encodeURIComponent(window.location.href);
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'redirect_to=' + redirect;
+    }
+
+    function showLoginBlocked(ticketName) {
+        if (!accessCfg) return;
+        $('#ke-sheet-blocked-ticket').text(ticketName || '');
+        $('#ke-sheet-blocked-msg').text(accessCfg.message || '');
+        $('#ke-sheet-login-btn').attr('href', withRedirect(accessCfg.loginUrl));
+        $('#ke-sheet-register-btn').attr('href', withRedirect(accessCfg.registerUrl));
+        $stepQty.hide();
+        $stepDetails.hide();
+        $stepBlocked.show();
+        $overlay.addClass('active');
+        $sheet.addClass('active');
+        $('body').css('overflow', 'hidden');
+        sheetCloseable = false;
+        setTimeout(function() { sheetCloseable = true; }, 450);
+    }
 
     // Service fee injected per-event via wp_localize_script
     const activeFee = (typeof kePublic !== 'undefined' && kePublic.serviceFee) ? kePublic.serviceFee : null;
@@ -34,6 +60,12 @@ jQuery(document).ready(function($) {
         e.preventDefault();
         e.stopPropagation();
         const $card = $(this);
+
+        // Access gate: if login required and user is a guest, show blocked state.
+        if (accessCfg && accessCfg.requireLogin && (!userCfg || !userCfg.loggedIn)) {
+            showLoginBlocked($card.data('name'));
+            return;
+        }
 
         currentTicket = {
             id:           parseInt($card.data('ticket-type-id')),
@@ -135,7 +167,18 @@ jQuery(document).ready(function($) {
                 if (fid) customData[fid] = val;
                 if ($(this).prop('required') && !val) valid = false;
             });
-            attendees.push({ name: n, email: email, custom_fields: customData });
+            // Per-event extra fields are namespaced separately so the server
+            // can route them to KE_Event_Extra_Fields::validate_attendee()
+            // without colliding with per-ticket-type custom_fields.
+            const extraData = {};
+            $(this).find('.ke-extra-field').each(function() {
+                const fid = $(this).data('field-id');
+                const val = $(this).val();
+                const strVal = (val == null) ? '' : String(val).trim();
+                if (fid) extraData[fid] = strVal;
+                if ($(this).prop('required') && !strVal) valid = false;
+            });
+            attendees.push({ name: n, email: email, custom_fields: customData, extra_fields: extraData });
         });
 
         if (attendees.length === 0) {
@@ -190,6 +233,13 @@ jQuery(document).ready(function($) {
                 ajaxInFlight = false;
                 sheetCloseable = true;
 
+                // Safety net: server rejected a guest even though client thought they were logged in.
+                if (xhr.status === 401 && xhr.responseJSON && xhr.responseJSON.code === 'login_required') {
+                    $btn.prop('disabled', false).html(submitBtnHTML());
+                    showLoginBlocked(currentTicket ? currentTicket.name : '');
+                    return;
+                }
+
                 let msg = 'Something went wrong. Please try again.';
                 if (status === 'timeout') {
                     msg = 'The request timed out. Please check your connection and try again.';
@@ -220,9 +270,6 @@ jQuery(document).ready(function($) {
         html += '<p class="ke-confirmation-msg">' + escHtml(response.message || 'Tickets confirmed!') + '</p>';
 
         if (tickets.length > 0) {
-            const accentColor = (typeof kePublic !== 'undefined' && kePublic.accentColor)
-                ? kePublic.accentColor : '#6366f1';
-
             html += '<div class="ke-confirmation-tickets">';
             tickets.forEach(function(ticket) {
                 const shortCode = '#' + ticket.ticket_code.substring(0, 8).toUpperCase();
@@ -232,22 +279,20 @@ jQuery(document).ready(function($) {
 
                 html += '<div class="ke-confirmation-ticket">';
 
-                // QR image
                 html += '<div class="ke-confirmation-qr-wrap">';
                 html += '<img class="ke-qr-img-large" src="' + escHtml(qrUrl) + '"'
                       + ' alt="QR Code" loading="lazy" width="200" height="200">';
                 html += '</div>';
 
-                // Attendee info
                 html += '<div class="ke-confirmation-ticket-meta">';
                 html += '<div class="ke-confirmation-attendee">' + escHtml(ticket.attendee_name) + '</div>';
                 html += '<div class="ke-confirmation-code">' + escHtml(shortCode) + '</div>';
                 html += '</div>';
 
-                // Download button — accent color from plugin settings
-                html += '<a class="ke-download-ticket-btn" href="' + escHtml(ticketUrl) + '"'
-                      + ' target="_blank" rel="noopener"'
-                      + ' style="background:' + accentColor + ' !important;background-color:' + accentColor + ' !important;">'
+                // Color inherits from .ke-download-ticket-btn → var(--kep-accent-1)
+                html += '<a class="ke-sheet-btn ke-sheet-btn-primary ke-download-ticket-btn"'
+                      + ' href="' + escHtml(ticketUrl) + '"'
+                      + ' target="_blank" rel="noopener">'
                       + '⬇️ Download Ticket PDF</a>';
 
                 html += '</div>';
@@ -293,6 +338,7 @@ jQuery(document).ready(function($) {
         $('#ke-sheet-attendees-container').empty();
         $stepQty.show();
         $stepDetails.hide();
+        $stepBlocked.hide();
         $overlay.addClass('active');
         $sheet.addClass('active');
         $('body').css('overflow', 'hidden');
@@ -348,13 +394,21 @@ jQuery(document).ready(function($) {
         const currentCount = $container.children('.ke-sheet-attendee-group').length;
         const fields       = (currentTicket && currentTicket.customFields) ? currentTicket.customFields : [];
 
+        // Per-event extra fields (admin-defined questions) — same shape as
+        // ticket-type customFields so renderField() handles both uniformly.
+        const xfCfg    = (typeof kePublic !== 'undefined' && kePublic.extraFields) ? kePublic.extraFields : null;
+        const xfActive = !!(xfCfg && xfCfg.enabled && Array.isArray(xfCfg.fields) && xfCfg.fields.length);
+        const xfFields = xfActive ? xfCfg.fields : [];
+
         if (qty > currentCount) {
             for (let i = currentCount; i < qty; i++) {
                 const label = i === 0 ? 'Purchaser (Attendee 1)' : 'Attendee ' + (i + 1);
+                const preName  = (i === 0 && userCfg && userCfg.loggedIn) ? escHtml(userCfg.displayName || '') : '';
+                const preEmail = (i === 0 && userCfg && userCfg.loggedIn) ? escHtml(userCfg.email || '')       : '';
                 let html = '<div class="ke-sheet-attendee ke-sheet-attendee-group">'
                          + '<div class="ke-sheet-attendee-header">' + label + '</div>'
-                         + '<div class="ke-sheet-field"><input type="text" class="ke-attendee-name" placeholder="Full Name" required></div>'
-                         + '<div class="ke-sheet-field"><input type="email" class="ke-attendee-email" placeholder="Email Address" required></div>';
+                         + '<div class="ke-sheet-field"><input type="text" class="ke-attendee-name" placeholder="Full Name" value="' + preName + '" required></div>'
+                         + '<div class="ke-sheet-field"><input type="email" class="ke-attendee-email" placeholder="Email Address" value="' + preEmail + '" required></div>';
 
                 fields.forEach(function(cf) {
                     if (!cf || !cf.label) return;
@@ -362,7 +416,7 @@ jQuery(document).ready(function($) {
                     const req = cf.required ? ' required' : '';
                     html += '<div class="ke-sheet-field">'
                           + '<label class="ke-field-label">' + escHtml(cf.label)
-                          + (cf.required ? ' <span style="color:var(--kep-accent-1)">*</span>' : '') + '</label>';
+                          + (cf.required ? ' <span class="ke-required">*</span>' : '') + '</label>';
                     if (cf.type === 'select' && Array.isArray(cf.options)) {
                         html += '<select class="ke-custom-field" data-field-id="' + fid + '"' + req + '>'
                               + '<option value="">— Select —</option>';
@@ -378,12 +432,51 @@ jQuery(document).ready(function($) {
                     html += '</div>';
                 });
 
+                if (xfActive) {
+                    html += renderExtraFieldsHTML(xfFields);
+                }
+
                 html += '</div>';
                 $container.append(html);
             }
         } else if (qty < currentCount) {
             $container.children('.ke-sheet-attendee-group').slice(qty).remove();
         }
+    }
+
+    function renderExtraFieldsHTML(xfFields) {
+        let html = '';
+        xfFields.forEach(function(f) {
+            if (!f || !f.label) return;
+            const fid     = escHtml(String(f.id || ''));
+            const req     = f.required ? ' required' : '';
+            const reqStar = f.required ? ' <span class="ke-required">*</span>' : '';
+            const helper  = f.helper ? '<div class="ke-field-helper">' + escHtml(f.helper) + '</div>' : '';
+            const type    = String(f.type || 'text');
+
+            html += '<div class="ke-sheet-field">'
+                 +     '<label class="ke-field-label">' + escHtml(f.label) + reqStar + '</label>';
+
+            if (type === 'select' && Array.isArray(f.options)) {
+                html += '<select class="ke-extra-field" data-field-id="' + fid + '"' + req + '>'
+                     +     '<option value="">— Select —</option>';
+                f.options.forEach(function(opt) {
+                    html += '<option value="' + escHtml(opt) + '">' + escHtml(opt) + '</option>';
+                });
+                html += '</select>';
+            } else if (type === 'textarea') {
+                html += '<textarea class="ke-extra-field" data-field-id="' + fid + '" placeholder="' + escHtml(f.label) + '"' + req + '></textarea>';
+            } else {
+                let inputType = 'text';
+                if (type === 'email')  inputType = 'email';
+                if (type === 'number') inputType = 'number';
+                if (type === 'phone')  inputType = 'tel';
+                html += '<input type="' + inputType + '" class="ke-extra-field" data-field-id="' + fid + '" placeholder="' + escHtml(f.label) + '"' + req + '>';
+            }
+
+            html += helper + '</div>';
+        });
+        return html;
     }
 
     function showMsg($el, text, type) {

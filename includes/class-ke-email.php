@@ -100,13 +100,559 @@ class KE_Email {
         );
 
         // Send
+        error_log( 'KiwiEvents: attempting wp_mail() to ' . $to . ' | subject: ' . $subject );
         $sent = wp_mail( $to, $subject, $body, $headers, $attachments );
+        error_log( 'KiwiEvents: wp_mail() result for order ' . $order_id . ': ' . ( $sent ? 'true' : 'false' ) );
 
         if ( ! $sent ) {
             return new WP_Error( 'email_failed', 'Failed to send ticket email.' );
         }
 
+        // Send admin notification
+        try {
+            $this->send_admin_notification( $order_id );
+        } catch ( \Throwable $e ) {
+            error_log( 'KiwiEvents admin notification error for order ' . $order_id . ': ' . $e->getMessage() );
+        }
+
         return true;
+    }
+
+    /**
+     * Send email notification to admin/organizer when a ticket is purchased
+     *
+     * @param int $order_id The order ID
+     * @return bool
+     */
+    public function send_admin_notification( $order_id ) {
+        // Check global setting
+        $settings = get_option( 'ke_notifications_settings', array() );
+        $is_enabled = isset( $settings['admin_email_enabled'] ) ? $settings['admin_email_enabled'] : true;
+        if ( ! $is_enabled ) {
+            return false;
+        }
+
+        $orders_handler  = new KE_Orders();
+        $tickets_handler = new KE_Tickets();
+
+        $order = $orders_handler->get( $order_id );
+        if ( ! $order ) {
+            return false;
+        }
+
+        $tickets = $tickets_handler->get_by_order( $order_id );
+        if ( empty( $tickets ) ) {
+            return false;
+        }
+
+        $event = get_post( $order->event_id );
+        if ( ! $event ) {
+            return false;
+        }
+
+        // Accent color from plugin settings
+        $ui_settings  = get_option( 'ke_ui_settings', array() );
+        $accent_color = ! empty( $ui_settings['accent_color'] )
+                      ? sanitize_hex_color( $ui_settings['accent_color'] )
+                      : '#6366f1';
+
+        // Links
+        $qr_link        = esc_url( home_url( '/ticket/' . $tickets[0]->ticket_code ) );
+        $dashboard_link = admin_url( 'admin.php?page=ke-attendees&event_id=' . $event->ID . '&order_id=' . $order_id );
+        
+        $customer_name  = $order->buyer_name;
+        $customer_email = $order->buyer_email;
+        $formatted_date = date_i18n( get_option( 'date_format' ) . ' \a\t ' . get_option( 'time_format' ), strtotime( $order->created_at ) );
+
+        // Determine recipient
+        $recipients = array();
+        
+        // 1. Check organizer term meta
+        $organizers = wp_get_post_terms( $event->ID, 'ke_organizer' );
+        if ( ! is_wp_error( $organizers ) && ! empty( $organizers ) ) {
+            $organizer_email = get_term_meta( $organizers[0]->term_id, '_ke_organizer_email', true );
+            if ( $organizer_email ) {
+                $emails = array_map( 'trim', explode( ',', $organizer_email ) );
+                foreach ( $emails as $em ) {
+                    if ( is_email( $em ) ) {
+                        $recipients[] = $em;
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to admin email
+        if ( empty( $recipients ) ) {
+            $recipients[] = get_option( 'admin_email' );
+        }
+
+        $subject = '🎟️ New Ticket Sale — ' . $event->post_title;
+        $to      = implode( ',', $recipients );
+
+        // Prepare context for template
+        $template_args = array(
+            'event'          => $event,
+            'order'          => $order,
+            'tickets'        => $tickets,
+            'accent_color'   => $accent_color,
+            'customer_name'  => $customer_name,
+            'customer_email' => $customer_email,
+            'qr_link'        => $qr_link,
+            'dashboard_link' => $dashboard_link,
+            'formatted_date' => $formatted_date,
+        );
+
+        ob_start();
+        $template_path = KE_PLUGIN_DIR . 'templates/email/admin-notification.php';
+        if ( file_exists( $template_path ) ) {
+            extract( $template_args );
+            include $template_path;
+        }
+        $body = ob_get_clean();
+
+        if ( ! $body ) {
+            return false;
+        }
+
+        // Email headers
+        $from_name  = get_option( 'ke_email_from_name', get_bloginfo( 'name' ) );
+        $from_email = get_option( 'ke_email_from_address', get_bloginfo( 'admin_email' ) );
+
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            "From: {$from_name} <{$from_email}>",
+        );
+
+        // Global BCC
+        $bcc = isset( $settings['global_bcc'] ) ? trim( $settings['global_bcc'] ) : '';
+        if ( is_email( $bcc ) ) {
+            $headers[] = 'Bcc: ' . $bcc;
+        }
+
+        return wp_mail( $to, $subject, $body, $headers );
+    }
+
+    /**
+     * Send test admin notification using dummy data
+     */
+    public function send_test_admin_notification() {
+        $ui_settings  = get_option( 'ke_ui_settings', array() );
+        $accent_color = ! empty( $ui_settings['accent_color'] )
+                      ? sanitize_hex_color( $ui_settings['accent_color'] )
+                      : '#6366f1';
+
+        $dummy_event = new stdClass();
+        $dummy_event->ID = 0;
+        $dummy_event->post_title = 'Sample Event Name';
+        
+        $dummy_order = new stdClass();
+        $dummy_order->order_number = 'TEST-ORDER-123';
+        $dummy_order->total_amount = '25.00';
+        $dummy_order->payment_method = 'woocommerce';
+        $dummy_order->payment_status = 'completed';
+        $dummy_order->created_at = current_time('mysql');
+
+        $dummy_ticket = new stdClass();
+        $dummy_ticket->ticket_code = 'TEST123456789';
+        $dummy_ticket->ticket_type_name = 'General Admission';
+        $dummy_ticket->attendee_name = 'Test Customer';
+        $dummy_ticket->attendee_email = 'customer@example.com';
+        
+        $tickets = array( $dummy_ticket );
+        
+        $qr_link        = home_url();
+        $dashboard_link = admin_url( 'admin.php?page=ke-attendees' );
+        
+        $customer_name  = 'Test Customer';
+        $customer_email = 'customer@example.com';
+        $formatted_date = date_i18n( get_option( 'date_format' ) . ' \a\t ' . get_option( 'time_format' ) );
+
+        $template_args = array(
+            'event'          => $dummy_event,
+            'order'          => $dummy_order,
+            'tickets'        => $tickets,
+            'accent_color'   => $accent_color,
+            'customer_name'  => $customer_name,
+            'customer_email' => $customer_email,
+            'qr_link'        => $qr_link,
+            'dashboard_link' => $dashboard_link,
+            'formatted_date' => $formatted_date,
+        );
+
+        ob_start();
+        $template_path = KE_PLUGIN_DIR . 'templates/email/admin-notification.php';
+        if ( file_exists( $template_path ) ) {
+            extract( $template_args );
+            include $template_path;
+        }
+        $body = ob_get_clean();
+
+        $from_name  = get_option( 'ke_email_from_name', get_bloginfo( 'name' ) );
+        $from_email = get_option( 'ke_email_from_address', get_bloginfo( 'admin_email' ) );
+
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            "From: {$from_name} <{$from_email}>",
+        );
+
+        $currentUser = wp_get_current_user();
+        if ( ! $currentUser || ! $currentUser->exists() ) {
+            return new WP_Error( 'not_logged_in', 'Must be logged in to send test notification.' );
+        }
+
+        $to = $currentUser->user_email;
+        $subject = '[TEST] 🎟️ New Ticket Sale — ' . $dummy_event->post_title;
+
+        $sent = wp_mail( $to, $subject, $body, $headers );
+        if ( ! $sent ) {
+            return new WP_Error( 'mail_failed', 'wp_mail() returned false.' );
+        }
+
+        return true;
+    }
+
+    /* ─── Reservations ─────────────────────────────────────────────────
+     * Reservation flows reuse the same wp_mail dispatch pattern as
+     * tickets: load a template into an output buffer, then send. The
+     * shared helper below resolves the recipient/from/headers so the
+     * customer + organizer methods stay focused on payload assembly.
+     * ────────────────────────────────────────────────────────────── */
+
+    /**
+     * Build the standard {from_name, from_email, headers, bcc} bundle
+     * used by reservation emails. Mirrors the headers built in
+     * send_ticket_email() / send_admin_notification() so we keep one
+     * From/BCC policy across all KiwiEvents email.
+     */
+    private function build_reservation_headers( $include_global_bcc = false ) {
+        $from_name  = get_option( 'ke_email_from_name', get_bloginfo( 'name' ) );
+        $from_email = get_option( 'ke_email_from_address', get_bloginfo( 'admin_email' ) );
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            "From: {$from_name} <{$from_email}>",
+        );
+        if ( $include_global_bcc ) {
+            $settings = get_option( 'ke_notifications_settings', array() );
+            $bcc = isset( $settings['global_bcc'] ) ? trim( $settings['global_bcc'] ) : '';
+            if ( is_email( $bcc ) ) $headers[] = 'Bcc: ' . $bcc;
+        }
+        return $headers;
+    }
+
+    /**
+     * Format a "Y-m-d H:i:s" datetime string in the event's timezone.
+     * Falls back to site timezone if the event meta is empty/invalid so
+     * customer emails never render "TBA" for a real arrival time.
+     */
+    private function format_event_datetime( $event_id, $datetime_mysql ) {
+        if ( ! $datetime_mysql ) return 'TBA';
+        try {
+            $tz_str = get_post_meta( $event_id, '_ke_event_timezone', true ) ?: wp_timezone_string();
+            $dt     = new DateTime( $datetime_mysql, new DateTimeZone( $tz_str ) );
+            return $dt->format( 'l, F j, Y \a\t g:i A' );
+        } catch ( \Exception $e ) {
+            return date( 'l, F j, Y \a\t g:i A', strtotime( $datetime_mysql ) );
+        }
+    }
+
+    /**
+     * Resolve the per-reservation extras to label/value rows using the
+     * event's reservations-context field config. Mirrors the ticket
+     * resolver but filters out empty answers so we never email an empty
+     * "Tu información" block.
+     */
+    private function reservation_extras_rows( $event_id, $reservation ) {
+        if ( empty( $reservation->extra_fields_data ) || ! class_exists( 'KE_Event_Extra_Fields' ) ) {
+            return array();
+        }
+        $rows = KE_Event_Extra_Fields::resolve_for_ticket( (int) $event_id, $reservation->extra_fields_data );
+        return array_values( array_filter( $rows, function ( $r ) {
+            return isset( $r['value'] ) && $r['value'] !== '';
+        } ) );
+    }
+
+    /**
+     * Send the customer-facing reservation email.
+     *
+     * Auto-confirm mode → "Reservation confirmed!"
+     * Manual mode (status=pending) → "Reservation received" (submitted)
+     *
+     * Returns true on success, WP_Error on failure. Callers should
+     * tolerate failure — a missed email never blocks the booking flow.
+     */
+    public function send_reservation_customer_email( $reservation_id ) {
+        if ( ! class_exists( 'KE_Reservations' ) ) {
+            return new WP_Error( 'reservations_unavailable', 'Reservations module unavailable.' );
+        }
+
+        $resv_handler = new KE_Reservations();
+        $reservation  = $resv_handler->get( (int) $reservation_id );
+        if ( ! $reservation ) {
+            return new WP_Error( 'reservation_not_found', 'Reservation not found.' );
+        }
+
+        // No customer email on file → nothing to send. Not an error;
+        // venues frequently skip the optional email field.
+        if ( empty( $reservation->customer_email ) || ! is_email( $reservation->customer_email ) ) {
+            return false;
+        }
+
+        $event = get_post( (int) $reservation->event_id );
+        if ( ! $event ) {
+            return new WP_Error( 'event_not_found', 'Event not found.' );
+        }
+
+        $event_date = get_post_meta( $event->ID, '_ke_event_date_start', true );
+        $venue      = get_post_meta( $event->ID, '_ke_event_venue', true );
+        $address    = get_post_meta( $event->ID, '_ke_event_address', true );
+
+        $ui_settings  = get_option( 'ke_ui_settings', array() );
+        $accent_color = ! empty( $ui_settings['accent_color'] )
+                      ? sanitize_hex_color( $ui_settings['accent_color'] )
+                      : '#6366f1';
+
+        $template_args = array(
+            'reservation'          => $reservation,
+            'event'                => $event,
+            'event_date_formatted' => $this->format_event_datetime( $event->ID, $event_date ),
+            'arrival_formatted'    => $this->format_event_datetime( $event->ID, $reservation->arrival_time ),
+            'venue'                => $venue,
+            'address'              => $address,
+            'extras'               => $this->reservation_extras_rows( $event->ID, $reservation ),
+            'accent_color'         => $accent_color,
+            'is_pending'           => ( (string) $reservation->status === 'pending' ),
+            'site_name'            => get_bloginfo( 'name' ),
+            'site_url'             => home_url(),
+        );
+
+        ob_start();
+        $template_path = KE_PLUGIN_DIR . 'templates/email/reservation-customer.php';
+        if ( file_exists( $template_path ) ) {
+            extract( $template_args );
+            include $template_path;
+        }
+        $body = ob_get_clean();
+        if ( ! $body ) {
+            return new WP_Error( 'template_missing', 'Reservation email template missing.' );
+        }
+
+        $subject = $template_args['is_pending']
+            ? '⏳ Reservation received — ' . $event->post_title
+            : '🎉 Reservation confirmed — ' . $event->post_title;
+
+        $sent = wp_mail( $reservation->customer_email, $subject, $body, $this->build_reservation_headers( false ) );
+        if ( ! $sent ) {
+            return new WP_Error( 'email_failed', 'Could not send reservation email.' );
+        }
+        return true;
+    }
+
+    /**
+     * Notify the organizer (or admin fallback) when a new reservation
+     * is created. Recipient resolution mirrors send_admin_notification()
+     * so the same operator inbox handles both ticket sales and bookings.
+     */
+    public function send_reservation_organizer_email( $reservation_id ) {
+        $settings = get_option( 'ke_notifications_settings', array() );
+        // Reuse the same admin-email toggle so operators control both
+        // notification types from one switch.
+        $is_enabled = isset( $settings['admin_email_enabled'] ) ? $settings['admin_email_enabled'] : true;
+        if ( ! $is_enabled ) return false;
+
+        if ( ! class_exists( 'KE_Reservations' ) ) {
+            return new WP_Error( 'reservations_unavailable', 'Reservations module unavailable.' );
+        }
+        $resv_handler = new KE_Reservations();
+        $reservation  = $resv_handler->get( (int) $reservation_id );
+        if ( ! $reservation ) return false;
+
+        $event = get_post( (int) $reservation->event_id );
+        if ( ! $event ) return false;
+
+        $recipients = array();
+        $organizers = wp_get_post_terms( $event->ID, 'ke_organizer' );
+        if ( ! is_wp_error( $organizers ) && ! empty( $organizers ) ) {
+            $organizer_email = get_term_meta( $organizers[0]->term_id, '_ke_organizer_email', true );
+            if ( $organizer_email ) {
+                foreach ( array_map( 'trim', explode( ',', $organizer_email ) ) as $em ) {
+                    if ( is_email( $em ) ) $recipients[] = $em;
+                }
+            }
+        }
+        if ( empty( $recipients ) ) {
+            $recipients[] = get_option( 'admin_email' );
+        }
+
+        $ui_settings  = get_option( 'ke_ui_settings', array() );
+        $accent_color = ! empty( $ui_settings['accent_color'] )
+                      ? sanitize_hex_color( $ui_settings['accent_color'] )
+                      : '#6366f1';
+
+        $event_date = get_post_meta( $event->ID, '_ke_event_date_start', true );
+
+        // Phase 3 will wire the organizer dashboard URL; for now point
+        // operators at the WP admin attendee/event view as a stable
+        // landing page so the email's CTA always works.
+        $dashboard_link = admin_url( 'admin.php?page=ke-attendees&event_id=' . $event->ID );
+
+        $template_args = array(
+            'reservation'          => $reservation,
+            'event'                => $event,
+            'event_date_formatted' => $this->format_event_datetime( $event->ID, $event_date ),
+            'arrival_formatted'    => $this->format_event_datetime( $event->ID, $reservation->arrival_time ),
+            'extras'               => $this->reservation_extras_rows( $event->ID, $reservation ),
+            'dashboard_link'       => $dashboard_link,
+            'accent_color'         => $accent_color,
+            'is_pending'           => ( (string) $reservation->status === 'pending' ),
+            'site_name'            => get_bloginfo( 'name' ),
+            'site_url'             => home_url(),
+        );
+
+        ob_start();
+        $template_path = KE_PLUGIN_DIR . 'templates/email/reservation-organizer.php';
+        if ( file_exists( $template_path ) ) {
+            extract( $template_args );
+            include $template_path;
+        }
+        $body = ob_get_clean();
+        if ( ! $body ) return false;
+
+        $subject = $template_args['is_pending']
+            ? '📥 Reservation request — ' . $event->post_title
+            : '✅ New reservation — ' . $event->post_title;
+
+        $to = implode( ',', $recipients );
+        return wp_mail( $to, $subject, $body, $this->build_reservation_headers( true ) );
+    }
+
+    /**
+     * Shared dispatcher for the three reservation status-change emails sent
+     * from the organizer dashboard (approve / decline / cancel-by-venue).
+     *
+     * One template (`reservation-status.php`) handles all three variants —
+     * the copy and accent vary by `$variant` but the layout, fields, and
+     * recipient logic are identical. Returns true on success, false when the
+     * customer has no email on file (not an error — venues frequently skip
+     * the optional email field), or WP_Error.
+     *
+     * Variants: 'approved' | 'declined' | 'cancelled_by_venue'
+     */
+    private function send_reservation_status_email( $reservation_id, $variant ) {
+        if ( ! class_exists( 'KE_Reservations' ) ) {
+            return new WP_Error( 'reservations_unavailable', 'Reservations module unavailable.' );
+        }
+
+        $resv_handler = new KE_Reservations();
+        $reservation  = $resv_handler->get( (int) $reservation_id );
+        if ( ! $reservation ) {
+            return new WP_Error( 'reservation_not_found', 'Reservation not found.' );
+        }
+        if ( empty( $reservation->customer_email ) || ! is_email( $reservation->customer_email ) ) {
+            return false;
+        }
+
+        $event = get_post( (int) $reservation->event_id );
+        if ( ! $event ) {
+            return new WP_Error( 'event_not_found', 'Event not found.' );
+        }
+
+        $event_date = get_post_meta( $event->ID, '_ke_event_date_start', true );
+        $venue      = get_post_meta( $event->ID, '_ke_event_venue', true );
+        $address    = get_post_meta( $event->ID, '_ke_event_address', true );
+
+        $ui_settings  = get_option( 'ke_ui_settings', array() );
+        $accent_color = ! empty( $ui_settings['accent_color'] )
+                      ? sanitize_hex_color( $ui_settings['accent_color'] )
+                      : '#6366f1';
+
+        // Subject + heading copy per variant. Kept here (not in the template)
+        // so wp_mail() and the template stay in sync from one switch.
+        $copy = array(
+            'approved' => array(
+                'subject'  => '🎉 Reservation confirmed — ' . $event->post_title,
+                'emoji'    => '🎉',
+                'headline' => 'Reservation confirmed!',
+                'intro'    => 'Great news — the venue has approved your reservation. Show this email or your reservation code at arrival.',
+                'pill'     => 'Confirmed',
+                'pill_color' => '#15803d',
+            ),
+            'declined' => array(
+                'subject'  => 'Update on your reservation — ' . $event->post_title,
+                'emoji'    => '🙁',
+                'headline' => 'Reservation declined',
+                'intro'    => 'Unfortunately the venue could not confirm your reservation. See details below — feel free to reach out for an alternative.',
+                'pill'     => 'Declined',
+                'pill_color' => '#b91c1c',
+            ),
+            'cancelled_by_venue' => array(
+                'subject'  => 'Your reservation was cancelled — ' . $event->post_title,
+                'emoji'    => '⚠️',
+                'headline' => 'Reservation cancelled',
+                'intro'    => 'The venue has cancelled this reservation. We&rsquo;re sorry for the inconvenience — please contact the venue if you have questions.',
+                'pill'     => 'Cancelled',
+                'pill_color' => '#b91c1c',
+            ),
+            'no_show' => array(
+                'subject'  => 'Your reservation was released — ' . $event->post_title,
+                'emoji'    => '⏰',
+                'headline' => 'Reservation released',
+                'intro'    => 'We didn&rsquo;t see you within the grace period after your reserved time, so the venue has released your spot.',
+                'pill'     => 'No-show',
+                'pill_color' => '#b45309',
+            ),
+        );
+        if ( ! isset( $copy[ $variant ] ) ) {
+            return new WP_Error( 'invalid_variant', 'Unknown email variant.' );
+        }
+        $variant_copy = $copy[ $variant ];
+
+        $template_args = array(
+            'reservation'          => $reservation,
+            'event'                => $event,
+            'event_date_formatted' => $this->format_event_datetime( $event->ID, $event_date ),
+            'arrival_formatted'    => $this->format_event_datetime( $event->ID, $reservation->arrival_time ),
+            'venue'                => $venue,
+            'address'              => $address,
+            'extras'               => $this->reservation_extras_rows( $event->ID, $reservation ),
+            'accent_color'         => $accent_color,
+            'variant'              => $variant,
+            'variant_copy'         => $variant_copy,
+            'site_name'            => get_bloginfo( 'name' ),
+            'site_url'             => home_url(),
+        );
+
+        ob_start();
+        $template_path = KE_PLUGIN_DIR . 'templates/email/reservation-status.php';
+        if ( file_exists( $template_path ) ) {
+            extract( $template_args );
+            include $template_path;
+        }
+        $body = ob_get_clean();
+        if ( ! $body ) {
+            return new WP_Error( 'template_missing', 'Reservation status email template missing.' );
+        }
+
+        $sent = wp_mail( $reservation->customer_email, $variant_copy['subject'], $body, $this->build_reservation_headers( false ) );
+        if ( ! $sent ) {
+            return new WP_Error( 'email_failed', 'Could not send reservation status email.' );
+        }
+        return true;
+    }
+
+    public function send_reservation_approved_email( $reservation_id ) {
+        return $this->send_reservation_status_email( $reservation_id, 'approved' );
+    }
+
+    public function send_reservation_declined_email( $reservation_id ) {
+        return $this->send_reservation_status_email( $reservation_id, 'declined' );
+    }
+
+    public function send_reservation_cancelled_by_venue_email( $reservation_id ) {
+        return $this->send_reservation_status_email( $reservation_id, 'cancelled_by_venue' );
+    }
+
+    public function send_reservation_no_show_email( $reservation_id ) {
+        return $this->send_reservation_status_email( $reservation_id, 'no_show' );
     }
 
     /**
@@ -205,6 +751,18 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
           $qr_src      = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&format=png&ecc=H&data='
                        . urlencode( $ticket->ticket_code );
           $type_name   = ! empty( $ticket->ticket_type_name ) ? $ticket->ticket_type_name : '';
+          // Resolve per-attendee extras (label-resolved against the event's
+          // current config) so the buyer sees the answers they submitted.
+          $ticket_xfields = array();
+          if ( class_exists( 'KE_Event_Extra_Fields' ) && ! empty( $ticket->extra_fields_data ) ) {
+              $ticket_xfields = KE_Event_Extra_Fields::resolve_for_ticket(
+                  (int) ( $ticket->event_id ?? $data['event_id'] ?? 0 ),
+                  $ticket->extra_fields_data
+              );
+              $ticket_xfields = array_values( array_filter( $ticket_xfields, function ( $row ) {
+                  return isset( $row['value'] ) && $row['value'] !== '';
+              } ) );
+          }
       ?>
       <!-- Ticket block — all styles inlined for email client compatibility -->
       <div style="background:#ffffff;border:1.5px solid <?php echo $accent_border; ?>;border-radius:16px;padding:20px;margin-bottom:12px;text-align:center;">
@@ -244,6 +802,23 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
             </td>
           </tr>
         </table>
+
+        <?php if ( ! empty( $ticket_xfields ) ) : ?>
+        <!-- Per-attendee submitted answers ("Tu información") -->
+        <div style="margin-top:16px;padding:14px 16px;border:1px solid #f0f0f0;border-radius:12px;background:#fafafa;text-align:left;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#71717a;margin-bottom:10px;font-family:'Inter',Arial,sans-serif;">
+            Tu información
+          </div>
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-family:'Inter',Arial,sans-serif;">
+            <?php foreach ( $ticket_xfields as $row ) : ?>
+            <tr>
+              <td style="padding:3px 0;font-size:12px;color:#71717a;width:45%;vertical-align:top;"><?php echo esc_html( $row['label'] ); ?></td>
+              <td style="padding:3px 0;font-size:13px;color:#09090b;font-weight:500;vertical-align:top;"><?php echo esc_html( $row['value'] ); ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </table>
+        </div>
+        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     <?php endif; ?>

@@ -13,17 +13,15 @@ class KE_WooCommerce {
                 wc_load_cart();
             }
         });
-    }
 
-    public function init() {
         // Generate tickets on payment completion — hooks cover all gateway flows:
         // - payment_complete fires for most gateways (Stripe, PayPal, etc.)
         // - status_processing covers async gateways that land on "processing" first
         // - status_completed covers manual order completion in admin
-        add_action( 'woocommerce_payment_complete',          array( $this, 'handle_order_completed' ) );
-        add_action( 'woocommerce_order_status_processing',   array( $this, 'handle_order_completed' ) );
-        add_action( 'woocommerce_order_status_completed',    array( $this, 'handle_order_completed' ) );
-        add_action( 'woocommerce_order_status_refunded',     array( $this, 'handle_order_refunded' ) );
+        add_action( 'woocommerce_payment_complete',        array( $this, 'on_payment_complete' ) );
+        add_action( 'woocommerce_order_status_processing', array( $this, 'on_payment_complete' ) );
+        add_action( 'woocommerce_order_status_completed',  array( $this, 'on_payment_complete' ) );
+        add_action( 'woocommerce_order_status_refunded',   array( $this, 'handle_order_refunded' ) );
 
         // Cart validation — enforce ticket limits
         add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validate_add_to_cart' ), 10, 5 );
@@ -35,8 +33,23 @@ class KE_WooCommerce {
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'save_order_item_meta' ), 10, 4 );
 
         // Show ticket QR codes on the WooCommerce thank-you page
-        add_action( 'woocommerce_thankyou', array( $this, 'render_thankyou_tickets' ), 5 );
+        add_action( 'woocommerce_thankyou', array( $this, 'show_tickets_on_thankyou' ), 5 );
+
+        // Service fee — registered once in the constructor so it runs on every
+        // cart calculation (add-to-cart, cart view, checkout render, gateway
+        // init, order creation, admin order edits, blocks cart/checkout).
+        add_action( 'woocommerce_cart_calculate_fees', array( $this, 'apply_service_fee' ), 10, 1 );
+
+        // Safeguard: explicitly copy cart fees onto the order at creation
+        // so they survive redirect-gateway flows (Yappy, PayPal) even if the
+        // cart is cleared before the order is marked paid.
+        add_action( 'woocommerce_checkout_create_order', array( $this, 'persist_fee_on_order' ), 10, 2 );
     }
+
+    /**
+     * Kept for backward compatibility — all hooks are now registered in __construct().
+     */
+    public function init() {}
 
     /**
      * Add ticket to WooCommerce cart
@@ -48,7 +61,7 @@ class KE_WooCommerce {
      * @param string $attendee_email Buyer email
      * @return bool|WP_Error
      */
-    public function add_to_cart( $event_id, $ticket_type_id, $quantity, $attendee_name, $attendee_email ) {
+    public function add_to_cart( $event_id, $ticket_type_id, $quantity, $attendee_name, $attendee_email, $attendees = array() ) {
         // Guard 1: WooCommerce must be active
         if ( ! function_exists( 'WC' ) || ! WC() ) {
             return new WP_Error( 'wc_not_available', 'WooCommerce is not available.', array( 'status' => 500 ) );
@@ -98,6 +111,12 @@ class KE_WooCommerce {
             'ke_attendee_email' => $attendee_email,
         );
 
+        // Per-attendee data (incl. validated extra_fields) so they survive the
+        // round-trip through WC checkout and reach `KE_Tickets::generate()`.
+        if ( is_array( $attendees ) && ! empty( $attendees ) ) {
+            $cart_item_data['ke_attendees'] = $attendees;
+        }
+
         $cart_item_key = WC()->cart->add_to_cart( $product_id, $quantity, 0, array(), $cart_item_data );
 
         if ( ! $cart_item_key ) {
@@ -108,18 +127,25 @@ class KE_WooCommerce {
     }
 
     /**
-     * Get or create a virtual WooCommerce product for a ticket type
+     * Get or create a virtual WooCommerce product for a ticket type.
+     * Product price = base ticket price + service fee so WooCommerce
+     * charges the correct total without any double-counting.
      */
     private function get_or_create_product( $ticket_type, $event_id ) {
+        // Product price = BASE ticket price only.
+        // The service fee is added as a separate cart line via apply_service_fee()
+        // so it appears once and is never baked into the product price.
+        $base_price = round( floatval( $ticket_type->price ), 2 );
+
         // Check if product already exists
         $existing_product_id = get_post_meta( $event_id, '_ke_wc_product_' . $ticket_type->id, true );
 
         if ( $existing_product_id && get_post_status( $existing_product_id ) === 'publish' ) {
-            // Update price if changed
+            // Revert to base price if a previous version stored base+fee
             $product = wc_get_product( $existing_product_id );
-            if ( $product && floatval( $product->get_price() ) !== floatval( $ticket_type->price ) ) {
-                $product->set_price( $ticket_type->price );
-                $product->set_regular_price( $ticket_type->price );
+            if ( $product && (float) $product->get_price() !== $base_price ) {
+                $product->set_price( $base_price );
+                $product->set_regular_price( $base_price );
                 $product->save();
             }
             return $existing_product_id;
@@ -131,8 +157,8 @@ class KE_WooCommerce {
         $product->set_name( $event_title . ' — ' . $ticket_type->name );
         $product->set_status( 'publish' );
         $product->set_catalog_visibility( 'hidden' );
-        $product->set_price( $ticket_type->price );
-        $product->set_regular_price( $ticket_type->price );
+        $product->set_price( $base_price );
+        $product->set_regular_price( $base_price );
         $product->set_virtual( true );
         $product->set_sold_individually( false );
         $product->set_manage_stock( false );
@@ -210,30 +236,56 @@ class KE_WooCommerce {
     }
 
     /**
-     * Save ticket metadata to WC order item
+     * Save ticket metadata to WC order item so on_payment_complete() can read it.
+     * Keys are underscore-prefixed so they are hidden from the WC order screen.
      */
     public function save_order_item_meta( $item, $cart_item_key, $values, $order ) {
-        $ke_fields = array( 'ke_event_id', 'ke_ticket_type_id', 'ke_attendee_name', 'ke_attendee_email' );
-        foreach ( $ke_fields as $field ) {
-            if ( ! empty( $values[ $field ] ) ) {
-                $item->add_meta_data( $field, $values[ $field ], true );
-            }
+        if ( ! empty( $values['ke_event_id'] ) ) {
+            $item->add_meta_data( '_ke_event_id', $values['ke_event_id'], true );
+        }
+        if ( ! empty( $values['ke_ticket_type_id'] ) ) {
+            $item->add_meta_data( '_ke_ticket_type_id', $values['ke_ticket_type_id'], true );
+        }
+        if ( ! empty( $values['ke_attendee_name'] ) ) {
+            $item->add_meta_data( '_ke_buyer_name', $values['ke_attendee_name'], true );
+        }
+        if ( ! empty( $values['ke_attendee_email'] ) ) {
+            $item->add_meta_data( '_ke_buyer_email', $values['ke_attendee_email'], true );
+        }
+        // Per-attendee blob (incl. validated extra_fields). JSON-encode here
+        // because WC item meta serializes scalars best — order-status hooks
+        // re-read it and decode in `on_payment_complete()`.
+        if ( ! empty( $values['ke_attendees'] ) && is_array( $values['ke_attendees'] ) ) {
+            $item->add_meta_data( '_ke_attendees', wp_json_encode( $values['ke_attendees'] ), true );
         }
     }
 
     /**
-     * Handle completed WooCommerce order — generate tickets
+     * Generate tickets after WooCommerce payment.
+     * Fires on payment_complete, order_status_processing, and order_status_completed.
+     * The _ke_tickets_generated flag prevents duplicate generation when multiple hooks fire.
      */
-    public function handle_order_completed( $wc_order_id ) {
-        $wc_order = wc_get_order( $wc_order_id );
-
-        if ( ! $wc_order ) {
+    public function on_payment_complete( $order_id ) {
+        // Prevent duplicate generation — checked before loading the order object
+        if ( get_post_meta( $order_id, '_ke_tickets_generated', true ) ) {
             return;
         }
 
-        // Check if we already processed this order
-        if ( $wc_order->get_meta( '_ke_tickets_generated' ) ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
             return;
+        }
+
+        // Ensure KE classes are loaded — WooCommerce hooks can fire before the
+        // plugin's own autoload has run in certain boot sequences (e.g. WC-CLI).
+        if ( ! class_exists( 'KE_Orders' ) ) {
+            require_once KE_PLUGIN_DIR . 'includes/class-ke-orders.php';
+        }
+        if ( ! class_exists( 'KE_Tickets' ) ) {
+            require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets.php';
+        }
+        if ( ! class_exists( 'KE_Email' ) ) {
+            require_once KE_PLUGIN_DIR . 'includes/class-ke-email.php';
         }
 
         $orders_handler  = new KE_Orders();
@@ -242,73 +294,107 @@ class KE_WooCommerce {
 
         $all_ticket_codes = array();
 
-        foreach ( $wc_order->get_items() as $item ) {
-            $event_id       = $item->get_meta( 'ke_event_id' );
-            $ticket_type_id = $item->get_meta( 'ke_ticket_type_id' );
-            $attendee_name  = $item->get_meta( 'ke_attendee_name' );
-            $attendee_email = $item->get_meta( 'ke_attendee_email' );
+        foreach ( $order->get_items() as $item ) {
+            $event_id       = $item->get_meta( '_ke_event_id' );
+            $ticket_type_id = $item->get_meta( '_ke_ticket_type_id' );
+            $buyer_name     = $item->get_meta( '_ke_buyer_name' )
+                            ?: trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
+            $buyer_email    = $item->get_meta( '_ke_buyer_email' )
+                            ?: $order->get_billing_email();
+            $quantity       = $item->get_quantity();
 
             if ( ! $event_id || ! $ticket_type_id ) {
                 continue;
             }
 
-            $quantity        = $item->get_quantity();
-            $buyer_name      = $attendee_name  ?: trim( $wc_order->get_billing_first_name() . ' ' . $wc_order->get_billing_last_name() );
-            $buyer_email     = $attendee_email ?: $wc_order->get_billing_email();
-
-            // Create KE order
+            // Create KE order record
             $order_result = $orders_handler->create( array(
-                'event_id'        => $event_id,
-                'user_id'         => $wc_order->get_user_id(),
-                'buyer_name'      => $buyer_name,
-                'buyer_email'     => $buyer_email,
-                'total_amount'    => $item->get_total(),
+                'event_id'        => absint( $event_id ),
+                'user_id'         => $order->get_customer_id(),
+                'buyer_name'      => sanitize_text_field( $buyer_name ),
+                'buyer_email'     => sanitize_email( $buyer_email ),
+                'total_amount'    => $order->get_total(),
                 'ticket_quantity' => $quantity,
                 'payment_method'  => 'woocommerce',
                 'payment_status'  => 'completed',
-                'wc_order_id'     => $wc_order_id,
+                'wc_order_id'     => $order_id,
             ) );
 
             if ( is_wp_error( $order_result ) ) {
+                error_log( 'KiwiEvents: order creation failed — ' . $order_result->get_error_message() );
                 continue;
             }
 
+            // Build attendees array — one entry per ticket. Prefer the
+            // per-attendee blob captured at add-to-cart time (which carries
+            // extra_fields and individual names/emails); fall back to the
+            // billing details when the cart didn't supply one.
+            $attendees   = array();
+            $stored_blob = $item->get_meta( '_ke_attendees' );
+            if ( is_string( $stored_blob ) && $stored_blob !== '' ) {
+                $decoded = json_decode( $stored_blob, true );
+                if ( is_array( $decoded ) ) {
+                    foreach ( $decoded as $a ) {
+                        if ( ! is_array( $a ) ) continue;
+                        $attendees[] = array(
+                            'name'         => sanitize_text_field( $a['name']  ?? $buyer_name ),
+                            'email'        => sanitize_email( $a['email'] ?? $buyer_email ) ?: $buyer_email,
+                            'extra_fields' => isset( $a['extra_fields'] ) && is_array( $a['extra_fields'] ) ? $a['extra_fields'] : array(),
+                        );
+                    }
+                }
+            }
+            if ( empty( $attendees ) ) {
+                for ( $i = 0; $i < $quantity; $i++ ) {
+                    $attendees[] = array(
+                        'name'  => $buyer_name,
+                        'email' => $buyer_email,
+                    );
+                }
+            }
+
             // Generate tickets
-            $tickets_handler->generate(
+            $ticket_ids = $tickets_handler->generate(
                 $order_result['order_id'],
-                $event_id,
-                $ticket_type_id,
-                $quantity,
-                $buyer_name,
-                $buyer_email
+                absint( $event_id ),
+                absint( $ticket_type_id ),
+                $attendees
             );
 
-            // Send ticket email (non-fatal)
+            if ( is_wp_error( $ticket_ids ) ) {
+                error_log( 'KiwiEvents: ticket generation failed — ' . $ticket_ids->get_error_message() );
+                continue;
+            }
+
+            // Send confirmation email (non-fatal)
             try {
                 $email_handler->send_ticket_email( $order_result['order_id'] );
+                error_log( 'KiwiEvents: email sent for KE order ' . $order_result['order_id'] . ' (WC order ' . $order_id . ')' );
             } catch ( \Throwable $e ) {
-                error_log( 'KiwiEvents WC email error: ' . $e->getMessage() );
+                error_log( 'KiwiEvents email error for KE order ' . $order_result['order_id'] . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
             }
 
-            // Collect ticket codes to store on the WC order for the thank-you page
-            $generated = $tickets_handler->get_by_order( $order_result['order_id'] );
-            foreach ( $generated as $t ) {
-                $all_ticket_codes[] = $t->ticket_code;
+            // Collect ticket codes for the thank-you page
+            foreach ( $ticket_ids as $ticket_id ) {
+                $ticket = $tickets_handler->get( $ticket_id );
+                if ( $ticket ) {
+                    $all_ticket_codes[] = $ticket->ticket_code;
+                }
             }
         }
 
-        // Store ticket codes and mark as processed
-        $wc_order->update_meta_data( '_ke_tickets_generated', true );
+        // Persist ticket codes and mark as processed
+        update_post_meta( $order_id, '_ke_tickets_generated', true );
         if ( ! empty( $all_ticket_codes ) ) {
-            $wc_order->update_meta_data( '_ke_ticket_codes', $all_ticket_codes );
+            $order->update_meta_data( '_ke_ticket_codes', $all_ticket_codes );
+            $order->save();
         }
-        $wc_order->save();
     }
 
     /**
-     * Render ticket QR codes on the WooCommerce thank-you page
+     * Show ticket QR codes on the WooCommerce thank-you page
      */
-    public function render_thankyou_tickets( $order_id ) {
+    public function show_tickets_on_thankyou( $order_id ) {
         $order        = wc_get_order( $order_id );
         $ticket_codes = $order ? $order->get_meta( '_ke_ticket_codes' ) : array();
 
@@ -316,10 +402,10 @@ class KE_WooCommerce {
             return;
         }
 
-        $ui_settings  = get_option( 'ke_ui_settings', array() );
-        $accent       = ! empty( $ui_settings['accent_color'] )
-                      ? sanitize_hex_color( $ui_settings['accent_color'] )
-                      : '#6366f1';
+        $ui     = get_option( 'ke_ui_settings', array() );
+        $accent = ! empty( $ui['accent_color'] )
+                ? sanitize_hex_color( $ui['accent_color'] )
+                : '#6366f1';
 
         echo '<div style="margin:32px 0;font-family:\'Inter\',Arial,sans-serif;">';
         echo '<h2 style="font-size:22px;font-weight:800;color:#09090b;margin-bottom:16px;">🎟️ Your Tickets</h2>';
@@ -333,16 +419,144 @@ class KE_WooCommerce {
                . 'padding:24px;margin-bottom:16px;text-align:center;">';
             echo '<img src="' . esc_url( $qr_url ) . '" width="160" height="160" '
                . 'style="border-radius:10px;display:block;margin:0 auto 12px;border:1px solid #e4e4e7;">';
-            echo '<div style="font-weight:700;font-size:16px;color:#09090b;margin-bottom:4px;">'
+            echo '<div style="font-weight:700;font-size:16px;color:#09090b;margin-bottom:12px;">'
                . esc_html( $short ) . '</div>';
             echo '<a href="' . $ticket_url . '" '
-               . 'style="display:inline-block;margin-top:12px;padding:12px 24px;background:' . esc_attr( $accent ) . ';'
+               . 'style="display:inline-block;padding:12px 24px;background:' . esc_attr( $accent ) . ';'
                . 'color:#fff;border-radius:100px;text-decoration:none;font-weight:600;font-size:14px;">'
                . '⬇️ Download Ticket PDF</a>';
             echo '</div>';
         }
 
         echo '</div>';
+    }
+
+    /**
+     * Compute the per-fee totals for the current WC()->cart contents.
+     * Reads the CURRENT ticket price from wp_ke_ticket_types so the fee
+     * is based on the real ticket cost regardless of WC product price state.
+     *
+     * @return array<string, float> [ fee_name => amount ]
+     */
+    private function calculate_cart_service_fees() {
+        $fee_totals = array();
+
+        if ( ! function_exists( 'WC' ) || ! WC() || ! WC()->cart ) {
+            return $fee_totals;
+        }
+
+        $all_fees     = get_option( 'ke_service_fees', array() );
+        $ticket_types = new KE_Ticket_Types();
+
+        foreach ( WC()->cart->get_cart() as $cart_item ) {
+            if ( empty( $cart_item['ke_event_id'] ) || empty( $cart_item['ke_ticket_type_id'] ) ) {
+                continue;
+            }
+
+            $event_id       = (int) $cart_item['ke_event_id'];
+            $ticket_type_id = (int) $cart_item['ke_ticket_type_id'];
+            $quantity       = (int) $cart_item['quantity'];
+
+            $fee_id = get_post_meta( $event_id, '_ke_event_service_fee_id', true );
+            if ( ! $fee_id ) {
+                continue;
+            }
+
+            $fee = null;
+            foreach ( $all_fees as $f ) {
+                if ( isset( $f['id'] ) && $f['id'] === $fee_id ) {
+                    $fee = $f;
+                    break;
+                }
+            }
+            if ( ! $fee ) {
+                continue;
+            }
+
+            $ticket_type = $ticket_types->get( $ticket_type_id );
+            if ( ! $ticket_type ) {
+                continue;
+            }
+
+            $base_price = floatval( $ticket_type->price );
+
+            if ( ( $fee['type'] ?? '' ) === 'formula' ) {
+                if ( $base_price <= 0.0 ) {
+                    continue; // percentage-based fees only apply to paid tickets
+                }
+                $fee_per_ticket = ( $base_price * floatval( $fee['percentage'] ?? 0 ) / 100 )
+                                + floatval( $fee['fixed_amount'] ?? 0 );
+            } else {
+                $fee_per_ticket = floatval( $fee['fixed_amount'] ?? 0 );
+            }
+
+            if ( $fee_per_ticket <= 0 ) {
+                continue;
+            }
+
+            $fee_name = ! empty( $fee['name'] ) ? (string) $fee['name'] : 'Service Fee';
+            $fee_totals[ $fee_name ] = ( $fee_totals[ $fee_name ] ?? 0 ) + ( $fee_per_ticket * $quantity );
+        }
+
+        foreach ( $fee_totals as $k => $v ) {
+            $fee_totals[ $k ] = round( $v, 2 );
+        }
+
+        return $fee_totals;
+    }
+
+    /**
+     * Hooked on woocommerce_cart_calculate_fees — runs on every cart
+     * calculation (cart view, checkout render, gateway init, order creation,
+     * admin order edit, and blocks flows).
+     */
+    public function apply_service_fee( $cart = null ) {
+        $fee_totals = $this->calculate_cart_service_fees();
+        if ( empty( $fee_totals ) ) {
+            return;
+        }
+
+        $target = ( $cart instanceof WC_Cart ) ? $cart : WC()->cart;
+        if ( ! $target ) {
+            return;
+        }
+
+        foreach ( $fee_totals as $name => $amount ) {
+            $target->add_fee( $name, $amount, false );
+        }
+    }
+
+    /**
+     * Hooked on woocommerce_checkout_create_order — persists cart fees
+     * onto the newly created order as WC_Order_Item_Fee line items so
+     * they survive redirect-gateway flows (Yappy, PayPal) where the cart
+     * may be cleared before the order is marked paid.
+     */
+    public function persist_fee_on_order( $order, $data ) {
+        if ( ! $order instanceof WC_Order ) {
+            return;
+        }
+
+        // Skip if WC already copied matching fees from the cart.
+        $existing_names = array();
+        foreach ( $order->get_items( 'fee' ) as $existing_fee ) {
+            $existing_names[ $existing_fee->get_name() ] = true;
+        }
+
+        $fee_totals = $this->calculate_cart_service_fees();
+
+        foreach ( $fee_totals as $name => $amount ) {
+            if ( isset( $existing_names[ $name ] ) ) {
+                continue;
+            }
+            $item = new WC_Order_Item_Fee();
+            $item->set_name( $name );
+            $item->set_amount( $amount );
+            $item->set_total( $amount );
+            $item->set_tax_status( 'none' );
+            $item->set_tax_class( '' );
+            $order->add_item( $item );
+        }
     }
 
     /**
@@ -364,7 +578,7 @@ class KE_WooCommerce {
         $orders_handler  = new KE_Orders();
 
         foreach ( $ke_orders as $ke_order ) {
-            // Cancel all tickets
+            // Cancel all valid tickets for this order
             $tickets = $wpdb->get_results( $wpdb->prepare(
                 "SELECT id FROM {$tickets_table} WHERE order_id = %d AND status = 'valid'",
                 $ke_order->id

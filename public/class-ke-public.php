@@ -69,8 +69,21 @@ class KE_Public {
             true
         );
 
+        // Reservations sheet — depends on kePublic globals from ke-checkout-js
+        // (restUrl/nonce/access) so it loads after.
+        wp_enqueue_script(
+            'ke-reservations-js',
+            KE_PLUGIN_URL . 'public/js/ke-reservations.js',
+            array( 'jquery', 'ke-checkout-js' ),
+            KE_VERSION,
+            true
+        );
+
         $ui           = get_option( 'ke_ui_settings', array() );
         $accent_color = ! empty( $ui['accent_color'] ) ? sanitize_hex_color( $ui['accent_color'] ) : '';
+
+        $access  = KE_REST_API::get_access_settings();
+        $current = wp_get_current_user();
 
         $localize = array(
             'restUrl'     => esc_url_raw( rest_url( 'ke/v1/' ) ),
@@ -78,6 +91,17 @@ class KE_Public {
             'homeUrl'     => home_url(),
             'serviceFee'  => null,
             'accentColor' => $accent_color ?: '#6366f1',
+            'access'      => array(
+                'requireLogin' => (bool) $access['require_login'],
+                'loginUrl'     => $access['login_url'],
+                'registerUrl'  => $access['register_url'],
+                'message'      => $access['login_required_message'],
+            ),
+            'user'        => array(
+                'loggedIn'    => is_user_logged_in(),
+                'displayName' => ( $current && $current->ID ) ? $current->display_name : '',
+                'email'       => ( $current && $current->ID ) ? $current->user_email : '',
+            ),
         );
 
         // Inject service fee for single event pages
@@ -93,6 +117,18 @@ class KE_Public {
                     }
                 }
             }
+
+            // Per-event extra fields config — drives per-attendee inputs in
+            // the checkout sheet. Empty/disabled config is sent as
+            // {enabled:false, fields:[]} so the JS branch is identical.
+            // Only fields whose visibility is 'tickets' or 'both' belong in
+            // the ticket sheet; reservations-only fields are handed to the
+            // reservations sheet via window.kePublicResv (single-event view).
+            if ( class_exists( 'KE_Event_Extra_Fields' ) ) {
+                $cfg = KE_Event_Extra_Fields::get_config( $post->ID );
+                $cfg['fields'] = KE_Event_Extra_Fields::get_fields_for( $post->ID, 'tickets' );
+                $localize['extraFields'] = $cfg;
+            }
         }
 
         wp_localize_script( 'ke-checkout-js', 'kePublic', $localize );
@@ -106,15 +142,23 @@ class KE_Public {
      */
     public function shortcode_events( $atts ) {
         $atts = shortcode_atts( array(
-            'limit'    => 12,
-            'category' => '',
-            'columns'  => 3,
-        ), $atts );
+            'limit'          => 12,
+            'category'       => '',
+            'organizer'      => '',
+            'columns'        => 3,
+            'autoplay'       => 'true',
+            'interval'       => 5000,
+            'show_organizer' => 'true',
+            'show_category'  => 'true',
+            'layout'         => 'carousel',
+        ), $atts, 'kiwi_events' );
+
+        $limit = max( 1, min( 30, intval( $atts['limit'] ) ) );
 
         $args = array(
             'post_type'      => 'ke_event',
             'post_status'    => 'publish',
-            'posts_per_page' => intval( $atts['limit'] ),
+            'posts_per_page' => $limit,
             'orderby'        => 'meta_value',
             'meta_key'       => '_ke_event_date_start',
             'order'          => 'ASC',
@@ -127,20 +171,75 @@ class KE_Public {
             ),
         );
 
+        $tax_queries = array();
+
         if ( $atts['category'] ) {
-            $args['tax_query'] = array(
-                array(
-                    'taxonomy' => 'ke_event_category',
-                    'field'    => 'slug',
-                    'terms'    => explode( ',', $atts['category'] ),
-                ),
+            $tax_queries[] = array(
+                'taxonomy' => 'ke_event_category',
+                'field'    => 'slug',
+                'terms'    => explode( ',', $atts['category'] ),
             );
         }
 
-        $query = new WP_Query( $args );
+        if ( $atts['organizer'] ) {
+            $tax_queries[] = array(
+                'taxonomy' => 'ke_organizer',
+                'field'    => 'slug',
+                'terms'    => explode( ',', $atts['organizer'] ),
+            );
+        }
+
+        if ( ! empty( $tax_queries ) ) {
+            if ( count( $tax_queries ) > 1 ) {
+                $tax_queries['relation'] = 'AND';
+            }
+            $args['tax_query'] = $tax_queries;
+        }
+
+        $query  = new WP_Query( $args );
+        $layout = $atts['layout'] === 'grid' ? 'grid' : 'carousel';
 
         ob_start();
-        include KE_PLUGIN_DIR . 'public/views/event-archive.php';
+
+        if ( $layout === 'carousel' ) {
+            wp_enqueue_style(
+                'ke-events-carousel-css',
+                KE_PLUGIN_URL . 'public/css/ke-events-carousel.css',
+                array( 'ke-public-css' ),
+                KE_VERSION
+            );
+            wp_enqueue_script(
+                'ke-events-carousel-js',
+                KE_PLUGIN_URL . 'public/js/ke-events-carousel.js',
+                array(),
+                KE_VERSION,
+                true
+            );
+
+            // Preload the first 3 posters for perceived speed.
+            if ( $query->have_posts() ) {
+                $preload_urls = array();
+                foreach ( array_slice( $query->posts, 0, 3 ) as $p ) {
+                    $tid = get_post_thumbnail_id( $p->ID );
+                    if ( $tid ) {
+                        $url = wp_get_attachment_image_url( $tid, 'medium_large' );
+                        if ( $url ) $preload_urls[] = $url;
+                    }
+                }
+                if ( ! empty( $preload_urls ) ) {
+                    add_action( 'wp_head', function () use ( $preload_urls ) {
+                        foreach ( $preload_urls as $u ) {
+                            echo '<link rel="preload" as="image" href="' . esc_url( $u ) . '">' . "\n";
+                        }
+                    }, 5 );
+                }
+            }
+
+            include KE_PLUGIN_DIR . 'public/views/events-carousel.php';
+        } else {
+            include KE_PLUGIN_DIR . 'public/views/event-archive.php';
+        }
+
         return ob_get_clean();
     }
 

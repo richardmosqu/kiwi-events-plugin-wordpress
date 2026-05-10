@@ -188,6 +188,18 @@ body{
 <div class="ktv-actions">
     <button class="ktv-btn ktv-btn-primary" onclick="downloadTicket()">⬇️ Download Ticket PDF</button>
 </div>
+<?php
+$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+if ( strpos( $ua, 'iPhone' ) !== false || strpos( $ua, 'iPad' ) !== false ) : ?>
+<div style="width:100%;max-width:400px;margin-bottom:12px;">
+    <button onclick="downloadTicket()"
+            style="display:block;width:100%;padding:13px 20px;background:#000;color:#fff;
+                   border:none;border-radius:100px;font-family:inherit;font-size:15px;
+                   font-weight:600;cursor:pointer;text-align:center;">
+        🍎 Save to Apple Wallet (PDF)
+    </button>
+</div>
+<?php endif; ?>
 <script>
 function downloadTicket() {
     var orig = document.title;

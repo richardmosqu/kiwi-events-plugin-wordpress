@@ -83,6 +83,13 @@ class KE_Admin_Attendees {
         $event_title = get_the_title( $event_id );
         $filename    = sanitize_file_name( 'attendees-' . $event_title . '-' . date( 'Y-m-d' ) ) . '.csv';
 
+        // Per-event extra fields → one CSV column per field, ordered by config.
+        $xf_cfg     = class_exists( 'KE_Event_Extra_Fields' )
+                       ? KE_Event_Extra_Fields::get_config( $event_id )
+                       : array( 'enabled' => false, 'fields' => array() );
+        $xf_active  = ! empty( $xf_cfg['enabled'] ) && ! empty( $xf_cfg['fields'] );
+        $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
+
         header( 'Content-Type: text/csv; charset=UTF-8' );
         header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
         header( 'Pragma: no-cache' );
@@ -93,14 +100,15 @@ class KE_Admin_Attendees {
         // UTF-8 BOM for Excel
         fprintf( $output, chr(0xEF) . chr(0xBB) . chr(0xBF) );
 
-        // Header row
-        fputcsv( $output, array(
-            '#', 'Name', 'Email', 'Ticket Type', 'Ticket Code',
-            'Status', 'Checked In At', 'Price', 'Created At'
-        ) );
+        $header = array( '#', 'Name', 'Email', 'Ticket Type', 'Ticket Code',
+            'Status', 'Checked In At', 'Price', 'Created At' );
+        foreach ( $xf_columns as $xf ) {
+            $header[] = (string) $xf['label'];
+        }
+        fputcsv( $output, $header );
 
         foreach ( $attendees as $a ) {
-            fputcsv( $output, array(
+            $row = array(
                 $a->attendee_number,
                 $a->attendee_name,
                 $a->attendee_email,
@@ -110,7 +118,16 @@ class KE_Admin_Attendees {
                 $a->checked_in_at ?: '—',
                 $a->ticket_price > 0 ? '$' . number_format( $a->ticket_price, 2 ) : 'Free',
                 $a->created_at,
-            ) );
+            );
+            if ( $xf_active ) {
+                $decoded = $a->extra_fields_data ? json_decode( (string) $a->extra_fields_data, true ) : array();
+                if ( ! is_array( $decoded ) ) $decoded = array();
+                foreach ( $xf_columns as $xf ) {
+                    $val = $decoded[ $xf['id'] ] ?? '';
+                    $row[] = is_scalar( $val ) ? (string) $val : '';
+                }
+            }
+            fputcsv( $output, $row );
         }
 
         fclose( $output );

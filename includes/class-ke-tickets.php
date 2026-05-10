@@ -29,6 +29,13 @@ class KE_Tickets {
         $qr_generator = new KE_QR_Generator();
         $quantity = count( $attendees );
 
+        // Snapshot the ticket type name at sale time so the attendees list
+        // survives later deletion/archival of the ticket_type row.
+        $type_snapshot = $wpdb->get_var( $wpdb->prepare(
+            "SELECT name FROM {$wpdb->prefix}ke_ticket_types WHERE id = %d",
+            $ticket_type_id
+        ) );
+
         // Get the current attendee number for this event for proper numbering
         $current_count = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM {$this->table_name} WHERE event_id = %d AND status != 'cancelled'",
@@ -53,22 +60,42 @@ class KE_Tickets {
                 $cf_data = wp_json_encode( $attendee['custom_fields'] );
             }
 
+            // Per-event extra fields (university, shirt size, etc.). The REST
+            // checkout already validates + sanitizes these before calling us,
+            // but we re-encode rather than trust whatever shape it passed in
+            // so storage stays canonical: an associative array of id => string.
+            $ef_data = null;
+            if ( ! empty( $attendee['extra_fields'] ) && is_array( $attendee['extra_fields'] ) ) {
+                $clean_ef = array();
+                foreach ( $attendee['extra_fields'] as $fid => $val ) {
+                    $clean_ef[ (string) $fid ] = is_scalar( $val ) ? (string) $val : '';
+                }
+                if ( ! empty( $clean_ef ) ) {
+                    $ef_data = wp_json_encode( $clean_ef );
+                }
+            }
+
             $insert_row = array(
-                'ticket_code'     => $ticket_code,
-                'order_id'        => absint( $order_id ),
-                'ticket_type_id'  => absint( $ticket_type_id ),
-                'event_id'        => absint( $event_id ),
-                'attendee_name'   => sanitize_text_field( $attendee_name ),
-                'attendee_email'  => sanitize_email( $attendee_email ),
-                'attendee_number' => $attendee_number,
-                'status'          => 'valid',
-                'qr_code_path'    => $qr_path,
+                'ticket_code'          => $ticket_code,
+                'order_id'             => absint( $order_id ),
+                'ticket_type_id'       => absint( $ticket_type_id ),
+                'ticket_type_snapshot' => $type_snapshot ? (string) $type_snapshot : null,
+                'event_id'             => absint( $event_id ),
+                'attendee_name'        => sanitize_text_field( $attendee_name ),
+                'attendee_email'       => sanitize_email( $attendee_email ),
+                'attendee_number'      => $attendee_number,
+                'status'               => 'valid',
+                'qr_code_path'         => $qr_path,
             );
-            $insert_format = array( '%s', '%d', '%d', '%d', '%s', '%s', '%d', '%s', '%s' );
+            $insert_format = array( '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%d', '%s', '%s' );
 
             if ( $cf_data !== null ) {
                 $insert_row['custom_fields_data'] = $cf_data;
                 $insert_format[]                  = '%s';
+            }
+            if ( $ef_data !== null ) {
+                $insert_row['extra_fields_data'] = $ef_data;
+                $insert_format[]                 = '%s';
             }
 
             $result = $wpdb->insert( $this->table_name, $insert_row, $insert_format );
@@ -93,7 +120,10 @@ class KE_Tickets {
     public function get( $id ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
-            "SELECT t.*, tt.name as ticket_type_name, tt.price as ticket_price, p.post_title as event_name
+            "SELECT t.*,
+                    COALESCE(tt.name, t.ticket_type_snapshot) as ticket_type_name,
+                    tt.price as ticket_price,
+                    p.post_title as event_name
              FROM {$this->table_name} t
              LEFT JOIN {$wpdb->prefix}ke_ticket_types tt ON t.ticket_type_id = tt.id
              LEFT JOIN {$wpdb->posts} p ON t.event_id = p.ID
@@ -108,7 +138,10 @@ class KE_Tickets {
     public function get_by_code( $ticket_code ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
-            "SELECT t.*, tt.name as ticket_type_name, tt.price as ticket_price, p.post_title as event_name
+            "SELECT t.*,
+                    COALESCE(tt.name, t.ticket_type_snapshot) as ticket_type_name,
+                    tt.price as ticket_price,
+                    p.post_title as event_name
              FROM {$this->table_name} t
              LEFT JOIN {$wpdb->prefix}ke_ticket_types tt ON t.ticket_type_id = tt.id
              LEFT JOIN {$wpdb->posts} p ON t.event_id = p.ID
@@ -123,7 +156,10 @@ class KE_Tickets {
     public function get_by_order( $order_id ) {
         global $wpdb;
         return $wpdb->get_results( $wpdb->prepare(
-            "SELECT t.*, tt.name as ticket_type_name, tt.price as ticket_price, p.post_title as event_name
+            "SELECT t.*,
+                    COALESCE(tt.name, t.ticket_type_snapshot) as ticket_type_name,
+                    tt.price as ticket_price,
+                    p.post_title as event_name
              FROM {$this->table_name} t
              LEFT JOIN {$wpdb->prefix}ke_ticket_types tt ON t.ticket_type_id = tt.id
              LEFT JOIN {$wpdb->posts} p ON t.event_id = p.ID
@@ -180,10 +216,15 @@ class KE_Tickets {
         $params[] = $args['offset'];
 
         return $wpdb->get_results( $wpdb->prepare(
-            "SELECT t.*, tt.name as ticket_type_name, tt.price as ticket_price,
-                    tt.description as ticket_type_description
+            "SELECT t.*,
+                    COALESCE(tt.name, t.ticket_type_snapshot) as ticket_type_name,
+                    tt.price as ticket_price,
+                    tt.description as ticket_type_description,
+                    o.order_number as order_number, o.payment_method as payment_method,
+                    o.payment_status as payment_status, o.total_amount as order_total
              FROM {$this->table_name} t
              LEFT JOIN {$wpdb->prefix}ke_ticket_types tt ON t.ticket_type_id = tt.id
+             LEFT JOIN {$wpdb->prefix}ke_orders o ON t.order_id = o.id
              {$where}
              ORDER BY {$orderby}
              LIMIT %d OFFSET %d",
@@ -280,9 +321,24 @@ class KE_Tickets {
     }
 
     /**
-     * Cancel a ticket
+     * Cancel a ticket (soft delete).
      */
     public function cancel( $ticket_id ) {
+        return $this->update_status( $ticket_id, 'cancelled' );
+    }
+
+    /**
+     * Update a ticket's status (valid|unused|used|cancelled).
+     *
+     * Keeps quantity_sold on the ticket type in sync:
+     *  - cancelled rows don't count as sold, so transitioning INTO cancelled
+     *    decrements, and transitioning OUT of cancelled re-increments.
+     *  - Switching to 'used' stamps checked_in_at; switching to 'valid'
+     *    clears it so the row reflects real-world state.
+     *
+     * Accepts 'unused' from the UI as a synonym for 'valid' (pre-check-in).
+     */
+    public function update_status( $ticket_id, $new_status ) {
         global $wpdb;
 
         $ticket = $this->get( $ticket_id );
@@ -290,19 +346,113 @@ class KE_Tickets {
             return new WP_Error( 'not_found', 'Ticket not found.' );
         }
 
+        if ( $new_status === 'unused' ) {
+            $new_status = 'valid';
+        }
+        $allowed = array( 'valid', 'used', 'cancelled' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'invalid_status', 'Invalid status.' );
+        }
+
+        $old_status = $ticket->status;
+        if ( $old_status === $new_status ) {
+            return $this->get( $ticket_id );
+        }
+
+        $update = array( 'status' => $new_status );
+        $format = array( '%s' );
+
+        if ( $new_status === 'used' ) {
+            $update['checked_in_at'] = current_time( 'mysql' );
+            $update['checked_in_by'] = get_current_user_id();
+            $format[] = '%s';
+            $format[] = '%d';
+        } elseif ( $old_status === 'used' ) {
+            $update['checked_in_at'] = null;
+            $update['checked_in_by'] = null;
+            $format[] = '%s';
+            $format[] = '%d';
+        }
+
         $wpdb->update(
             $this->table_name,
-            array( 'status' => 'cancelled' ),
+            $update,
             array( 'id' => absint( $ticket_id ) ),
-            array( '%s' ),
+            $format,
             array( '%d' )
         );
 
-        // Decrement sold count
         $ticket_types = new KE_Ticket_Types();
-        $ticket_types->decrement_sold( $ticket->ticket_type_id, 1 );
+        if ( $new_status === 'cancelled' && $old_status !== 'cancelled' ) {
+            $ticket_types->decrement_sold( $ticket->ticket_type_id, 1 );
+        } elseif ( $old_status === 'cancelled' && $new_status !== 'cancelled' ) {
+            $ticket_types->increment_sold( $ticket->ticket_type_id, 1 );
+        }
 
+        return $this->get( $ticket_id );
+    }
+
+    /**
+     * Permanently delete a ticket row. Decrements quantity_sold if the ticket
+     * wasn't already cancelled (cancel already decremented).
+     */
+    public function hard_delete( $ticket_id ) {
+        global $wpdb;
+
+        $ticket = $this->get( $ticket_id );
+        if ( ! $ticket ) {
+            return new WP_Error( 'not_found', 'Ticket not found.' );
+        }
+
+        $result = $wpdb->delete(
+            $this->table_name,
+            array( 'id' => absint( $ticket_id ) ),
+            array( '%d' )
+        );
+        if ( $result === false ) {
+            return new WP_Error( 'db_error', 'Could not delete ticket.' );
+        }
+
+        if ( $ticket->status !== 'cancelled' ) {
+            $ticket_types = new KE_Ticket_Types();
+            $ticket_types->decrement_sold( $ticket->ticket_type_id, 1 );
+        }
         return true;
+    }
+
+    /**
+     * Update attendee name/email. Ticket code and ticket_type are immutable.
+     */
+    public function update_attendee( $ticket_id, $fields ) {
+        global $wpdb;
+
+        $update = array();
+        $format = array();
+        if ( isset( $fields['attendee_name'] ) ) {
+            $update['attendee_name'] = sanitize_text_field( $fields['attendee_name'] );
+            $format[] = '%s';
+        }
+        if ( isset( $fields['attendee_email'] ) ) {
+            $email = sanitize_email( $fields['attendee_email'] );
+            if ( $email && ! is_email( $email ) ) {
+                return new WP_Error( 'invalid_email', 'Invalid email address.' );
+            }
+            $update['attendee_email'] = $email;
+            $format[] = '%s';
+        }
+        if ( empty( $update ) ) {
+            return new WP_Error( 'no_data', 'Nothing to update.' );
+        }
+
+        $wpdb->update(
+            $this->table_name,
+            $update,
+            array( 'id' => absint( $ticket_id ) ),
+            $format,
+            array( '%d' )
+        );
+
+        return $this->get( $ticket_id );
     }
 
     /**

@@ -10,6 +10,7 @@ if ( ! $post || $post->post_type !== 'ke_event' ) {
 $ticket_types = new KE_Ticket_Types();
 $types = $ticket_types->get_available( $event_id );
 $event_title = $post->post_title;
+$resv_on     = class_exists( 'KE_Reservations' ) && KE_Reservations::is_active( $event_id );
 ?>
 
 <div class="ke-checkout-standalone">
@@ -18,7 +19,11 @@ $event_title = $post->post_title;
     <?php if ( empty( $types ) ) : ?>
         <div class="ke-empty">
             <span class="ke-empty-icon">🎟️</span>
-            <p>No tickets available at this time.</p>
+            <?php if ( $resv_on ) : ?>
+                <p>This event is reservation-only. <a href="<?php echo esc_url( get_permalink( $event_id ) ); ?>">Reserve on the event page →</a></p>
+            <?php else : ?>
+                <p>No tickets available at this time.</p>
+            <?php endif; ?>
         </div>
     <?php else : ?>
         <?php foreach ( $types as $type ) :

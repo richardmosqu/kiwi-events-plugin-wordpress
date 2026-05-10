@@ -14,12 +14,16 @@ class KE_Ticket_Types {
     }
 
     /**
-     * Get all ticket types for an event
+     * Get all live ticket types for an event (archived types excluded so
+     * the admin edit form doesn't resurrect rows the admin previously removed).
      */
     public function get_by_event( $event_id ) {
         global $wpdb;
         return $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$this->table_name} WHERE event_id = %d ORDER BY price ASC",
+            "SELECT * FROM {$this->table_name}
+             WHERE event_id = %d
+               AND (is_archived IS NULL OR is_archived = 0)
+             ORDER BY price ASC",
             $event_id
         ) );
     }
@@ -36,21 +40,19 @@ class KE_Ticket_Types {
     }
 
     /**
-     * Get available ticket types for an event (active + in sale window + not sold out)
+     * Get all ticket types for an event. Sold-out filtering is handled in the template
+     * by comparing quantity_sold vs quantity_total.
      */
     public function get_available( $event_id ) {
         global $wpdb;
-        $now = current_time( 'mysql' );
-        return $wpdb->get_results( $wpdb->prepare(
+        $results = $wpdb->get_results( $wpdb->prepare(
             "SELECT * FROM {$this->table_name}
              WHERE event_id = %d
-               AND status = 'active'
-               AND (sale_start IS NULL OR sale_start = '' OR sale_start <= %s)
-               AND (sale_end IS NULL OR sale_end = '' OR sale_end > %s)
-               AND (capacity_type = 'unlimited' OR quantity_sold < quantity_total)
-             ORDER BY price ASC",
-            $event_id, $now, $now
+               AND (is_archived IS NULL OR is_archived = 0)
+             ORDER BY price ASC, id ASC",
+            $event_id
         ) );
+        return $results ?: array();
     }
 
     /**
@@ -65,13 +67,11 @@ class KE_Ticket_Types {
             'description'    => '',
             'ticket_type'    => 'free',
             'price'          => 0.00,
-            'capacity_type'  => 'limited',
+            'capacity_type'  => 'unlimited',
             'quantity_total' => 0,
             'quantity_sold'  => 0,
             'min_per_order'  => 1,
             'max_per_order'  => 10,
-            'sale_start'     => null,
-            'sale_end'       => null,
             'show_remaining' => 'yes',
             'status'         => 'active',
         );
@@ -101,12 +101,10 @@ class KE_Ticket_Types {
             'quantity_sold'  => 0,
             'min_per_order'  => absint( $data['min_per_order'] ),
             'max_per_order'  => absint( $data['max_per_order'] ),
-            'sale_start'     => $data['sale_start'] ? sanitize_text_field( $data['sale_start'] ) : null,
-            'sale_end'       => $data['sale_end'] ? sanitize_text_field( $data['sale_end'] ) : null,
             'show_remaining' => sanitize_text_field( $data['show_remaining'] ),
             'status'         => sanitize_text_field( $data['status'] ),
         );
-        $insert_format = array( '%d', '%s', '%s', '%s', '%f', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s' );
+        $insert_format = array( '%d', '%s', '%s', '%s', '%f', '%s', '%d', '%d', '%d', '%d', '%s', '%s' );
 
         if ( isset( $data['custom_fields'] ) ) {
             $insert_data['custom_fields'] = $data['custom_fields'];
@@ -116,7 +114,7 @@ class KE_Ticket_Types {
         $result = $wpdb->insert( $this->table_name, $insert_data, $insert_format );
 
         if ( $result === false ) {
-            return new WP_Error( 'db_error', 'Could not create ticket type.' );
+            return new WP_Error( 'db_error', $wpdb->last_error ?: 'Could not create ticket type.' );
         }
 
         return $wpdb->insert_id;
@@ -131,7 +129,7 @@ class KE_Ticket_Types {
         $allowed = array(
             'name', 'description', 'ticket_type', 'price', 'capacity_type',
             'quantity_total', 'min_per_order', 'max_per_order',
-            'sale_start', 'sale_end', 'show_remaining', 'status', 'custom_fields'
+            'show_remaining', 'status', 'custom_fields'
         );
         $update = array();
         $format = array();
@@ -152,11 +150,6 @@ class KE_Ticket_Types {
                     case 'description':
                     case 'custom_fields':
                         $update[ $field ] = sanitize_textarea_field( $data[ $field ] );
-                        $format[]         = '%s';
-                        break;
-                    case 'sale_start':
-                    case 'sale_end':
-                        $update[ $field ] = $data[ $field ] ? sanitize_text_field( $data[ $field ] ) : null;
                         $format[]         = '%s';
                         break;
                     default:

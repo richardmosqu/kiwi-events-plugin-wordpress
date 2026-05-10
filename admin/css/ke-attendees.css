@@ -1,0 +1,357 @@
+/* KiwiEvents — Attendees admin page
+ * Pills, inline status dropdown, view/edit modals, bulk actions, toasts.
+ * Uses the design tokens defined in ke-admin.css (--ke-lime, --ke-radius…). */
+
+/* ── Table adjustments ────────────────────────────────────────────── */
+.ke-attendees-card { padding: 0; overflow: hidden; }
+.ke-attendees-table { width: 100%; }
+.ke-attendees-table th,
+.ke-attendees-table td {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.ke-attendees-table th.ke-col-check,
+.ke-attendees-table td.ke-col-check { width: 36px; padding-right: 0; }
+.ke-attendees-table th.ke-col-actions,
+.ke-attendees-table td.ke-col-actions { width: 1%; text-align: right; white-space: nowrap; }
+
+.ke-row-check,
+.ke-check-all {
+    width: 16px; height: 16px;
+    accent-color: var(--ke-lime-dark);
+    cursor: pointer;
+}
+
+/* ── Ticket ID (short code) ──────────────────────────────────────── */
+.ke-ticket-id {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    background: rgba(241, 245, 249, 0.8);
+    padding: 4px 8px;
+    border-radius: var(--ke-radius-xs);
+    color: #475569;
+    font-weight: 600;
+}
+
+/* ── Type pill ────────────────────────────────────────────────────── */
+.ke-type-pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: var(--ke-radius-sm);
+    background: rgba(132, 204, 22, 0.12);
+    color: #3f6212;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(132, 204, 22, 0.25);
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.ke-type-empty {
+    color: var(--ke-text-3);
+    font-size: 14px;
+}
+
+/* ── Inline status dropdown ──────────────────────────────────────── */
+.ke-status-cell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.ke-status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: #fff;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: var(--ke-radius-sm);
+    padding: 6px 28px 6px 26px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ke-text-1);
+    cursor: pointer;
+    transition: var(--ke-transition);
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 20 20' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='5 8 10 13 15 8'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+.ke-status-select:focus {
+    outline: none;
+    border-color: var(--ke-lime-dark);
+    box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.18);
+}
+/* Colored dot before the selected label */
+.ke-status-select::before { content: ''; }
+.ke-status-cell::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background: #94a3b8;
+    pointer-events: none;
+    z-index: 1;
+}
+.ke-status-cell:has(.ke-status-valid)::before     { background: #22c55e; }
+.ke-status-cell:has(.ke-status-used)::before      { background: #3b82f6; }
+.ke-status-cell:has(.ke-status-cancelled)::before { background: #ef4444; }
+.ke-status-valid     { color: #166534; }
+.ke-status-used      { color: #1e40af; }
+.ke-status-cancelled { color: #991b1b; }
+
+/* Saving spinner — shows while a dropdown request is in flight */
+.ke-status-spinner {
+    margin-left: 6px;
+    width: 12px; height: 12px;
+    border: 2px solid rgba(148, 163, 184, 0.3);
+    border-top-color: var(--ke-lime-dark);
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.ke-status-cell.is-saving .ke-status-spinner {
+    opacity: 1;
+    animation: ke-spin 0.7s linear infinite;
+}
+@keyframes ke-spin { to { transform: rotate(360deg); } }
+
+/* ── Row action icons ────────────────────────────────────────────── */
+.ke-icon-btn {
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    margin-left: 4px;
+    border-radius: var(--ke-radius-xs);
+    background: transparent;
+    color: var(--ke-text-2);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: var(--ke-transition);
+}
+.ke-icon-btn:hover {
+    background: rgba(241, 245, 249, 0.9);
+    color: var(--ke-text-1);
+    border-color: rgba(148, 163, 184, 0.25);
+}
+.ke-icon-btn-danger:hover {
+    background: rgba(254, 226, 226, 0.9);
+    color: #991b1b;
+    border-color: rgba(254, 202, 202, 0.6);
+}
+
+/* ── Bulk actions bar ────────────────────────────────────────────── */
+.ke-bulk-bar {
+    position: sticky;
+    top: 32px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 16px 0;
+    padding: 10px 16px;
+    background: var(--ke-glass-bg);
+    backdrop-filter: var(--ke-glass-blur);
+    -webkit-backdrop-filter: var(--ke-glass-blur);
+    border: 1px solid var(--ke-glass-border);
+    border-radius: var(--ke-radius-sm);
+    box-shadow: var(--ke-glass-shadow);
+    animation: ke-bulk-in 0.18s ease-out;
+}
+.ke-bulk-bar[hidden] { display: none; }
+.ke-bulk-count {
+    font-weight: 600;
+    color: var(--ke-text-1);
+    font-size: 13px;
+}
+.ke-bulk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@keyframes ke-bulk-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Modal ───────────────────────────────────────────────────────── */
+.ke-modal {
+    position: fixed; inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center; justify-content: center;
+    padding: 20px;
+}
+.ke-modal[hidden] { display: none; }
+.ke-modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: ke-fade-in 0.18s ease-out;
+}
+.ke-modal-dialog {
+    position: relative;
+    width: 100%;
+    max-width: 720px;
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+    animation: ke-modal-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ke-modal-dialog-sm { max-width: 480px; }
+@keyframes ke-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ke-modal-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.ke-modal-close {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 32px; height: 32px;
+    border-radius: var(--ke-radius-xs);
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--ke-text-3);
+    cursor: pointer;
+    transition: var(--ke-transition);
+}
+.ke-modal-close:hover { background: rgba(241, 245, 249, 0.9); color: var(--ke-text-1); }
+
+.ke-modal-body {
+    padding: 32px 28px 16px;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+.ke-modal-dialog-sm .ke-modal-body { grid-template-columns: 1fr; padding: 32px 28px 8px; }
+
+.ke-modal-qr {
+    padding: 12px;
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: var(--ke-radius-sm);
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center; justify-content: center;
+}
+.ke-modal-qr img { width: 100%; height: auto; display: block; border-radius: 4px; }
+.ke-modal-details h2 { margin: 0 0 14px; font-size: 18px; color: var(--ke-text-1); }
+
+.ke-detail-list { display: grid; gap: 10px; margin: 0; }
+.ke-detail-list > div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
+.ke-detail-list dt { color: var(--ke-text-3); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; margin: 0; }
+.ke-detail-list dd { color: var(--ke-text-1); font-size: 13px; margin: 0; word-break: break-word; }
+.ke-detail-list code { font-size: 11px; background: rgba(241, 245, 249, 0.8); padding: 2px 6px; border-radius: 4px; color: #475569; }
+
+.ke-modal-footer {
+    padding: 16px 28px 24px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    border-top: 1px solid rgba(226, 232, 240, 0.6);
+    margin-top: 12px;
+}
+
+/* ── Form fields inside modals ───────────────────────────────────── */
+.ke-form-field { margin: 14px 0; }
+.ke-form-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ke-text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.ke-form-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    border-radius: var(--ke-radius-sm);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--ke-text-1);
+    background: #fff;
+    transition: var(--ke-transition);
+}
+.ke-form-field input:focus {
+    outline: none;
+    border-color: var(--ke-lime-dark);
+    box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.18);
+}
+.ke-form-error {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(254, 226, 226, 0.6);
+    border: 1px solid rgba(254, 202, 202, 0.8);
+    border-radius: var(--ke-radius-xs);
+    color: #991b1b;
+    font-size: 13px;
+}
+
+/* ── Toasts ──────────────────────────────────────────────────────── */
+.ke-toasts {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+.ke-toast {
+    pointer-events: auto;
+    min-width: 220px;
+    padding: 12px 16px;
+    background: #0f172a;
+    color: #fff;
+    border-radius: var(--ke-radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+    animation: ke-toast-in 0.22s ease-out;
+}
+.ke-toast-success { background: #166534; }
+.ke-toast-error   { background: #991b1b; }
+.ke-toast.is-leaving { animation: ke-toast-out 0.2s ease-in forwards; }
+@keyframes ke-toast-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ke-toast-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(10px); }
+}
+
+/* Row feedback during requests */
+tr.is-busy { opacity: 0.55; pointer-events: none; }
+tr.ke-row-removed {
+    animation: ke-row-fade 0.25s ease-out forwards;
+}
+@keyframes ke-row-fade {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-12px); }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .ke-attendees-card { overflow-x: auto; }
+    .ke-modal-body { grid-template-columns: 1fr; }
+    .ke-modal-qr { max-width: 240px; margin: 0 auto; }
+    .ke-detail-list > div { grid-template-columns: 1fr; gap: 2px; }
+    .ke-detail-list dt { font-size: 11px; }
+}
+
+@media (max-width: 600px) {
+    .ke-bulk-bar { flex-direction: column; align-items: flex-start; }
+    .ke-bulk-actions { width: 100%; }
+    .ke-modal { padding: 12px; }
+    .ke-modal-footer { flex-wrap: wrap; }
+}

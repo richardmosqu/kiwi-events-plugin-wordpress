@@ -19,6 +19,21 @@
                     $min_price = $type->price;
                 }
             }
+
+            // Reservation availability — shown in place of (or alongside)
+            // ticket pricing for events that use reservations.
+            $card_resv_active = class_exists( 'KE_Reservations' ) && KE_Reservations::is_active( $event_id );
+            $card_resv_remaining = null;
+            if ( $card_resv_active ) {
+                try {
+                    $card_resv_state    = ( new KE_Reservations() )->get_capacity_state( $event_id );
+                    $card_resv_remaining = isset( $card_resv_state['remaining'] ) ? (int) $card_resv_state['remaining'] : null;
+                } catch ( \Throwable $e ) {
+                    // If state fetch fails, fall back to a generic label rather
+                    // than breaking the whole grid.
+                    $card_resv_remaining = null;
+                }
+            }
             ?>
             <article class="ke-event-card">
                 <div style="position: relative;">
@@ -64,7 +79,19 @@
                         <span class="ke-event-card-price">
                             <?php if ( $min_price !== null ) : ?>
                                 <?php echo $min_price > 0 ? '$' . number_format( $min_price, 2 ) : 'Free'; ?>
-                                <small><?php echo $min_price > 0 ? ' and up' : ''; ?></small>
+                                <small><?php
+                                    if ( $min_price > 0 && $card_resv_active )      echo ' and up · reservations open';
+                                    elseif ( $min_price > 0 )                       echo ' and up';
+                                    elseif ( $card_resv_active )                    echo ' · reservations open';
+                                ?></small>
+                            <?php elseif ( $card_resv_active ) : ?>
+                                <?php if ( $card_resv_remaining !== null && $card_resv_remaining > 0 ) : ?>
+                                    <span class="ke-resv-availability"><?php echo esc_html( number_format_i18n( $card_resv_remaining ) ); ?> spots available</span>
+                                <?php elseif ( $card_resv_remaining === 0 ) : ?>
+                                    <span class="ke-sold-out">Fully booked</span>
+                                <?php else : ?>
+                                    <span class="ke-resv-availability">Reservations open</span>
+                                <?php endif; ?>
                             <?php elseif ( empty( $available ) ) : ?>
                                 <span class="ke-sold-out">Sold Out</span>
                             <?php else : ?>
