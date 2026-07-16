@@ -7,12 +7,5 @@
         "php": ">=8.0",
         "chillerlan/php-qrcode": "^5.0",
         "tecnickcom/tcpdf": "^6.7"
-    },
-    "autoload": {
-        "classmap": [
-            "includes/",
-            "admin/",
-            "public/"
-        ]
     }
 }
