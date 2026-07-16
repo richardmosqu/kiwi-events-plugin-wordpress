@@ -55,73 +55,182 @@
 .ke-org-dash *::before,
 .ke-org-dash *::after { box-sizing: border-box; }
 
-/* ──────────────────────────────────────────────────────────────
-   Pill buttons (BUG 2)
-   Every <button> inside .ke-org-dash is pill-shaped by default.
-   Cards stay var(--kep-radius); inputs stay var(--kep-radius-sm).
-   ────────────────────────────────────────────────────────────── */
+/* ================================================================
+ * SPECIFICITY GUARD — Override WordPress.com globals
+ *
+ * WP.com on campuslifepa.com injects:
+ *   [type=button], [type=submit], button {
+ *       background-color: transparent;
+ *       border: 1px solid #c36;
+ *       color: #c36;
+ *       border-radius: 3px;
+ *   }
+ * — plus matching :focus / :active / :hover / :focus-visible variants
+ * which reach (0,2,0) on WP.com's side.
+ *
+ * The previous reset declared only border-radius/font-family/cursor,
+ * leaving border/color/background for WP.com to gap-fill — producing
+ * a magenta border on every button (and on every focus state across
+ * all buttons since plugin classes had no :focus rules).
+ *
+ * This block declares ALL props WP.com touches, on both base and
+ * pseudo states. Class-scoped rules below parent-scope under
+ * .ke-org-dash to reach (0,2,0) base / (0,3,0) pseudo and layer
+ * intentional fills cleanly on top.
+ *
+ * Every <button> inside .ke-org-dash is also pill-shaped by default
+ * via border-radius: var(--kep-r-pill).
+ *
+ * Updated: 2026-05-27 (WP.com bleed sprint phase 2)
+ * ================================================================ */
+.ke-org-dash button,
+.ke-org-dash [type="button"],
+.ke-org-dash [type="submit"],
+.ke-org-dash [type="reset"],
+.ke-org-dash input,
+.ke-org-dash select,
+.ke-org-dash textarea {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    outline: none;
+}
 
 .ke-org-dash button {
     border-radius: var(--kep-r-pill);
-    font-family: inherit;
-    cursor: pointer;
     transition: filter .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease, transform .05s ease;
 }
 .ke-org-dash button:disabled { opacity: .55; cursor: not-allowed; }
 
+.ke-org-dash button:focus,
+.ke-org-dash button:active,
+.ke-org-dash button:focus-visible,
+.ke-org-dash button:hover,
+.ke-org-dash [type="button"]:focus,
+.ke-org-dash [type="button"]:active,
+.ke-org-dash [type="button"]:focus-visible,
+.ke-org-dash [type="button"]:hover,
+.ke-org-dash [type="submit"]:focus,
+.ke-org-dash [type="submit"]:active,
+.ke-org-dash [type="submit"]:focus-visible,
+.ke-org-dash [type="submit"]:hover,
+.ke-org-dash [type="reset"]:focus,
+.ke-org-dash [type="reset"]:active,
+.ke-org-dash [type="reset"]:focus-visible,
+.ke-org-dash [type="reset"]:hover {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    outline: none;
+    box-shadow: none;
+}
+
+.ke-org-dash input[type="text"],
+.ke-org-dash input[type="email"],
+.ke-org-dash input[type="password"],
+.ke-org-dash input[type="number"],
+.ke-org-dash input[type="tel"],
+.ke-org-dash input[type="url"],
+.ke-org-dash input[type="search"],
+.ke-org-dash input[type="date"],
+.ke-org-dash textarea {
+    cursor: text;
+}
+
+.ke-org-dash select { cursor: pointer; }
+
 /* Primary pill — SOLID accent + white BOLD text. No gradient or shadow:
    any tinted shadow over a chromatic accent reads as a pink/rose halo on
    some panels. SVG icons use currentColor and inherit the white from the
-   button to stay in lock-step with the text color. */
-.ke-btn-primary,
-.ke-org-login-submit,
-.ke-org-export--csv,
-.ke-org-export--csv-top,
-.ke-org-export--pdf-top,
-.ke-org-event-pdf-btn {
-    border: none;
+   button to stay in lock-step with the text color.
+
+   Note: `.ke-btn-primary` / `.ke-btn-secondary` were previously listed
+   here but `organizer-dashboard.php` never emits those classes — they
+   collide with `admin/css/ke-admin.css` and `public/css/ke-scanner.css`
+   variants. Removed 2026-05-27 to eliminate the cross-surface footgun. */
+.ke-org-dash .ke-org-login-submit,
+.ke-org-dash .ke-org-export--csv,
+.ke-org-dash .ke-org-export--csv-top,
+.ke-org-dash .ke-org-export--pdf-top {
+    border: 1px solid transparent;
     background: var(--kep-accent-1);
     color: #ffffff;
     font-weight: 700;
     box-shadow: none;
     text-shadow: none;
 }
-.ke-btn-primary svg,
-.ke-org-login-submit svg,
-.ke-org-export--csv svg,
-.ke-org-export--csv-top svg,
-.ke-org-export--pdf-top svg,
-.ke-org-event-pdf-btn svg {
+.ke-org-dash .ke-org-login-submit svg,
+.ke-org-dash .ke-org-export--csv svg,
+.ke-org-dash .ke-org-export--csv-top svg,
+.ke-org-dash .ke-org-export--pdf-top svg {
     color: #ffffff;
     stroke: currentColor;
 }
-.ke-btn-primary:hover,
-.ke-org-login-submit:hover,
-.ke-org-export--csv:hover,
-.ke-org-export--csv-top:hover,
-.ke-org-export--pdf-top:hover,
-.ke-org-event-pdf-btn:hover {
+.ke-org-dash .ke-org-login-submit:hover,
+.ke-org-dash .ke-org-export--csv:hover,
+.ke-org-dash .ke-org-export--csv-top:hover,
+.ke-org-dash .ke-org-export--pdf-top:hover,
+.ke-org-dash .ke-org-login-submit:focus,
+.ke-org-dash .ke-org-export--csv:focus,
+.ke-org-dash .ke-org-export--csv-top:focus,
+.ke-org-dash .ke-org-export--pdf-top:focus,
+.ke-org-dash .ke-org-login-submit:active,
+.ke-org-dash .ke-org-export--csv:active,
+.ke-org-dash .ke-org-export--csv-top:active,
+.ke-org-dash .ke-org-export--pdf-top:active {
+    background: var(--kep-accent-1);
+    color: #ffffff;
+    border: 1px solid transparent;
     filter: brightness(1.06);
+    box-shadow: none;
+}
+.ke-org-dash .ke-org-login-submit:focus-visible,
+.ke-org-dash .ke-org-export--csv:focus-visible,
+.ke-org-dash .ke-org-export--csv-top:focus-visible,
+.ke-org-dash .ke-org-export--pdf-top:focus-visible {
+    background: var(--kep-accent-1);
+    color: #ffffff;
+    border: 1px solid transparent;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
     box-shadow: none;
 }
 
 /* Secondary pill — low-emphasis neutral gray + dark text. Spec colors,
    not theme tokens, so a tinted accent never bleeds through. */
-.ke-btn-secondary,
-.ke-org-logout,
-.ke-org-login-admin,
-.ke-org-pagination button {
-    border: none;
+.ke-org-dash .ke-org-logout,
+.ke-org-dash .ke-org-login-admin,
+.ke-org-dash .ke-org-pagination button {
+    border: 1px solid transparent;
     background: rgba(0, 0, 0, 0.04);
     color: #09090b;
     font-weight: 600;
 }
-.ke-btn-secondary:hover,
-.ke-org-logout:hover,
-.ke-org-login-admin:hover,
-.ke-org-pagination button:hover:not(:disabled) {
+.ke-org-dash .ke-org-logout:hover,
+.ke-org-dash .ke-org-login-admin:hover,
+.ke-org-dash .ke-org-pagination button:hover:not(:disabled),
+.ke-org-dash .ke-org-logout:focus,
+.ke-org-dash .ke-org-login-admin:focus,
+.ke-org-dash .ke-org-pagination button:focus,
+.ke-org-dash .ke-org-logout:active,
+.ke-org-dash .ke-org-login-admin:active,
+.ke-org-dash .ke-org-pagination button:active {
     background: rgba(0, 0, 0, 0.08);
     color: #09090b;
+    border: 1px solid transparent;
+}
+.ke-org-dash .ke-org-logout:focus-visible,
+.ke-org-dash .ke-org-login-admin:focus-visible,
+.ke-org-dash .ke-org-pagination button:focus-visible {
+    background: rgba(0, 0, 0, 0.08);
+    color: #09090b;
+    border: 1px solid transparent;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
 }
 
 /* ── Login state ─────────────────────────────────────────────────── */
@@ -196,7 +305,7 @@
     position: relative;
     margin-bottom: 16px;
 }
-.ke-org-login-input {
+.ke-org-dash .ke-org-login-input {
     width: 100%;
     height: 48px;
     padding: 0 48px 0 14px;
@@ -208,22 +317,24 @@
     font-family: inherit;
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
-.ke-org-login-input:focus {
+.ke-org-dash .ke-org-login-input:focus,
+.ke-org-dash .ke-org-login-input:focus-visible {
     outline: none;
     border-color: var(--kep-accent-1);
     background: #fff;
+    color: var(--kep-text);
     box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.18);
 }
 
 /* Eye-icon password toggle — pill, neutral */
-.ke-org-login-toggle {
+.ke-org-dash .ke-org-login-toggle {
     position: absolute;
     top: 50%;
     right: 6px;
     transform: translateY(-50%);
     width: 36px;
     height: 36px;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--kep-muted);
     display: inline-flex;
@@ -231,7 +342,16 @@
     justify-content: center;
     border-radius: var(--kep-r-pill);
 }
-.ke-org-login-toggle:hover { color: var(--kep-text); background: rgba(0,0,0,0.05); }
+.ke-org-dash .ke-org-login-toggle:hover,
+.ke-org-dash .ke-org-login-toggle:focus,
+.ke-org-dash .ke-org-login-toggle:active { color: var(--kep-text); background: rgba(0,0,0,0.05); border: 1px solid transparent; }
+.ke-org-dash .ke-org-login-toggle:focus-visible {
+    color: var(--kep-text);
+    background: rgba(0,0,0,0.05);
+    border: 1px solid transparent;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
+}
 
 .ke-org-login-error {
     margin: 0 0 14px;
@@ -335,7 +455,7 @@
 /* Date range — subtle white pill, NOT styled as a primary action. Thin
    neutral border keeps it visually distinct from the solid-accent
    primary buttons that sit beside it. */
-.ke-org-range {
+.ke-org-dash .ke-org-range {
     height: 38px;
     padding: 8px 18px;
     border: 1px solid rgba(0, 0, 0, 0.08);
@@ -348,14 +468,18 @@
     cursor: pointer;
     transition: border-color .15s ease, box-shadow .15s ease;
 }
-.ke-org-range:hover { border-color: rgba(0, 0, 0, 0.16); }
-.ke-org-range:focus {
+.ke-org-dash .ke-org-range:hover { border-color: rgba(0, 0, 0, 0.16); background: #ffffff; color: #09090b; }
+.ke-org-dash .ke-org-range:focus,
+.ke-org-dash .ke-org-range:focus-visible,
+.ke-org-dash .ke-org-range:active {
     outline: none;
     border-color: var(--kep-accent-1);
+    background: #ffffff;
+    color: #09090b;
     box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.15);
 }
 
-.ke-org-search {
+.ke-org-dash .ke-org-search {
     height: 38px;
     padding: 0 14px;
     border: 1px solid var(--kep-border);
@@ -368,13 +492,17 @@
     transition: border-color .15s ease, box-shadow .15s ease;
     min-width: 240px;
 }
-.ke-org-search:focus {
+.ke-org-dash .ke-org-search:focus,
+.ke-org-dash .ke-org-search:focus-visible,
+.ke-org-dash .ke-org-search:active {
     outline: none;
     border-color: var(--kep-accent-1);
+    background: #fff;
+    color: var(--kep-text);
     box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.15);
 }
 
-.ke-org-logout {
+.ke-org-dash .ke-org-logout {
     height: 38px;
     padding: 0 18px;
     font-size: 13px;
@@ -531,8 +659,23 @@
     animation: keOrgPulse 2s infinite;
 }
 
-/* Chart */
-.ke-org-chart-wrap { padding: 8px 20px 22px; min-height: 280px; }
+/* Chart — Chart.js's responsive:true + maintainAspectRatio:false combo
+   REQUIRES the canvas to live inside a position:relative parent with an
+   explicit pixel height. Without that constraint the canvas would grow
+   unbounded on every hover/redraw and trigger an infinite resize loop
+   (real bug seen in production). .kep-chart-wrapper provides that box.
+   No transitions/transforms on the canvas or wrapper — those also feed
+   the loop. */
+.ke-org-chart-wrap { padding: 8px 20px 22px; }
+.kep-chart-wrapper {
+    position: relative;
+    height: 320px;
+    width: 100%;
+}
+.kep-chart-wrapper > canvas {
+    display: block;
+    max-width: 100%;
+}
 .ke-org-chart-error {
     padding: 40px 24px;
     text-align: center;
@@ -540,61 +683,158 @@
     font-size: 14px;
 }
 
-/* Events list (BUG 3 + 5) */
-.ke-org-events { padding: 8px; }
+/* Events list — two-row card layout
+   Row 1: icon · name/date · chevron
+   Row 2: stat chips · PDF/CSV actions
+   The all-row (id=0) collapses to a single line. */
+.ke-org-events { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+
 .ke-org-event-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     padding: 14px 16px;
+    border: 1px solid transparent;
     border-radius: var(--kep-radius-sm);
-    display: grid;
-    grid-template-columns: 24px 1.4fr auto auto auto auto;
-    gap: 16px;
-    align-items: center;
-    transition: background .12s ease;
+    transition: background .15s ease, border-color .15s ease, transform .12s ease;
 }
-.ke-org-event-row.is-all-row {
-    grid-template-columns: 1fr;
+.ke-org-event-row:hover {
+    background: rgba(var(--kep-accent-rgb), 0.05);
+    border-color: rgba(var(--kep-accent-rgb), 0.18);
+    transform: translateY(-1px);
 }
-.ke-org-event-row:hover     { background: rgba(15, 23, 42, 0.03); }
-.ke-org-event-row.is-active { background: rgba(var(--kep-accent-rgb), 0.07); }
-.ke-org-event-name { font-weight: 600; color: var(--kep-text); }
-.ke-org-event-date { font-size: 13px; color: var(--kep-muted); margin-top: 2px; }
-.ke-org-event-stat { font-size: 14px; color: var(--kep-text-2); white-space: nowrap; }
-.ke-org-event-pdf-btn {
-    height: 30px;
-    padding: 0 14px;
-    font-size: 12px;
-    font-weight: 700;
-    box-shadow: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
+.ke-org-event-row.is-active {
+    background: rgba(var(--kep-accent-rgb), 0.08);
+    border-color: rgba(var(--kep-accent-rgb), 0.28);
 }
 
-/* Chevron toggle for ticket-type breakdown */
-.ke-org-event-toggle {
+/* All-events row stays single-line (no row-top/row-bottom split). */
+.ke-org-event-row.is-all-row { gap: 0; }
+.ke-org-event-row.is-all-row .ke-org-event-row-top,
+.ke-org-event-row.is-all-row .ke-org-event-row-bottom { display: none; }
+
+.ke-org-event-row-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.ke-org-event-icon {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border-radius: 10px;
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    color: var(--kep-accent-1);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+}
+.ke-org-event-icon svg { width: 18px; height: 18px; }
+
+.ke-org-event-row-main { flex: 1 1 auto; min-width: 0; }
+.ke-org-event-name {
+    font-weight: 600;
+    color: var(--kep-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ke-org-event-date { font-size: 13px; color: var(--kep-muted); margin-top: 2px; }
+
+.ke-org-event-row-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-left: 48px; /* indent under the icon */
+}
+.ke-org-event-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    align-items: center;
+}
+.ke-org-event-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.ke-org-event-chip-label { color: var(--kep-muted); }
+.ke-org-event-chip-value { color: var(--kep-text); font-weight: 600; }
+
+.ke-org-event-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.ke-org-dash .ke-org-event-action {
+    height: 32px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--kep-accent-1);
+    background: transparent;
+    border: 1.5px solid rgba(var(--kep-accent-rgb), 0.35);
+    border-radius: var(--kep-r-pill);
+    white-space: nowrap;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.ke-org-dash .ke-org-event-action svg { width: 14px; height: 14px; color: var(--kep-accent-1); stroke: currentColor; }
+.ke-org-dash .ke-org-event-action:hover,
+.ke-org-dash .ke-org-event-action:focus,
+.ke-org-dash .ke-org-event-action:active {
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    border-color: var(--kep-accent-1);
+    color: var(--kep-accent-1);
+}
+.ke-org-dash .ke-org-event-action:focus-visible {
+    background: rgba(var(--kep-accent-rgb), 0.10);
+    border-color: var(--kep-accent-1);
+    color: var(--kep-accent-1);
+    outline: 2px solid var(--kep-accent-1);
+    outline-offset: 2px;
+}
+
+/* Chevron toggle for ticket-type breakdown */
+.ke-org-dash .ke-org-event-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     padding: 0;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--kep-muted);
     cursor: pointer;
-    border-radius: 6px;
-    transition: background .12s ease, color .12s ease, transform .15s ease;
+    border-radius: 8px;
+    transition: background .12s ease, color .12s ease;
 }
-.ke-org-event-toggle:hover { background: rgba(15, 23, 42, 0.06); color: var(--kep-text); }
-.ke-org-event-toggle .ke-org-event-chevron { width: 14px; height: 14px; transition: transform .15s ease; }
+.ke-org-dash .ke-org-event-toggle:hover,
+.ke-org-dash .ke-org-event-toggle:focus,
+.ke-org-dash .ke-org-event-toggle:active { background: rgba(15, 23, 42, 0.06); color: var(--kep-text); border: 1px solid transparent; }
+.ke-org-dash .ke-org-event-toggle:focus-visible {
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--kep-text);
+    border: 1px solid transparent;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
+}
+.ke-org-event-toggle .ke-org-event-chevron { width: 16px; height: 16px; transition: transform .2s ease; }
 .ke-org-event-row.is-expanded .ke-org-event-toggle .ke-org-event-chevron { transform: rotate(180deg); }
-.ke-org-event-toggle-spacer { width: 24px; height: 24px; display: inline-block; }
+.ke-org-event-toggle-spacer { width: 32px; height: 32px; flex: 0 0 32px; display: inline-block; }
 
-/* Indented ticket-type breakdown sub-rows beneath an event */
+/* Ticket-type breakdown sub-rows beneath an event */
 .ke-org-event-types {
     display: none;
-    padding: 4px 16px 12px 56px; /* indent under chevron + name */
+    padding: 4px 16px 12px 64px; /* indent under icon + name */
     border-radius: var(--kep-radius-sm);
 }
 .ke-org-event-types.is-open { display: block; }
@@ -819,6 +1059,38 @@
     font-weight: 500;
 }
 
+/* "New sale!" toast pill — appears next to "Updated just now" when the
+   real-time beacon detects a new ticket. Auto-dismisses via JS after 4s. */
+.ke-org-new-sale-toast {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: var(--kep-r-pill);
+    background: rgba(var(--kep-accent-rgb), 0.12);
+    color: var(--kep-accent-1);
+    border: 1px solid rgba(var(--kep-accent-rgb), 0.30);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity .25s ease, transform .25s ease;
+    pointer-events: none;
+}
+.ke-org-new-sale-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+.ke-org-new-sale-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--kep-accent-1);
+    box-shadow: 0 0 0 0 rgba(var(--kep-accent-rgb), 0.6);
+    animation: keOrgPulse 1.4s infinite;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────── */
 
 /* Belt-and-suspenders: at no width should the dashboard cause the
@@ -830,12 +1102,6 @@
     .ke-org-main { padding: 24px 20px 48px; gap: 28px; }
     .ke-org-header { padding: 16px 20px; }
     .ke-org-stats { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-    /* Drop the date column once columns get tight; keep name + stats. */
-    .ke-org-event-row,
-    .ke-org-event-row.is-all-row {
-        grid-template-columns: 24px 1.4fr auto auto auto;
-    }
-    .ke-org-event-stat:nth-of-type(3) { display: none; } /* check-in column */
     .ke-org-search { min-width: 180px; }
 }
 
@@ -869,6 +1135,10 @@
 
     .ke-org-main { padding: 20px 16px 40px; gap: 24px; }
 
+    /* Shorter chart on mobile — wrapper stays position:relative so
+       Chart.js still has a fixed-height parent (no resize loop). */
+    .kep-chart-wrapper { height: 240px; }
+
     /* 1-col stats under 768px (BUG 3 spec). */
     .ke-org-stats { grid-template-columns: 1fr; gap: 12px; }
     .ke-org-stat { padding: 18px 16px; }
@@ -886,18 +1156,31 @@
         font-size: 15px;
     }
 
-    /* Vertical event-row layout under 768px (BUG 3 spec). Each stat
-       wraps to its own line; PDF button drops to full width. */
-    .ke-org-event-row,
-    .ke-org-event-row.is-all-row {
-        grid-template-columns: 1fr;
-        gap: 6px;
-        padding: 14px;
+    /* Vertical event-row layout under 768px: chips wrap, PDF/CSV go
+       full-width on their own line. Chevron stays in the top row so
+       breakdown can still be toggled. */
+    .ke-org-event-row { padding: 14px; }
+    .ke-org-event-row-bottom {
+        padding-left: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
     }
-    .ke-org-event-stat:nth-of-type(3) { display: block; } /* unhide check-in */
-    .ke-org-event-types { padding: 4px 0 12px 16px; }
-    .ke-org-event-pdf-btn { width: 100%; justify-content: center; height: 40px; }
-    .ke-org-event-toggle, .ke-org-event-toggle-spacer { display: none; }
+    .ke-org-event-actions { width: 100%; gap: 8px; }
+    .ke-org-event-action {
+        flex: 1 1 0;
+        height: 40px;
+        font-size: 13px;
+        justify-content: center;
+    }
+    .ke-org-event-types { padding: 4px 0 12px 8px; }
+    /* Stack ticket-type breakdown rows vertically on mobile. */
+    .ke-org-type-row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+        padding: 8px 0;
+    }
+    .ke-org-type-name::before { content: ""; margin-right: 0; }
 
     /* Full-width primary buttons (BUG 3 spec) + 44px touch targets. */
     .ke-org-top-actions { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -958,8 +1241,8 @@
     flex-wrap: wrap;
     gap: 8px;
 }
-.ke-org-resv-event-filter,
-.ke-org-resv-date {
+.ke-org-dash .ke-org-resv-event-filter,
+.ke-org-dash .ke-org-resv-date {
     height: 38px;
     padding: 0 12px;
     border: 1px solid #e4e4e7;
@@ -970,10 +1253,16 @@
     font-family: inherit;
     transition: border-color .15s ease, box-shadow .15s ease;
 }
-.ke-org-resv-event-filter:focus,
-.ke-org-resv-date:focus {
+.ke-org-dash .ke-org-resv-event-filter:focus,
+.ke-org-dash .ke-org-resv-event-filter:focus-visible,
+.ke-org-dash .ke-org-resv-event-filter:active,
+.ke-org-dash .ke-org-resv-date:focus,
+.ke-org-dash .ke-org-resv-date:focus-visible,
+.ke-org-dash .ke-org-resv-date:active {
     outline: none;
     border-color: var(--kep-accent-1);
+    background: #ffffff;
+    color: #18181b;
     box-shadow: 0 0 0 3px rgba(var(--kep-accent-rgb), 0.15);
 }
 
@@ -984,7 +1273,7 @@
     padding: 12px 20px 0;
     margin-bottom: -4px;
 }
-.ke-org-resv-pill {
+.ke-org-dash .ke-org-resv-pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -999,11 +1288,21 @@
     cursor: pointer;
     transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
-.ke-org-resv-pill:hover {
+.ke-org-dash .ke-org-resv-pill:hover,
+.ke-org-dash .ke-org-resv-pill:focus,
+.ke-org-dash .ke-org-resv-pill:active {
+    background: #ffffff;
     border-color: rgba(var(--kep-accent-rgb), 0.4);
     color: #18181b;
 }
-.ke-org-resv-pill.is-active {
+.ke-org-dash .ke-org-resv-pill:focus-visible {
+    background: #ffffff;
+    border-color: rgba(var(--kep-accent-rgb), 0.4);
+    color: #18181b;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
+}
+.ke-org-dash .ke-org-resv-pill.is-active {
     background: var(--kep-accent-1);
     border-color: var(--kep-accent-1);
     color: #ffffff;
@@ -1112,7 +1411,7 @@
 .ke-org-resv-status--cancelled_by_venue{ background: #fee2e2; color: #b91c1c; }
 .ke-org-resv-status--declined          { background: #fee2e2; color: #b91c1c; }
 
-.ke-org-resv-row-open {
+.ke-org-dash .ke-org-resv-row-open {
     height: 32px;
     padding: 0 14px;
     border: 1px solid #e4e4e7;
@@ -1125,10 +1424,19 @@
     cursor: pointer;
     transition: background .15s ease, border-color .15s ease;
 }
-.ke-org-resv-row-open:hover {
+.ke-org-dash .ke-org-resv-row-open:hover,
+.ke-org-dash .ke-org-resv-row-open:focus,
+.ke-org-dash .ke-org-resv-row-open:active {
     background: #fafafa;
     border-color: var(--kep-accent-1);
     color: var(--kep-accent-1);
+}
+.ke-org-dash .ke-org-resv-row-open:focus-visible {
+    background: #fafafa;
+    border-color: var(--kep-accent-1);
+    color: var(--kep-accent-1);
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
 }
 
 .ke-org-resv-pager {
@@ -1138,7 +1446,7 @@
     gap: 12px;
     padding-top: 14px;
 }
-.ke-org-resv-page-btn {
+.ke-org-dash .ke-org-resv-page-btn {
     height: 32px;
     padding: 0 14px;
     border: 1px solid #e4e4e7;
@@ -1150,7 +1458,21 @@
     color: #18181b;
     cursor: pointer;
 }
-.ke-org-resv-page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ke-org-dash .ke-org-resv-page-btn:hover:not(:disabled),
+.ke-org-dash .ke-org-resv-page-btn:focus:not(:disabled),
+.ke-org-dash .ke-org-resv-page-btn:active:not(:disabled) {
+    background: #ffffff;
+    border-color: rgba(var(--kep-accent-rgb), 0.4);
+    color: #18181b;
+}
+.ke-org-dash .ke-org-resv-page-btn:focus-visible:not(:disabled) {
+    background: #ffffff;
+    border-color: rgba(var(--kep-accent-rgb), 0.4);
+    color: #18181b;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
+}
+.ke-org-dash .ke-org-resv-page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .ke-org-resv-page-info { font-size: 12px; color: #52525b; }
 
 /* ── Detail drawer ─────────────────────────────────────────────── */
@@ -1197,10 +1519,10 @@
     color: #18181b;
     margin: 0;
 }
-.ke-org-resv-drawer-close {
+.ke-org-dash .ke-org-resv-drawer-close {
     width: 32px;
     height: 32px;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     border-radius: 8px;
     font-size: 22px;
@@ -1209,9 +1531,19 @@
     cursor: pointer;
     transition: background .15s ease, color .15s ease;
 }
-.ke-org-resv-drawer-close:hover {
+.ke-org-dash .ke-org-resv-drawer-close:hover,
+.ke-org-dash .ke-org-resv-drawer-close:focus,
+.ke-org-dash .ke-org-resv-drawer-close:active {
     background: #f4f4f5;
     color: #18181b;
+    border: 1px solid transparent;
+}
+.ke-org-dash .ke-org-resv-drawer-close:focus-visible {
+    background: #f4f4f5;
+    color: #18181b;
+    border: 1px solid transparent;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
 }
 .ke-org-resv-drawer-body {
     flex: 1 1 auto;
@@ -1266,7 +1598,7 @@
     font-size: 12px;
     color: #71717a;
 }
-.ke-org-resv-btn {
+.ke-org-dash .ke-org-resv-btn {
     flex: 1 1 auto;
     height: 40px;
     padding: 0 16px;
@@ -1280,29 +1612,56 @@
     cursor: pointer;
     transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.ke-org-resv-btn:hover { background: #fafafa; border-color: var(--kep-accent-1); }
-.ke-org-resv-btn.is-loading,
-.ke-org-resv-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.ke-org-resv-btn--primary {
+.ke-org-dash .ke-org-resv-btn:hover,
+.ke-org-dash .ke-org-resv-btn:focus,
+.ke-org-dash .ke-org-resv-btn:active { background: #fafafa; border-color: var(--kep-accent-1); color: #18181b; }
+.ke-org-dash .ke-org-resv-btn:focus-visible {
+    background: #fafafa;
+    border-color: var(--kep-accent-1);
+    color: #18181b;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
+}
+.ke-org-dash .ke-org-resv-btn.is-loading,
+.ke-org-dash .ke-org-resv-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ke-org-dash .ke-org-resv-btn--primary {
     background: var(--kep-accent-1);
     border-color: var(--kep-accent-1);
     color: #ffffff;
     box-shadow: none;
 }
-.ke-org-resv-btn--primary:hover {
+.ke-org-dash .ke-org-resv-btn--primary:hover,
+.ke-org-dash .ke-org-resv-btn--primary:focus,
+.ke-org-dash .ke-org-resv-btn--primary:active {
     background: var(--kep-accent-2, var(--kep-accent-1));
     border-color: var(--kep-accent-2, var(--kep-accent-1));
     color: #ffffff;
 }
-.ke-org-resv-btn--danger {
+.ke-org-dash .ke-org-resv-btn--primary:focus-visible {
+    background: var(--kep-accent-2, var(--kep-accent-1));
+    border-color: var(--kep-accent-2, var(--kep-accent-1));
+    color: #ffffff;
+    outline: 2px solid rgba(var(--kep-accent-rgb), 0.35);
+    outline-offset: 2px;
+}
+.ke-org-dash .ke-org-resv-btn--danger {
     color: #b91c1c;
     border-color: #fecaca;
     background: #ffffff;
 }
-.ke-org-resv-btn--danger:hover {
+.ke-org-dash .ke-org-resv-btn--danger:hover,
+.ke-org-dash .ke-org-resv-btn--danger:focus,
+.ke-org-dash .ke-org-resv-btn--danger:active {
     background: #fef2f2;
     border-color: #ef4444;
     color: #991b1b;
+}
+.ke-org-dash .ke-org-resv-btn--danger:focus-visible {
+    background: #fef2f2;
+    border-color: #ef4444;
+    color: #991b1b;
+    outline: 2px solid rgba(239, 68, 68, 0.35);
+    outline-offset: 2px;
 }
 
 /* When the drawer is open, lock background scroll so it feels modal. */

@@ -77,6 +77,7 @@ class KE_Email {
 
         // Build HTML email body
         $body = $this->get_email_html( array(
+            'order_id'      => (int) $order_id,
             'buyer_name'    => $order->buyer_name,
             'event_title'   => $event_title,
             'event_date'    => $formatted_date,
@@ -734,6 +735,12 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
   <div class="body">
     <p class="greeting">Hi <strong><?php echo esc_html( $data['buyer_name'] ); ?></strong>,</p>
     <p class="sub">Great news &mdash; your order is complete. Show the QR code below at the entrance.</p>
+    <?php
+    // Promoter attribution paragraph — empty unless KE_Promoter_Visible
+    // hooks ke_email_extra_html_after_intro and finds an attributed promoter
+    // for this order. Output is already escaped inside the filter.
+    echo apply_filters( 'ke_email_extra_html_after_intro', '', isset( $data['order_id'] ) ? (int) $data['order_id'] : 0 );
+    ?>
 
     <!-- Event details -->
     <div style="background:#fafafa;border-top:1px solid #f0f0f0;border-bottom:1px solid #f0f0f0;padding:16px 0;margin-bottom:20px;">
@@ -768,6 +775,9 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
       <div style="background:#ffffff;border:1.5px solid <?php echo $accent_border; ?>;border-radius:16px;padding:20px;margin-bottom:12px;text-align:center;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#71717a;margin-bottom:4px;font-family:'Inter',Arial,sans-serif;">Attendee</div>
         <div style="font-size:18px;font-weight:700;color:#09090b;margin-bottom:4px;font-family:'Inter',Arial,sans-serif;"><?php echo esc_html( $ticket->attendee_name ); ?></div>
+        <?php if ( ! empty( $ticket->is_courtesy ) ) : ?>
+          <div style="display:inline-block;padding:4px 10px;margin:0 0 8px;background:#fef3c7;color:#78350f;border:1px solid #fcd34d;border-radius:100px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;font-family:'Inter',Arial,sans-serif;">Cortesía</div>
+        <?php endif; ?>
         <?php if ( $type_name ) : ?>
           <div style="font-size:12px;color:#a1a1aa;margin-bottom:8px;font-family:'Inter',Arial,sans-serif;"><?php echo esc_html( $type_name ); ?></div>
         <?php endif; ?>

@@ -27,6 +27,15 @@ class KE_Rest_API {
             ),
         ) );
 
+        // Public: Calendar events for a given date range + category. Returns
+        // a minimal payload optimized for the [kiwi_events_calendar] shortcode
+        // grid (id, title, slug, permalink, banner, datetimes, venue).
+        register_rest_route( $this->namespace, '/calendar-events', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_calendar_events' ),
+            'permission_callback' => '__return_true',
+        ) );
+
         // Public: Single event / Admin: Update or Delete event
         register_rest_route( $this->namespace, '/events/(?P<id>\d+)', array(
             array(
@@ -63,6 +72,15 @@ class KE_Rest_API {
             'permission_callback' => array( $this, 'scanner_permission_check' ),
         ) );
 
+        // Admin: Toggle a ticket type's active/inactive status. Flips the
+        // `status` column on wp_ke_ticket_types so inactive types stop
+        // appearing in the public picker without losing sales history.
+        register_rest_route( $this->namespace, '/events/(?P<id>\d+)/ticket-types/(?P<type_id>\d+)/toggle-active', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'toggle_ticket_type_active' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+
         // Public: Process free ticket checkout
         register_rest_route( $this->namespace, '/checkout', array(
             'methods'             => WP_REST_Server::CREATABLE,
@@ -74,6 +92,14 @@ class KE_Rest_API {
         register_rest_route( $this->namespace, '/events/(?P<id>\d+)/attendees', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_attendees' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+
+        // Admin: Add attendee directly (real or courtesy) without going through
+        // checkout. Creates a synthetic order, mints a ticket, emails the QR.
+        register_rest_route( $this->namespace, '/events/(?P<id>\d+)/attendees/add', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_add_attendee' ),
             'permission_callback' => array( $this, 'admin_permission_check' ),
         ) );
 
@@ -165,6 +191,17 @@ class KE_Rest_API {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'save_event' ),
             'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+
+        // Admin: live slug validation for the slug editor.
+        register_rest_route( $this->namespace, '/events/check-slug', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'check_event_slug' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+            'args'                => array(
+                'slug'       => array( 'type' => 'string', 'required' => true ),
+                'exclude_id' => array( 'type' => 'integer', 'required' => false, 'default' => 0 ),
+            ),
         ) );
 
         // Organizer ticket templates — list + create
@@ -355,6 +392,15 @@ class KE_Rest_API {
             'permission_callback' => array( $this, 'organizer_session_permission_check' ),
         ) );
 
+        // Real-time sales beacon. Cheap: one transient read, no DB query.
+        // Client polls every 8s while the dashboard tab is visible and
+        // triggers a full stats refresh when the timestamp advances.
+        register_rest_route( $this->namespace, '/organizer/(?P<slug>[a-z0-9_-]+)/last-sale', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => $this->safe_organizer_callback( 'organizer_last_sale' ),
+            'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+        ) );
+
         // CSV export — attendees.
         register_rest_route( $this->namespace, '/organizer/(?P<slug>[a-z0-9_-]+)/export/csv', array(
             'methods'             => WP_REST_Server::READABLE,
@@ -403,6 +449,63 @@ class KE_Rest_API {
                 'permission_callback' => array( $this, 'admin_permission_check' ),
             )
         );
+
+        // Admin: WP-user search for the promoter create/edit form. LIKE-matches
+        // on user_email / display_name / user_login. Optionally excludes users
+        // that already have a promoter row.
+        register_rest_route( $this->namespace, '/users/search', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'search_users' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+    }
+
+    /**
+     * Search WP users by email, display name, or login. Returns up to 10
+     * results. Used by the admin promoter form's type-ahead picker.
+     *
+     * Query args:
+     *   q                          required, min 2 chars
+     *   exclude_existing_promoters bool — when truthy, omit users that already
+     *                              have a row in ke_promoters
+     */
+    public function search_users( WP_REST_Request $request ) {
+        $q = trim( (string) $request->get_param( 'q' ) );
+        if ( strlen( $q ) < 2 ) {
+            return rest_ensure_response( array() );
+        }
+
+        global $wpdb;
+        $like = '%' . $wpdb->esc_like( $q ) . '%';
+
+        $sql = "SELECT ID, display_name, user_login, user_email
+                FROM {$wpdb->users}
+                WHERE user_email LIKE %s
+                   OR display_name LIKE %s
+                   OR user_login LIKE %s
+                ORDER BY display_name ASC
+                LIMIT 30";
+        $rows = $wpdb->get_results( $wpdb->prepare( $sql, $like, $like, $like ) );
+
+        $exclude = ! empty( $request->get_param( 'exclude_existing_promoters' ) );
+        $taken   = array();
+        if ( $exclude ) {
+            $ids = $wpdb->get_col( "SELECT user_id FROM {$wpdb->prefix}ke_promoters WHERE user_id IS NOT NULL" );
+            $taken = array_flip( array_map( 'intval', (array) $ids ) );
+        }
+
+        $out = array();
+        foreach ( (array) $rows as $r ) {
+            if ( $exclude && isset( $taken[ (int) $r->ID ] ) ) continue;
+            $out[] = array(
+                'id'           => (int) $r->ID,
+                'display_name' => $r->display_name ?: $r->user_login,
+                'email'        => $r->user_email,
+                'avatar_url'   => get_avatar_url( (int) $r->ID, array( 'size' => 48 ) ),
+            );
+            if ( count( $out ) >= 10 ) break;
+        }
+        return rest_ensure_response( $out );
     }
 
     /**
@@ -528,6 +631,107 @@ class KE_Rest_API {
             'events'      => $events,
             'total'       => $query->found_posts,
             'total_pages' => $query->max_num_pages,
+        ) );
+    }
+
+    /**
+     * GET /calendar-events?category=slug&from=YYYY-MM-DD&to=YYYY-MM-DD
+     *
+     * Returns published events whose start datetime falls in [from, to],
+     * filtered by ke_event_category slug when given. Designed for the
+     * [kiwi_events_calendar] shortcode — minimal payload, no pagination.
+     *
+     * If from/to are missing or unparseable, defaults to the current month.
+     */
+    public function get_calendar_events( WP_REST_Request $request ) {
+        $category = sanitize_title( (string) $request->get_param( 'category' ) );
+        $from_raw = (string) $request->get_param( 'from' );
+        $to_raw   = (string) $request->get_param( 'to' );
+
+        $from_ts = $from_raw ? strtotime( $from_raw . ' 00:00:00' ) : false;
+        $to_ts   = $to_raw   ? strtotime( $to_raw   . ' 23:59:59' ) : false;
+
+        if ( ! $from_ts || ! $to_ts || $to_ts < $from_ts ) {
+            $from_ts = strtotime( date( 'Y-m-01 00:00:00' ) );
+            $to_ts   = strtotime( date( 'Y-m-t 23:59:59' ) );
+        }
+
+        // Guard rail: cap the range to ~6 months to keep queries bounded
+        // even if a client passes a huge window.
+        if ( $to_ts - $from_ts > 86400 * 200 ) {
+            $to_ts = $from_ts + ( 86400 * 200 );
+        }
+
+        $from_str = date( 'Y-m-d H:i:s', $from_ts );
+        $to_str   = date( 'Y-m-d H:i:s', $to_ts );
+
+        $args = array(
+            'post_type'      => 'ke_event',
+            'post_status'    => 'publish',
+            'posts_per_page' => 200,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_ke_event_date_start',
+            'order'          => 'ASC',
+            'no_found_rows'  => true,
+            'meta_query'     => array(
+                'relation' => 'AND',
+                array(
+                    'key'     => '_ke_event_status',
+                    'value'   => 'active',
+                    'compare' => '=',
+                ),
+                array(
+                    'key'     => '_ke_event_date_start',
+                    'value'   => array( $from_str, $to_str ),
+                    'compare' => 'BETWEEN',
+                    'type'    => 'DATETIME',
+                ),
+            ),
+        );
+
+        if ( $category !== '' ) {
+            $args['tax_query'] = array(
+                array(
+                    'taxonomy' => 'ke_event_category',
+                    'field'    => 'slug',
+                    'terms'    => array( $category ),
+                ),
+            );
+        }
+
+        $query  = new WP_Query( $args );
+        $events = array();
+
+        // Drop events whose end datetime has passed — keeps month-paging
+        // consistent with the initial preload in KE_Shortcodes::render_calendar.
+        $posts = $query->posts;
+        if ( class_exists( 'KE_Shortcodes' ) ) {
+            $posts = KE_Shortcodes::filter_expired_posts( $posts );
+        }
+
+        foreach ( $posts as $post ) {
+            $thumb_id  = get_post_thumbnail_id( $post->ID );
+            $banner    = $thumb_id ? wp_get_attachment_image_url( $thumb_id, 'medium' ) : '';
+            $start     = (string) get_post_meta( $post->ID, '_ke_event_date_start', true );
+            $end       = (string) get_post_meta( $post->ID, '_ke_event_date_end', true );
+            $venue     = (string) get_post_meta( $post->ID, '_ke_event_venue', true );
+
+            $events[] = array(
+                'id'             => $post->ID,
+                'title'          => get_the_title( $post ),
+                'slug'           => $post->post_name,
+                'permalink'      => get_permalink( $post->ID ),
+                'banner_url'     => $banner,
+                'start_datetime' => $start,
+                'end_datetime'   => $end,
+                'venue_name'     => $venue,
+            );
+        }
+
+        return rest_ensure_response( array(
+            'from'   => date( 'Y-m-d', $from_ts ),
+            'to'     => date( 'Y-m-d', $to_ts ),
+            'events' => $events,
         ) );
     }
 
@@ -669,9 +873,29 @@ class KE_Rest_API {
                 );
             }
 
+            // URL-only attribution: propagate ?promo= from the event page that
+            // originated this REST request into the checkout redirect URL.
+            // wc_get_checkout_url() runs through the woocommerce_get_checkout_url
+            // filter, but the REST request's own $_GET doesn't carry the param —
+            // we have to lift it from HTTP_REFERER ourselves.
+            $checkout_url = wc_get_checkout_url();
+            $referrer     = (string) $request->get_header( 'referer' );
+            if ( $referrer !== '' && class_exists( 'KE_Promoter_Attribution' ) ) {
+                $parsed = wp_parse_url( $referrer );
+                if ( ! empty( $parsed['query'] ) ) {
+                    parse_str( $parsed['query'], $rp );
+                    $raw = $rp[ KE_Promoter_Attribution::QUERY_PARAM ]
+                        ?? ( $rp[ KE_Promoter_Attribution::QUERY_PARAM_LEGACY ] ?? '' );
+                    $slug = sanitize_title( (string) $raw );
+                    if ( $slug !== '' ) {
+                        $checkout_url = add_query_arg( KE_Promoter_Attribution::QUERY_PARAM, $slug, $checkout_url );
+                    }
+                }
+            }
+
             return rest_ensure_response( array(
                 'success'      => true,
-                'redirect'     => wc_get_checkout_url(),
+                'redirect'     => $checkout_url,
                 'payment_type' => 'woocommerce',
             ) );
         }
@@ -719,6 +943,35 @@ class KE_Rest_API {
 
         if ( is_wp_error( $ticket_ids ) ) {
             return new WP_Error( 'ticket_failed', 'Could not generate tickets.', array( 'status' => 500 ) );
+        }
+
+        // Promoter attribution (free flow). URL-only: parse the REST request's
+        // referrer (the event page that submitted the form) for ?promo=. The
+        // assignment check happens inside resolve_from_referrer().
+        if ( class_exists( 'KE_Promoter_Attribution' ) && class_exists( 'KE_Promoter_Commissions' ) ) {
+            $referrer = (string) $request->get_header( 'referer' );
+            $promoter = KE_Promoter_Attribution::resolve_from_referrer( $referrer, $event_id );
+            if ( defined( 'KE_PROMOTER_DEBUG' ) && KE_PROMOTER_DEBUG ) {
+                error_log( sprintf(
+                    '[KE-PROMO] free_checkout: ke_order=%d event=%d referrer=%s → %s',
+                    (int) $order_result['order_id'], (int) $event_id,
+                    $referrer !== '' ? $referrer : '(empty)',
+                    $promoter ? ('slug=' . (string) $promoter->slug) : 'no-attribution'
+                ) );
+            }
+            if ( $promoter ) {
+                KE_Promoter_Commissions::generate_for_order( array(
+                    'event_id'           => $event_id,
+                    'order_id'           => (int) $order_result['order_id'],
+                    'wc_order_id'        => 0,
+                    'ticket_ids'         => $ticket_ids,
+                    'ticket_base_price'  => floatval( $ticket_type->price ),
+                    'promoter_slug'      => (string) $promoter->slug,
+                    'buyer_name'         => $buyer_name,
+                    'buyer_email'        => $buyer_email,
+                    'attribution_method' => 'url',
+                ) );
+            }
         }
 
         // Send confirmation email — failure must not abort the checkout
@@ -979,10 +1232,19 @@ class KE_Rest_API {
     public function get_attendees( WP_REST_Request $request ) {
         $tickets = new KE_Tickets();
         $event_id = (int) $request['id'];
+
+        // Tri-state courtesy filter: 'real' (is_courtesy=0), 'courtesy' (is_courtesy=1),
+        // or '' / 'all' / missing → no filter.
+        $type_param  = (string) $request->get_param( 'attendee_type' );
+        $is_courtesy = null;
+        if ( $type_param === 'real' )     $is_courtesy = 0;
+        if ( $type_param === 'courtesy' ) $is_courtesy = 1;
+
         $attendees = $tickets->get_attendees( $event_id, array(
             'status'         => $request->get_param( 'status' ) ?: '',
             'ticket_type_id' => $request->get_param( 'ticket_type_id' ) ?: 0,
             'search'         => $request->get_param( 'search' ) ?: '',
+            'is_courtesy'    => $is_courtesy,
             'limit'          => $request->get_param( 'per_page' ) ?: 50,
             'offset'         => ( ( $request->get_param( 'page' ) ?: 1 ) - 1 ) * ( $request->get_param( 'per_page' ) ?: 50 ),
         ) );
@@ -991,6 +1253,7 @@ class KE_Rest_API {
             'status'         => $request->get_param( 'status' ) ?: '',
             'ticket_type_id' => $request->get_param( 'ticket_type_id' ) ?: 0,
             'search'         => $request->get_param( 'search' ) ?: '',
+            'is_courtesy'    => $is_courtesy,
         ) );
 
         // Resolve raw JSON in extra_fields_data → labelled array using the
@@ -1012,6 +1275,105 @@ class KE_Rest_API {
             'attendees'           => $attendees,
             'total'               => $total,
             'extra_fields_config' => $extra_cfg,
+        ) );
+    }
+
+    /**
+     * POST /events/{id}/attendees/add — admin-only "Add attendee" flow.
+     *
+     * Creates a synthetic order with payment_method='admin', mints a single
+     * ticket via KE_Tickets::generate(), and emails the QR. Skips the
+     * promoter-commission path (no session, no slug). Capacity is enforced
+     * for BOTH real and courtesy attendees — courtesy occupies seats.
+     */
+    public function admin_add_attendee( WP_REST_Request $request ) {
+        $event_id       = (int) $request['id'];
+        $ticket_type_id = (int) $request->get_param( 'ticket_type_id' );
+        $name           = sanitize_text_field( (string) $request->get_param( 'name' ) );
+        $email          = sanitize_email( (string) $request->get_param( 'email' ) );
+        $is_courtesy    = filter_var( $request->get_param( 'is_courtesy' ), FILTER_VALIDATE_BOOLEAN ) ? 1 : 0;
+        $extra_fields   = $request->get_param( 'extra_fields' );
+
+        if ( ! $event_id || ! $ticket_type_id || $name === '' || ! is_email( $email ) ) {
+            return new WP_Error( 'missing_fields', __( 'Name, email, and ticket type are required.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+
+        $ticket_types = new KE_Ticket_Types();
+        $type         = $ticket_types->get( $ticket_type_id );
+        if ( ! $type || (int) $type->event_id !== $event_id ) {
+            return new WP_Error( 'invalid_ticket', __( 'Ticket type not found for this event.', 'kiwi-events' ), array( 'status' => 404 ) );
+        }
+
+        // Capacity check applies to courtesy too — they occupy seats.
+        $remaining = $ticket_types->get_remaining( $ticket_type_id );
+        if ( $remaining < 1 ) {
+            return new WP_Error( 'sold_out', __( 'No remaining capacity on this ticket type.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+
+        // Validate per-attendee extra fields against the event's saved config.
+        $clean_extras = null;
+        if ( class_exists( 'KE_Event_Extra_Fields' ) && KE_Event_Extra_Fields::is_active( $event_id ) ) {
+            $submitted = is_array( $extra_fields ) ? $extra_fields : array();
+            $clean     = KE_Event_Extra_Fields::validate_attendee( $event_id, $submitted );
+            if ( is_wp_error( $clean ) ) {
+                return $clean;
+            }
+            $clean_extras = $clean;
+        }
+
+        // Real attendee: contribute the ticket's base price to the synthetic
+        // order total so dashboards see it as a paid sale.
+        // Courtesy: order total is $0 — admin gift, no revenue.
+        $price        = (float) $type->price;
+        $order_total  = $is_courtesy ? 0.0 : $price;
+
+        $orders_handler = new KE_Orders();
+        $order_result   = $orders_handler->create( array(
+            'event_id'        => $event_id,
+            'user_id'         => get_current_user_id(),
+            'buyer_name'      => $name,
+            'buyer_email'     => $email,
+            'total_amount'    => $order_total,
+            'ticket_quantity' => 1,
+            'payment_method'  => 'admin',
+            'payment_status'  => 'completed',
+        ) );
+
+        if ( is_wp_error( $order_result ) ) {
+            return new WP_Error( 'order_failed', __( 'Could not create order.', 'kiwi-events' ), array( 'status' => 500 ) );
+        }
+
+        $attendees = array( array(
+            'name'         => $name,
+            'email'        => $email,
+            'is_courtesy'  => $is_courtesy,
+            'extra_fields' => $clean_extras,
+        ) );
+
+        $tickets_handler = new KE_Tickets();
+        $ticket_ids      = $tickets_handler->generate(
+            $order_result['order_id'],
+            $event_id,
+            $ticket_type_id,
+            $attendees
+        );
+
+        if ( is_wp_error( $ticket_ids ) || empty( $ticket_ids ) ) {
+            return new WP_Error( 'ticket_failed', __( 'Could not generate the ticket.', 'kiwi-events' ), array( 'status' => 500 ) );
+        }
+
+        // Send the ticket email (best-effort — failure does not roll back the
+        // ticket, since the admin can resend from the attendees list).
+        $email_handler = new KE_Email();
+        $email_sent    = $email_handler->send_ticket_email( $order_result['order_id'] );
+
+        return rest_ensure_response( array(
+            'success'      => true,
+            'ticket_ids'   => array_map( 'intval', (array) $ticket_ids ),
+            'order_id'     => (int) $order_result['order_id'],
+            'order_number' => $order_result['order_number'],
+            'is_courtesy'  => (bool) $is_courtesy,
+            'email_sent'   => ! is_wp_error( $email_sent ),
         ) );
     }
 
@@ -1285,6 +1647,7 @@ class KE_Rest_API {
      * POST /events/save — legacy alias (kept for backward compat)
      */
     public function save_event( WP_REST_Request $request ) {
+        global $wpdb;
         $params = $request->get_json_params();
 
         // Support both new field names (wizard) and old names (legacy)
@@ -1299,9 +1662,20 @@ class KE_Rest_API {
         $url_id   = absint( $request->get_param( 'id' ) );
         $event_id = $url_id ?: absint( $params['event_id'] ?? 0 );
 
-        // Post status: wizard sends 'draft'|'publish' as $params['status']
-        $raw_status  = $params['status'] ?? $params['post_status'] ?? 'draft';
-        $post_status = $raw_status === 'publish' ? 'publish' : 'draft';
+        // Post status: only change it when the request EXPLICITLY includes a
+        // status (the Publish / Save-Draft buttons send 'publish'|'draft' as
+        // $params['status']). A status-less save (autosave) must preserve the
+        // event's current status, so editing a published event can never
+        // silently revert it to draft. New events with no status default to
+        // draft, matching the prior create-as-draft autosave behavior.
+        if ( isset( $params['status'] ) || isset( $params['post_status'] ) ) {
+            $raw_status  = $params['status'] ?? $params['post_status'];
+            $post_status = $raw_status === 'publish' ? 'publish' : 'draft';
+        } else {
+            $post_status = ( $event_id > 0 )
+                ? ( get_post_status( $event_id ) ?: 'draft' )
+                : 'draft';
+        }
 
         $post_data = array(
             'post_title'   => $title,
@@ -1310,15 +1684,137 @@ class KE_Rest_API {
             'post_type'    => 'ke_event',
         );
 
+        // Slug resolution (Phase 4 enforcement).
+        //
+        // Policy:
+        //   • flag=true  → only honor an explicit slug in the payload. Never
+        //                  re-derive from title. Protects established URLs.
+        //   • flag=false → re-derive from title on every save, regardless of
+        //                  what the payload contains. Keeps the slug in lock-
+        //                  step with the title for auto-tracking events.
+        //
+        // The wizard's JS already mirrors title→slug in real time so the two
+        // usually match at save time, but server re-derivation is the
+        // authoritative fallback for non-wizard clients (REST scripts, future
+        // bulk-edit tools, plugin integrations).
+        //
+        // Uniqueness: pre-resolve via wp_unique_post_slug() so we know the
+        // exact slug WP will land on (collision suffixes -2, -3, …) and the
+        // client's check-slug result matches reality. wp_update_post would
+        // suffix silently otherwise. wp_old_slug_redirect fires automatically
+        // when post_name actually changes.
+        $resolved_lock = null; // null = unknown (new event without explicit flag)
+        if ( $event_id > 0 ) {
+            $resolved_lock = get_post_meta( $event_id, '_ke_slug_manually_set', true ) === '1';
+        }
+        if ( array_key_exists( 'slug_manually_set', $params ) ) {
+            // Caller explicitly sent the flag — that overrides the stored
+            // value for this save's slug-resolution decision (the meta
+            // itself is updated further below).
+            $resolved_lock = ! empty( $params['slug_manually_set'] );
+        }
+
+        $submitted_slug = isset( $params['slug'] ) ? sanitize_title( (string) $params['slug'] ) : '';
+
+        if ( $resolved_lock === true ) {
+            // Locked: only set post_name when an explicit slug was supplied.
+            // An empty submitted_slug leaves the existing post_name alone.
+            if ( $submitted_slug !== '' ) {
+                $current_name = ( $event_id > 0 ) ? (string) get_post_field( 'post_name', $event_id ) : '';
+                $unique = wp_unique_post_slug(
+                    $submitted_slug,
+                    (int) $event_id,
+                    $post_status,
+                    'ke_event',
+                    0
+                );
+                if ( $unique !== $current_name ) {
+                    $post_data['post_name'] = $unique;
+                }
+            }
+        } else {
+            // Auto-tracking (flag=false or new event without explicit flag):
+            // derive from title every save so renaming an unlocked event
+            // updates its URL. Honor an explicit submitted slug only if it
+            // matches the sanitized title — otherwise the wizard JS got out
+            // of sync and the title is the source of truth.
+            $derived = sanitize_title( $title );
+            if ( $derived !== '' ) {
+                $unique = wp_unique_post_slug(
+                    $derived,
+                    (int) $event_id,
+                    $post_status,
+                    'ke_event',
+                    0
+                );
+                $post_data['post_name'] = $unique;
+            }
+        }
+
         if ( $event_id > 0 ) {
             $post_data['ID'] = $event_id;
             $event_id = wp_update_post( $post_data, true );
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( sprintf( '[KE save_event] UPDATE event_id=%d title=%s', (int) $event_id, $title ) );
+            }
         } else {
-            $event_id = wp_insert_post( $post_data, true );
+            // Idempotency guard: if a client retries a "create" because the
+            // previous response was lost/corrupted (network blip, a 500 from
+            // a later step in this function, etc.), wp_insert_post would
+            // happily create a second post. Before inserting, look for an
+            // existing draft by the same author with the same title created
+            // within the last 60 seconds and return that one instead.
+            //
+            // This is the underlying defense for the bug that produced 11
+            // copies of "Pruebas promotores" in production: a fatal in the
+            // promoter-assignment block (SQL error on the dropped p.name/
+            // p.email columns) corrupted the JSON response, the JS treated
+            // it as an error, and the user's next keystroke triggered an
+            // auto-save that POSTed again with event_id=0 — looping.
+            $author_id = get_current_user_id();
+            $existing  = $wpdb->get_var( $wpdb->prepare(
+                "SELECT ID FROM {$wpdb->posts}
+                  WHERE post_type   = 'ke_event'
+                    AND post_author = %d
+                    AND post_title  = %s
+                    AND post_status IN ('draft','auto-draft','publish')
+                    AND post_date_gmt >= UTC_TIMESTAMP() - INTERVAL 60 SECOND
+                  ORDER BY ID DESC
+                  LIMIT 1",
+                $author_id,
+                $title
+            ) );
+            if ( $existing ) {
+                $event_id = (int) $existing;
+                $post_data['ID'] = $event_id;
+                wp_update_post( $post_data, true );
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( sprintf( '[KE save_event] DEDUPE matched recent draft event_id=%d title=%s', $event_id, $title ) );
+                }
+            } else {
+                $event_id = wp_insert_post( $post_data, true );
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( sprintf( '[KE save_event] INSERT new event_id=%s title=%s', is_wp_error( $event_id ) ? 'ERR' : (string) (int) $event_id, $title ) );
+                }
+            }
         }
 
         if ( is_wp_error( $event_id ) ) {
             return new WP_Error( 'save_failed', 'Failed to save event.', array( 'status' => 500 ) );
+        }
+
+        // Slug lock flag (Phase 2). Persist `_ke_slug_manually_set` whenever
+        // the wizard explicitly sends it. The wizard always sends it after
+        // Phase 2 deploys, so missing means a legacy/external caller — leave
+        // the meta untouched in that case so the Phase 3 migration value
+        // isn't accidentally cleared. Stored as '1' / '0' string for consistent
+        // get_post_meta() truthiness checks.
+        if ( array_key_exists( 'slug_manually_set', $params ) ) {
+            update_post_meta(
+                $event_id,
+                '_ke_slug_manually_set',
+                ! empty( $params['slug_manually_set'] ) ? '1' : '0'
+            );
         }
 
         // Banner image — set if provided, clear if the field is present but empty
@@ -1358,6 +1854,10 @@ class KE_Rest_API {
         if ( array_key_exists( 'is_featured', $params ) ) {
             $flag = filter_var( $params['is_featured'], FILTER_VALIDATE_BOOLEAN ) ? 1 : 0;
             update_post_meta( $event_id, '_ke_event_is_featured', $flag );
+        }
+        if ( array_key_exists( 'show_in_main_shortcode', $params ) ) {
+            $flag = filter_var( $params['show_in_main_shortcode'], FILTER_VALIDATE_BOOLEAN ) ? 1 : 0;
+            update_post_meta( $event_id, '_ke_event_show_in_main_shortcode', $flag );
         }
 
         // URL meta
@@ -1434,6 +1934,7 @@ class KE_Rest_API {
             $allowed_types = array(
                 'sold_out_bar', 'countdown', 'lineup', 'gallery',
                 'testimonials', 'schedule', 'menu_faq', 'faq',
+                'additional_info',
             );
             $clean = array();
             foreach ( $params['extras'] as $extra ) {
@@ -1463,6 +1964,33 @@ class KE_Rest_API {
         if ( array_key_exists( 'reservations', $params ) && is_array( $params['reservations'] ) && class_exists( 'KE_Reservations' ) ) {
             $clean_resv = KE_Reservations::sanitize_config( $params['reservations'] );
             update_post_meta( $event_id, KE_Reservations::META_KEY, $clean_resv );
+        }
+
+        // Promoter assignments — full-set replace via the dedicated helper.
+        // Validates promoter_id, commission_type, and commission_value internally.
+        if ( array_key_exists( 'promoter_assignments', $params ) && is_array( $params['promoter_assignments'] ) && class_exists( 'KE_Event_Promoters' ) ) {
+            $prior = KE_Event_Promoters::list_for_event( $event_id );
+            $prior_ids = array();
+            foreach ( $prior as $p ) { $prior_ids[ (int) $p->promoter_id ] = true; }
+
+            KE_Event_Promoters::set_for_event( $event_id, $params['promoter_assignments'] );
+
+            // Trigger CHANGE 3 notifications for *newly* assigned promoters only.
+            if ( class_exists( 'KE_Promoter_Notifications' ) ) {
+                $new_ids = array();
+                foreach ( $params['promoter_assignments'] as $a ) {
+                    $pid = isset( $a['promoter_id'] ) ? (int) $a['promoter_id'] : 0;
+                    if ( $pid && empty( $prior_ids[ $pid ] ) ) $new_ids[] = $pid;
+                }
+                if ( $new_ids ) {
+                    KE_Promoter_Notifications::queue_assignment_emails( $event_id, $new_ids );
+                }
+            }
+        }
+
+        // Per-event promoter terms (rich text). Filtered via wp_kses_post.
+        if ( array_key_exists( 'promoter_terms', $params ) ) {
+            update_post_meta( $event_id, '_ke_promoter_terms', wp_kses_post( (string) $params['promoter_terms'] ) );
         }
 
         // Ticket types — sync by ID: update existing, insert new, and
@@ -1508,6 +2036,14 @@ class KE_Rest_API {
                     'show_remaining' => ( $t['show_remaining'] ?? 'yes' ) === 'no' ? 'no' : 'yes',
                     'status'         => 'active',
                 );
+
+                // Per-ticket-type sales cutoff. Pass through unconditionally when
+                // the key is present so an explicit null (admin cleared the input)
+                // reaches the CRUD layer and writes SQL NULL. KE_Ticket_Types
+                // sanitizes the value, so we hand off the raw string here.
+                if ( array_key_exists( 'sale_end', $t ) ) {
+                    $fields['sale_end'] = $t['sale_end'];
+                }
 
                 $tid = isset( $t['id'] ) ? absint( $t['id'] ) : 0;
 
@@ -1586,6 +2122,40 @@ class KE_Rest_API {
             "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status != 'cancelled'", $event_id
         ) );
         return rest_ensure_response( array( 'checked_in' => $checked_in, 'total' => $total ) );
+    }
+
+    /**
+     * Flip a ticket type's status between 'active' and 'inactive'.
+     *
+     * Inactive ticket types are hidden from the public picker but keep all
+     * historical sales/courtesy attribution intact (we never delete the row,
+     * because tickets in wp_ke_tickets reference its id).
+     */
+    public function toggle_ticket_type_active( WP_REST_Request $request ) {
+        $event_id = absint( $request->get_param( 'id' ) );
+        $type_id  = absint( $request->get_param( 'type_id' ) );
+
+        if ( ! $event_id || ! $type_id ) {
+            return new WP_Error( 'bad_request', 'Missing event or ticket type id.', array( 'status' => 400 ) );
+        }
+
+        $ticket_types = new KE_Ticket_Types();
+        $row          = $ticket_types->get( $type_id );
+        if ( ! $row || (int) $row->event_id !== $event_id ) {
+            return new WP_Error( 'not_found', 'Ticket type not found for this event.', array( 'status' => 404 ) );
+        }
+
+        $next   = ( ( $row->status ?? 'active' ) === 'active' ) ? 'inactive' : 'active';
+        $result = $ticket_types->update( $type_id, array( 'status' => $next ) );
+        if ( $result === false || is_wp_error( $result ) ) {
+            return new WP_Error( 'db_error', 'Could not update ticket type status.', array( 'status' => 500 ) );
+        }
+
+        return rest_ensure_response( array(
+            'success' => true,
+            'id'      => $type_id,
+            'status'  => $next,
+        ) );
     }
 
     /**
@@ -2052,6 +2622,13 @@ class KE_Rest_API {
                     }
                 }
                 $out['items'] = $items;
+                break;
+            case 'additional_info':
+                // Refundable status: 'yes' | 'no' | '' (unspecified).
+                $refundable = sanitize_key( $config['refundable'] ?? '' );
+                $out['refundable'] = in_array( $refundable, array( 'yes', 'no' ), true ) ? $refundable : '';
+                // Disclaimers: free-form rich text, restricted to post-safe HTML.
+                $out['disclaimers'] = wp_kses_post( (string) ( $config['disclaimers'] ?? '' ) );
                 break;
         }
         return $out;
@@ -2690,6 +3267,28 @@ class KE_Rest_API {
     }
 
     /**
+     * GET /organizer/{slug}/last-sale
+     *
+     * Real-time sales beacon. Returns the Unix timestamp of the most
+     * recent ticket creation for this organizer, or 0 if none.
+     * Designed to be called every ~8s by the dashboard — one transient
+     * read, no database query, Cache-Control: no-store.
+     */
+    public function organizer_last_sale( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = KE_Organizer_Dashboard::require_session_for_slug( $slug );
+        if ( is_wp_error( $term ) ) return $term;
+
+        $ts = (int) get_transient( 'ke_last_sale_' . (int) $term->term_id );
+
+        $resp = rest_ensure_response( array(
+            'last_sale' => $ts,
+        ) );
+        $resp->header( 'Cache-Control', 'no-store, private, max-age=0' );
+        return $resp;
+    }
+
+    /**
      * GET /organizer/{slug}/stats?range=30
      */
     public function organizer_stats( WP_REST_Request $request ) {
@@ -2901,7 +3500,7 @@ class KE_Rest_API {
         $placeholders = implode( ',', array_fill( 0, count( $scoped ), '%d' ) );
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT t.event_id, t.attendee_name, t.attendee_email, t.ticket_type_snapshot, t.status,
-                    t.checked_in_at, t.created_at, t.extra_fields_data, p.post_title AS event_title
+                    t.is_courtesy, t.checked_in_at, t.created_at, t.extra_fields_data, p.post_title AS event_title
              FROM {$wpdb->prefix}ke_tickets t
              LEFT JOIN {$wpdb->posts} p ON p.ID = t.event_id
              WHERE t.event_id IN ($placeholders) AND t.status != 'cancelled'
@@ -2944,7 +3543,7 @@ class KE_Rest_API {
         // BOM for Excel UTF-8 detection
         fwrite( $out, "\xEF\xBB\xBF" );
 
-        $header_row = array( 'Event', 'Name', 'Email', 'Ticket Type', 'Status', 'Purchased At', 'Checked In At' );
+        $header_row = array( 'Event', 'Name', 'Email', 'Ticket Type', 'Attendee Type', 'Status', 'Purchased At', 'Checked In At' );
         foreach ( $xf_columns as $col ) {
             $header_row[] = $col['header'];
         }
@@ -2956,6 +3555,7 @@ class KE_Rest_API {
                 $r->attendee_name,
                 $r->attendee_email,
                 $r->ticket_type_snapshot,
+                ! empty( $r->is_courtesy ) ? 'Courtesy' : 'Real',
                 $r->status === 'used' ? 'Checked In' : ( $r->status === 'valid' ? 'Valid' : ucfirst( (string) $r->status ) ),
                 $r->created_at,
                 $r->checked_in_at ?: '',
@@ -3393,5 +3993,72 @@ class KE_Rest_API {
     public function organizer_logout( WP_REST_Request $request ) {
         KE_Organizer_Dashboard::clear_session();
         return rest_ensure_response( array( 'success' => true ) );
+    }
+
+    /**
+     * GET /events/check-slug?slug=foo-bar&exclude_id=123
+     *
+     * Live validation for the editable slug field. Returns:
+     *   { available: bool, reason: 'invalid_format'|'too_long'|'in_use'|'reserved'|null,
+     *     normalized: 'sanitized-slug' }
+     *
+     * Stricter than sanitize_title() — we enforce the rules the slug editor's
+     * help text promises (lowercase a-z + 0-9 + hyphens only, no leading/trailing
+     * or double hyphens, max 60 chars). sanitize_title() would silently strip
+     * accents / uppercase / spaces; here we reject those so the user sees a
+     * clear "invalid characters" message instead of a normalized surprise.
+     */
+    public function check_event_slug( WP_REST_Request $request ) {
+        $raw    = (string) $request->get_param( 'slug' );
+        $excl   = (int) $request->get_param( 'exclude_id' );
+        $slug   = strtolower( trim( $raw ) );
+
+        // The sanitized form is the canonical comparison target for uniqueness;
+        // we still validate the raw input against the strict format rules.
+        $normalized = sanitize_title( $slug );
+
+        $reason = null;
+        if ( $slug === '' ) {
+            $reason = 'invalid_format';
+        } elseif ( strlen( $slug ) > 60 ) {
+            $reason = 'too_long';
+        } elseif ( ! preg_match( '/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug ) ) {
+            // Catches: uppercase, spaces, accents, leading/trailing hyphen, double hyphen, empty segments.
+            $reason = 'invalid_format';
+        }
+
+        // Reserve a small set of slugs that would collide with KE rewrites
+        // (the CPT archive base is "events"; an event slug named "events" would
+        // shadow the archive). Keep this list minimal.
+        if ( $reason === null ) {
+            $reserved = array( 'events', 'event', 'add', 'edit', 'new' );
+            if ( in_array( $slug, $reserved, true ) ) {
+                $reason = 'reserved';
+            }
+        }
+
+        if ( $reason === null ) {
+            // Uniqueness check via post_name. Limit to ke_event CPT but include
+            // every non-trash status so a draft can't silently shadow a publish.
+            global $wpdb;
+            $where_excl = $excl > 0 ? $wpdb->prepare( ' AND ID != %d', $excl ) : '';
+            $clash = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts}
+                 WHERE post_name = %s
+                   AND post_type = 'ke_event'
+                   AND post_status != 'trash'"
+                . $where_excl,
+                $slug
+            ) );
+            if ( $clash > 0 ) {
+                $reason = 'in_use';
+            }
+        }
+
+        return rest_ensure_response( array(
+            'available'  => ( $reason === null ),
+            'reason'     => $reason,
+            'normalized' => $normalized,
+        ) );
     }
 }

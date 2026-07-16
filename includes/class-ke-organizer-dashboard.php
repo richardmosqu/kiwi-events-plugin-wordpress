@@ -99,7 +99,7 @@ class KE_Organizer_Dashboard {
         // or JS payload changes shape (button rebrand, new ticket-type
         // breakdown markup, etc.) so production stops serving stale assets
         // without requiring a full plugin-version bump.
-        $dash_ver = KE_VERSION . '-d5';
+        $dash_ver = KE_VERSION . '-d10';
 
         wp_enqueue_style(
             'ke-organizer-dashboard',
@@ -137,15 +137,20 @@ class KE_Organizer_Dashboard {
         $rgb_parts  = self::hex_to_rgb_parts( $accent );
         $accent_rgb = $rgb_parts ? implode( ', ', $rgb_parts ) : '99, 102, 241';
 
+        // Initial value of the "last sale" beacon — passing it inline so the
+        // first poll doesn't false-trigger a refresh against an unseen value.
+        $initial_last_sale = (int) get_transient( 'ke_last_sale_' . (int) $organizer->term_id );
+
         wp_localize_script( 'ke-organizer-dashboard', 'keOrganizerDashboard', array(
-            'restUrl'      => esc_url_raw( rest_url( 'ke/v1/organizer/' ) ),
-            'nonce'        => wp_create_nonce( 'wp_rest' ),
-            'slug'         => $organizer->slug,
-            'organizerName'=> $organizer->name,
-            'isAdmin'      => self::is_admin_user(),
-            'accent'       => $accent,
-            'currency'     => get_option( 'ke_currency', 'USD' ),
-            'siteUrl'      => esc_url_raw( home_url( '/' ) ),
+            'restUrl'        => esc_url_raw( rest_url( 'ke/v1/organizer/' ) ),
+            'nonce'          => wp_create_nonce( 'wp_rest' ),
+            'slug'           => $organizer->slug,
+            'organizerName'  => $organizer->name,
+            'isAdmin'        => self::is_admin_user(),
+            'accent'         => $accent,
+            'currency'       => get_option( 'ke_currency', 'USD' ),
+            'siteUrl'        => esc_url_raw( home_url( '/' ) ),
+            'initialLastSale'=> $initial_last_sale,
         ) );
 
         // Both gradient stops resolve to the user's chosen accent — flat brand

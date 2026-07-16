@@ -18,29 +18,31 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
 <div class="wrap ke-builder-wrap">
 
     <?php if ( ! empty( $_GET['created'] ) ) : ?>
-    <div class="notice notice-success is-dismissible" style="border-left-color:#6366f1;">
+    <div class="notice notice-success is-dismissible" style="border-left-color:var(--kiwi-green);">
         <p><strong>🎉 ¡Evento publicado!</strong> Tu evento está listo y visible para el público.</p>
     </div>
     <?php endif; ?>
 
     <?php if ( ! empty( $_GET['deleted'] ) ) : ?>
-    <div class="notice notice-success is-dismissible" style="border-left-color:#10b981;">
+    <div class="notice notice-success is-dismissible" style="border-left-color:var(--kiwi-green);">
         <p><strong>Event deleted.</strong> Tickets and attendees remain in the Attendees section.</p>
     </div>
     <?php endif; ?>
 
-    <!-- ── Header ── -->
-    <div class="ke-builder-header">
-        <div class="ke-builder-title">
-            <h1>All Events</h1>
-        </div>
-        <div class="ke-builder-actions">
-            <a href="<?php echo admin_url('admin.php?page=ke-event-builder'); ?>" class="ke-btn ke-btn-primary">+ Create Event</a>
+    <!-- ── Page header (wrapped on white; event grid below keeps its own card style) ── -->
+    <div class="ke-section-card ke-section-card--compact">
+        <div class="ke-builder-header">
+            <div class="ke-builder-title">
+                <h1>All Events</h1>
+            </div>
+            <div class="ke-builder-actions">
+                <a href="<?php echo admin_url('admin.php?page=ke-event-builder'); ?>" class="ke-btn ke-btn-primary">+ Create Event</a>
+            </div>
         </div>
     </div>
 
     <?php if ( empty( $events ) ) : ?>
-        <div class="ke-card" style="padding:60px 24px;">
+        <div class="ke-section-card" style="padding:60px 24px;">
             <div class="ke-empty-state">
                 <span class="ke-empty-state-icon">📅</span>
                 <h3>No Events Yet</h3>
@@ -49,7 +51,11 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
             </div>
         </div>
     <?php else : ?>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); gap:20px;">
+        <!-- ── Events grid — wrapped in one white container so the individual
+             event cards sit on a defined surface, matching the event-editor
+             treatment. Cream page background shows in the gaps between cards. ── -->
+        <div class="ke-section-card">
+        <div class="ke-events-card-grid">
             <?php foreach ( $events as $event ) :
                 $event_id      = $event->ID;
                 $status        = get_post_meta( $event_id, '_ke_event_status', true ) ?: 'active';
@@ -111,11 +117,11 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
                             $org_logo_url = $org_logo_id ? wp_get_attachment_image_url( $org_logo_id, 'thumbnail' ) : '';
                             echo '<div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">';
                             if ( $org_logo_url ) {
-                                echo '<img src="' . esc_url( $org_logo_url ) . '" style="width:20px; height:20px; border-radius:50%; object-fit:cover; border:1px solid #e2e8f0;">';
+                                echo '<img src="' . esc_url( $org_logo_url ) . '" style="width:20px; height:20px; border-radius:50%; object-fit:cover; border:1px solid var(--kiwi-border);">';
                             } else {
-                                echo '<div style="width:20px; height:20px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:10px; border:1px solid #e2e8f0;">🎪</div>';
+                                echo '<div style="width:20px; height:20px; border-radius:50%; background:var(--kiwi-cream-deep); display:flex; align-items:center; justify-content:center; font-size:10px; border:1px solid var(--kiwi-border);">🎪</div>';
                             }
-                            echo '<span style="font-size:13px; font-weight:600; color:#475569;">' . esc_html( $org->name ) . '</span>';
+                            echo '<span style="font-size:13px; font-weight:600; color:var(--kiwi-text-muted);">' . esc_html( $org->name ) . '</span>';
                             echo '</div>';
                         }
                         ?>
@@ -166,7 +172,7 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
                             <div class="ke-metric-item" style="grid-column:span 2;">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div class="ke-metric-label">Checked In</div>
-                                    <div style="font-size:13px; font-weight:700; color:#10b981;"><?php echo $tickets_scanned; ?></div>
+                                    <div style="font-size:13px; font-weight:700; color:var(--kiwi-green-text);"><?php echo $tickets_scanned; ?></div>
                                 </div>
                                 <div class="ke-progress-bar">
                                     <div class="ke-progress-fill" style="--ke-bar-w:<?php echo (int) $checkin_pct; ?>%;"></div>
@@ -182,6 +188,8 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
                                class="ke-action-btn ke-action-btn-neutral">Preview</a>
                             <a href="<?php echo admin_url('admin.php?page=kiwi-events-attendees&event_id=' . $event_id); ?>"
                                class="ke-action-btn ke-action-btn-dark">Attendees</a>
+                            <a href="<?php echo admin_url('admin.php?page=ke-promoters&action=event_dashboard&event_id=' . $event_id); ?>"
+                               class="ke-action-btn ke-action-btn-neutral">Promoters</a>
                             <button type="button"
                                     class="ke-action-icon-btn ke-duplicate-event-btn"
                                     title="Duplicate event"
@@ -215,6 +223,7 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
                     </div>
                 </div>
             <?php endforeach; ?>
+        </div>
         </div>
     <?php endif; ?>
 
@@ -259,62 +268,77 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
 <div class="ke-toast" id="ke-toast" role="status" aria-live="polite"></div>
 
 <style>
+/* Events-list page styles. Migrated to Kiwi tokens:
+   Tailwind reds → var(--kiwi-red) rgba scale,
+   slate text/borders → Kiwi neutrals,
+   lime gradients → solid Kiwi green,
+   slate-navy primary CTA → Kiwi green primary. */
 .ke-action-btn-delete {
-    background: transparent;
-    border: 1.5px solid #fca5a5;
-    color: #ef4444;
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-red-edge-medium);
+    color: var(--kiwi-red);
     cursor: pointer;
     font-family: inherit;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
-    padding: 5px 12px;
-    border-radius: 8px;
-    transition: all .18s;
+    padding: 9px 12px;
+    border-radius: 12px;
+    transition: background .15s var(--kiwi-ease), border-color .15s var(--kiwi-ease);
     line-height: 1;
 }
 .ke-action-btn-delete:hover {
-    background: #fee2e2;
-    border-color: #ef4444;
+    background: var(--kiwi-red-fill);
+    border-color: var(--kiwi-red);
 }
 .ke-confirm-overlay {
     position: fixed; inset: 0;
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(4px);
+    background: var(--kiwi-shadow-7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: none;
     align-items: center; justify-content: center;
     z-index: 99999;
     opacity: 0;
-    transition: opacity .18s ease;
+    transition: opacity .18s var(--kiwi-ease);
 }
 .ke-confirm-overlay.is-open { display: flex; opacity: 1; }
 .ke-confirm-modal {
-    background: #fff;
-    border-radius: 20px;
-    box-shadow: 0 30px 80px rgba(0,0,0,.25);
+    background: var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid var(--kiwi-border-hairline);
+    border-radius: 24px;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 24px 48px var(--kiwi-legacy-knob-shadow-15),
+        0 8px 16px var(--kiwi-shadow-5);
     padding: 32px 28px 24px;
     width: min(420px, calc(100vw - 32px));
     text-align: center;
     transform: translateY(12px) scale(.97);
-    transition: transform .2s cubic-bezier(.16,1,.3,1);
+    transition: transform .2s var(--kiwi-ease);
 }
 .ke-confirm-overlay.is-open .ke-confirm-modal { transform: none; }
 .ke-confirm-icon {
     width: 56px; height: 56px;
     margin: 0 auto 16px;
     display: grid; place-items: center;
-    background: #fee2e2; color: #ef4444;
+    background: var(--kiwi-red-fill-medium);
+    color: var(--kiwi-red);
+    border: 1px solid var(--kiwi-red-edge-soft);
     border-radius: 50%; font-size: 26px;
 }
 .ke-confirm-title {
-    margin: 0 0 8px; font-size: 19px; font-weight: 700; color: #0f172a;
+    margin: 0 0 8px; font-size: 19px; font-weight: 700; color: var(--kiwi-text);
 }
 .ke-confirm-body {
-    margin: 0 0 20px; color: #475569; font-size: 14px; line-height: 1.5;
+    margin: 0 0 20px; color: var(--kiwi-text-muted); font-size: 14px; line-height: 1.5;
 }
 .ke-confirm-error {
-    background: #fef2f2; color: #b91c1c;
-    border: 1px solid #fecaca;
-    border-radius: 10px;
+    background: var(--kiwi-red-fill);
+    color: var(--kiwi-red);
+    border: 1px solid var(--kiwi-red-edge-mid);
+    border-radius: var(--kiwi-radius-sm);
     padding: 10px 12px;
     font-size: 13px;
     margin-bottom: 16px;
@@ -325,61 +349,81 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
 }
 .ke-confirm-actions .ke-btn { min-width: 110px; }
 .ke-btn-danger {
-    background: #ef4444; color: #fff; border: 1px solid #ef4444;
-    padding: 10px 16px; border-radius: 10px; font-weight: 600;
-    cursor: pointer; transition: background .15s;
+    background: var(--kiwi-red);
+    color: var(--kiwi-white-ink);
+    border: 1px solid var(--kiwi-red);
+    padding: 10px 16px;
+    border-radius: var(--kiwi-radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s var(--kiwi-ease), box-shadow .15s var(--kiwi-ease);
+    box-shadow: 0 1px 0 var(--kiwi-inner-highlight-fainter) inset, 0 4px 10px var(--kiwi-red-glow-darker);
 }
-.ke-btn-danger:hover { background: #dc2626; }
+.ke-btn-danger:hover { background: var(--kiwi-red-darker-alt); }
 .ke-btn-danger:disabled { opacity: .6; cursor: not-allowed; }
 .ke-toast {
     position: fixed; right: 24px; bottom: 24px;
-    background: #0f172a; color: #fff;
-    padding: 12px 18px; border-radius: 12px;
-    box-shadow: 0 12px 30px rgba(0,0,0,.2);
+    background: var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid var(--kiwi-border-hairline);
+    color: var(--kiwi-text);
+    padding: 12px 18px;
+    border-radius: var(--kiwi-radius-md);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 12px 24px var(--kiwi-shadow-6),
+        0 4px 8px var(--kiwi-shadow-4);
     font-size: 14px; font-weight: 500;
     opacity: 0; transform: translateY(8px);
-    transition: opacity .2s, transform .2s;
+    transition: opacity .2s var(--kiwi-ease), transform .2s var(--kiwi-ease);
     pointer-events: none;
     z-index: 100000;
 }
 .ke-toast.is-visible { opacity: 1; transform: none; }
-.ke-toast.is-error { background: #b91c1c; }
+.ke-toast.is-error {
+    background: var(--kiwi-red-fill-medium);
+    border-color: var(--kiwi-red-edge-strong);
+    color: var(--kiwi-red);
+}
 
 /* ── Tickets Sold / Checked In bars ── */
 .ke-progress-bar {
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: var(--kiwi-radius-pill);
+    background: var(--kiwi-cream-deep);
+    border: 1px solid var(--kiwi-border);
 }
 .ke-progress-fill-sales {
     height: 100%;
     width: var(--ke-bar-w, 0%);
-    background: linear-gradient(90deg, #a3e635, #84cc16);
-    border-radius: 999px;
-    animation: ke-bar-grow 900ms cubic-bezier(.16,1,.3,1) both;
+    background: var(--kiwi-green);
+    border-radius: var(--kiwi-radius-pill);
+    animation: ke-bar-grow 900ms var(--kiwi-ease) both;
 }
 .ke-progress-fill {
     height: 100%;
     width: var(--ke-bar-w, 0%);
-    background: linear-gradient(90deg, #10b981, #34d399);
-    border-radius: 999px;
-    animation: ke-bar-grow 900ms 120ms cubic-bezier(.16,1,.3,1) both;
+    background: var(--kiwi-green);
+    border-radius: var(--kiwi-radius-pill);
+    animation: ke-bar-grow 900ms 120ms var(--kiwi-ease) both;
 }
 .ke-progress-fill-soldout {
-    background: linear-gradient(90deg, #ef4444, #f87171) !important;
+    background: var(--kiwi-red) !important;
 }
 @keyframes ke-bar-grow {
     from { width: 0; }
 }
 .ke-metric-empty {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--kiwi-text-muted);
     font-style: italic;
     padding: 6px 0;
 }
 .ke-metric-sold-count {
     font-size: 13px;
     font-weight: 700;
-    color: #65a30d;
+    color: var(--kiwi-green-text);
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -387,15 +431,15 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
 .ke-metric-sold-count .ke-inf {
     font-size: 15px;
     line-height: 1;
-    color: #94a3b8;
+    color: var(--kiwi-text-muted);
     font-weight: 600;
 }
 .ke-badge-soldout {
     display: inline-block;
-    background: #fee2e2;
-    color: #b91c1c;
-    border: 1px solid #fca5a5;
-    border-radius: 999px;
+    background: var(--kiwi-red-fill-medium);
+    color: var(--kiwi-red);
+    border: 1px solid var(--kiwi-red-edge-medium);
+    border-radius: var(--kiwi-radius-pill);
     padding: 2px 10px;
     font-size: 10px;
     font-weight: 800;
@@ -403,25 +447,25 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
     text-transform: uppercase;
 }
 
-/* ── Duplicate icon button ── */
+/* ── Duplicate icon button — rounded to match the card-action family ── */
 .ke-action-icon-btn {
-    background: transparent;
-    border: 1.5px solid #e2e8f0;
-    color: #64748b;
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
+    color: var(--kiwi-text-muted);
     cursor: pointer;
     font-family: inherit;
-    padding: 5px 8px;
-    border-radius: 8px;
-    transition: all .18s;
+    padding: 8px 10px;
+    border-radius: 12px;
+    transition: background .15s var(--kiwi-ease), border-color .15s var(--kiwi-ease), color .15s var(--kiwi-ease);
     line-height: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 .ke-action-icon-btn:hover {
-    background: #f1f5f9;
-    border-color: #a3e635;
-    color: #65a30d;
+    background: var(--kiwi-green-soft);
+    border-color: var(--kiwi-green-line);
+    color: var(--kiwi-green-text);
 }
 .ke-action-icon-btn:disabled {
     opacity: .55;
@@ -430,35 +474,40 @@ $types_table   = $wpdb->prefix . 'ke_ticket_types';
 
 /* ── Info-variant confirm modal (duplicate) ── */
 .ke-confirm-icon-info {
-    background: #ecfccb !important;
-    color: #65a30d !important;
+    background: var(--kiwi-green-tint) !important;
+    color: var(--kiwi-green-text) !important;
+    border-color: var(--kiwi-green-line) !important;
     font-size: 28px !important;
 }
+/* Primary CTA — Kiwi green with dark text. White-on-lime fails WCAG AA. */
 .ke-btn-primary {
-    background: #0f172a;
-    color: #fff;
-    border: 1px solid #0f172a;
+    background: var(--kiwi-green);
+    color: var(--kiwi-text);
+    border: 1px solid var(--kiwi-green);
     padding: 10px 16px;
-    border-radius: 10px;
+    border-radius: var(--kiwi-radius-sm);
     font-weight: 600;
     cursor: pointer;
-    transition: background .15s;
+    transition: background .15s var(--kiwi-ease), box-shadow .15s var(--kiwi-ease);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight) inset,
+        0 4px 10px var(--kiwi-green-glow);
 }
-.ke-btn-primary:hover { background: #1e293b; }
+.ke-btn-primary:hover { background: var(--kiwi-green-dark); }
 .ke-btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 .ke-btn-ghost {
     background: transparent;
-    color: #475569;
-    border: 1px solid #e2e8f0;
+    color: var(--kiwi-text);
+    border: 1px solid var(--kiwi-border);
     padding: 10px 16px;
-    border-radius: 10px;
+    border-radius: var(--kiwi-radius-sm);
     font-weight: 600;
     cursor: pointer;
-    transition: all .15s;
+    transition: background .15s var(--kiwi-ease), border-color .15s var(--kiwi-ease);
 }
 .ke-btn-ghost:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
+    background: var(--kiwi-cream-deep);
+    border-color: var(--kiwi-glass-border);
 }
 </style>
 

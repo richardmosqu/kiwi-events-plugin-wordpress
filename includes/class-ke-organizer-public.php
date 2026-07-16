@@ -265,7 +265,7 @@ class KE_Organizer_Public {
         // -op3: hardened lightbox hide() so it only restores body
         // overflow if we acquired the lock (was clobbering other
         // widgets' overflow locks on no-op hide paths).
-        $ver = KE_VERSION . '-op3';
+        $ver = KE_VERSION . '-op4';
 
         wp_enqueue_style(
             'ke-organizer-public',

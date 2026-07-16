@@ -35,29 +35,39 @@ class KE_Admin_Ticket_Types {
         $types = $ticket_types->get_by_event( $post->ID );
         ?>
         <style>
+            /* Ticket Types meta box — Kiwi glass system. Inline because the
+               meta box renders inside the WP edit-post screen which doesn't
+               share KE's enqueue manifest. Tokens come from ke-admin-tokens.css
+               which IS loaded on this screen via class-ke-admin.php. */
             .ke-tickets-list { margin-top: 8px; }
             .ke-ticket-item {
-                background: #f9fafb;
-                border: 1px solid #e5e7eb;
-                border-radius: 10px;
+                /* Solid list-item surface — no backdrop-filter on stacked
+                   content rows; they would blur each other recursively. */
+                background: #ffffff;
+                border: 1px solid var(--kiwi-border);
+                border-radius: var(--kiwi-radius-md);
                 padding: 20px;
                 margin-bottom: 12px;
                 position: relative;
-                transition: border-color 0.2s;
+                transition: border-color 0.2s var(--kiwi-ease), box-shadow 0.2s var(--kiwi-ease);
+                box-shadow:
+                    0 0 0 1px var(--kiwi-glass-border-edge),
+                    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+                    0 4px 12px rgba(0, 0, 0, 0.04);
             }
-            .ke-ticket-item:hover { border-color: #84cc16; }
+            .ke-ticket-item:hover { border-color: var(--kiwi-green); }
             .ke-ticket-item-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 16px;
                 padding-bottom: 12px;
-                border-bottom: 1px solid #e5e7eb;
+                border-bottom: 1px solid var(--kiwi-border);
             }
             .ke-ticket-item-title {
                 font-size: 14px;
                 font-weight: 700;
-                color: #1f2937;
+                color: var(--kiwi-text);
                 display: flex;
                 align-items: center;
                 gap: 8px;
@@ -65,50 +75,72 @@ class KE_Admin_Ticket_Types {
             .ke-ticket-item-badge {
                 display: inline-block;
                 padding: 2px 8px;
-                border-radius: 10px;
+                border-radius: var(--kiwi-radius-pill);
                 font-size: 10px;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
             }
-            .ke-badge-free-type { background: #ecfccb; color: #365314; }
-            .ke-badge-paid-type { background: #dbeafe; color: #1e3a5f; }
-            .ke-ticket-remove { color: #9ca3af; cursor: pointer; font-size: 18px; text-decoration: none; padding: 4px 8px; border-radius: 4px; transition: all 0.2s; }
-            .ke-ticket-remove:hover { color: #ef4444; background: #fef2f2; }
+            .ke-badge-free-type { background: var(--kiwi-green-tint);  color: var(--kiwi-green-text); border: 1px solid var(--kiwi-green-line); }
+            .ke-badge-paid-type { background: var(--kiwi-cream-deep); color: var(--kiwi-text-muted); border: 1px solid var(--kiwi-border); }
+            .ke-ticket-remove { color: var(--kiwi-text-faint); cursor: pointer; font-size: 18px; text-decoration: none; padding: 4px 8px; border-radius: var(--kiwi-radius-sm); transition: all 0.2s var(--kiwi-ease); }
+            .ke-ticket-remove:hover { color: var(--kiwi-red); background: rgba(255, 59, 48, 0.10); }
             .ke-ticket-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
             .ke-ticket-grid-2 { grid-template-columns: 1fr 1fr; }
             .ke-ticket-field { }
-            .ke-ticket-field label { display: block; font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .ke-ticket-field label { display: block; font-size: 11px; font-weight: 700; color: var(--kiwi-text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
             .ke-ticket-field input,
             .ke-ticket-field select,
-            .ke-ticket-field textarea { width: 100%; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
+            .ke-ticket-field textarea {
+                width: 100%;
+                padding: 7px 10px;
+                border: 1px solid var(--kiwi-glass-border);
+                border-radius: var(--kiwi-radius-sm);
+                font-size: 13px;
+                background: var(--kiwi-glass-bg-input);
+                box-shadow:
+                    0 0 0 1px var(--kiwi-glass-border-edge),
+                    0 1px 2px rgba(0, 0, 0, 0.02) inset;
+            }
             .ke-ticket-field input:focus,
             .ke-ticket-field select:focus,
-            .ke-ticket-field textarea:focus { border-color: #84cc16; box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.15); outline: none; }
+            .ke-ticket-field textarea:focus {
+                border-color: var(--kiwi-green);
+                box-shadow:
+                    0 0 0 1px var(--kiwi-glass-border-edge),
+                    0 0 0 3px var(--kiwi-green-glow);
+                outline: none;
+            }
             .ke-ticket-field textarea { resize: vertical; min-height: 50px; }
             .ke-ticket-field-full { grid-column: 1 / -1; }
-            .ke-ticket-sold-badge { background: #f3f4f6; padding: 2px 8px; border-radius: 10px; font-size: 11px; color: #6b7280; font-weight: 600; }
-            .ke-ticket-section-label { grid-column: 1 / -1; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; padding-top: 8px; border-top: 1px dashed #e5e7eb; }
+            .ke-ticket-sold-badge { background: var(--kiwi-cream-deep); padding: 2px 8px; border-radius: var(--kiwi-radius-pill); font-size: 11px; color: var(--kiwi-text-muted); font-weight: 600; border: 1px solid var(--kiwi-border); }
+            .ke-ticket-section-label { grid-column: 1 / -1; font-size: 11px; font-weight: 700; color: var(--kiwi-text-faint); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--kiwi-border); }
+            /* Add-ticket button — Kiwi green primary with the standard
+               inset highlight + ambient lime glow. Dark text for AA. */
             .ke-add-ticket-btn {
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
                 padding: 10px 20px;
-                background: #84cc16;
-                color: #fff;
-                border: none;
-                border-radius: 8px;
+                background: var(--kiwi-green);
+                color: var(--kiwi-text);
+                border: 1px solid var(--kiwi-green);
+                border-radius: var(--kiwi-radius-md);
                 font-size: 13px;
                 font-weight: 700;
                 cursor: pointer;
-                transition: all 0.2s;
+                transition: all 0.2s var(--kiwi-ease);
+                box-shadow:
+                    0 1px 0 rgba(255, 255, 255, 0.40) inset,
+                    0 4px 12px rgba(187, 219, 35, 0.30),
+                    0 1px 3px rgba(0, 0, 0, 0.06);
             }
-            .ke-add-ticket-btn:hover { background: #65a30d; transform: translateY(-1px); }
+            .ke-add-ticket-btn:hover { background: var(--kiwi-green-darker); border-color: var(--kiwi-green-darker); transform: translateY(-1px); }
             .ke-ticket-type-toggle { display: flex; gap: 0; margin-bottom: 12px; }
-            .ke-type-tab { padding: 6px 16px; border: 1px solid #d1d5db; font-size: 12px; font-weight: 600; cursor: pointer; color: #6b7280; background: #fff; transition: all 0.2s; }
-            .ke-type-tab:first-child { border-radius: 6px 0 0 6px; }
-            .ke-type-tab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
-            .ke-type-tab.active { background: #84cc16; color: #fff; border-color: #84cc16; }
+            .ke-type-tab { padding: 6px 16px; border: 1px solid var(--kiwi-glass-border); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--kiwi-text-muted); background: var(--kiwi-glass-bg); transition: all 0.2s var(--kiwi-ease); }
+            .ke-type-tab:first-child { border-radius: var(--kiwi-radius-sm) 0 0 var(--kiwi-radius-sm); }
+            .ke-type-tab:last-child { border-radius: 0 var(--kiwi-radius-sm) var(--kiwi-radius-sm) 0; border-left: none; }
+            .ke-type-tab.active { background: var(--kiwi-green); color: var(--kiwi-text); border-color: var(--kiwi-green); }
             .ke-price-field { display: none; }
             .ke-price-field.visible { display: block; }
         </style>

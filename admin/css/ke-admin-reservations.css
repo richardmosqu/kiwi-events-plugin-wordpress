@@ -4,26 +4,32 @@
  * action-button accent variants.
  */
 
-/* Status pill — colored chips for each reservation lifecycle state. */
+/* Status pill — colored chips for each reservation lifecycle state.
+   Pills use the Kiwi palette:
+     pending   → Apple system orange (warm, action-required)
+     confirmed → Kiwi green (success/positive)
+     cancelled → neutral cream chip (no-op, customer-initiated)
+     no_show / cancelled_by_venue → Apple system red (destructive)
+     declined  → cream chip with orange tint (declined-but-not-destructive) */
 .ke-resv-status-pill {
     display: inline-block;
     padding: 4px 10px;
-    border-radius: 999px;
+    border-radius: var(--kiwi-radius-pill);
     font-size: 12px;
     font-weight: 600;
     line-height: 1.2;
     letter-spacing: 0.01em;
-    background: #f3f4f6;
-    color: #4b5563;
-    border: 1px solid rgba(0, 0, 0, 0.04);
+    background: var(--kiwi-cream-deep);
+    color: var(--kiwi-text-muted);
+    border: 1px solid var(--kiwi-border);
     white-space: nowrap;
 }
-.ke-resv-status-pending            { background: #fef3c7; color: #92400e; }
-.ke-resv-status-confirmed          { background: #dcfce7; color: #166534; }
-.ke-resv-status-cancelled          { background: #f3f4f6; color: #4b5563; }
-.ke-resv-status-cancelled_no_show  { background: #fee2e2; color: #991b1b; }
-.ke-resv-status-cancelled_by_venue { background: #fee2e2; color: #991b1b; }
-.ke-resv-status-declined           { background: #ede9fe; color: #6b21a8; }
+.ke-resv-status-pending            { background: var(--kiwi-orange-fill-alt);   color: var(--kiwi-orange-text);      border-color: var(--kiwi-orange-edge-soft); }
+.ke-resv-status-confirmed          { background: var(--kiwi-green-tint);        color: var(--kiwi-green-text);       border-color: var(--kiwi-green-line); }
+.ke-resv-status-cancelled          { background: var(--kiwi-cream-deep);        color: var(--kiwi-text-muted);       border-color: var(--kiwi-border); }
+.ke-resv-status-cancelled_no_show,
+.ke-resv-status-cancelled_by_venue { background: var(--kiwi-red-fill-medium);   color: var(--kiwi-red-text);         border-color: var(--kiwi-red-edge-medium); }
+.ke-resv-status-declined           { background: var(--kiwi-orange-fill-faint); color: var(--kiwi-orange-text-deep); border-color: var(--kiwi-orange-edge-faint); }
 
 /* Contact subtext beneath the customer name in the table. */
 .ke-resv-contact {
@@ -32,13 +38,14 @@
     line-height: 1.4;
 }
 
-/* Action button accent for "approve" — green check */
+/* Action button accent for "approve" — Kiwi green check. */
 .ke-icon-btn.ke-icon-btn-success {
-    color: #16a34a;
+    color: var(--kiwi-green-text);
 }
 .ke-icon-btn.ke-icon-btn-success:hover {
-    background: rgba(22, 163, 74, 0.08);
-    color: #15803d;
+    background: var(--kiwi-green-soft);
+    color: var(--kiwi-green-text);
+    border-color: var(--kiwi-green-line);
 }
 
 /* Slight breathing room on actions column when many buttons appear. */
@@ -73,12 +80,16 @@
     font-family: inherit;
     font-size: 14px;
     padding: 10px 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border: 1px solid var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-glass-bg-input);
     resize: vertical;
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 2px var(--kiwi-shadow-1) inset;
 }
 #ke-resv-modal-decline textarea:focus {
     outline: none;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    border-color: var(--kiwi-green);
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow);
 }

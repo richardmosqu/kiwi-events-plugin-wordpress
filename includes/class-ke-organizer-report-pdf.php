@@ -96,7 +96,7 @@ class KE_Organizer_Report_PDF {
      */
     public function stream() {
         $can_use_pdf = class_exists( 'FPDF' )
-            && class_exists( 'KE_Organizer_FPDF_Report' )
+            && class_exists( 'KE_Organizer_FPDF_Report', false )
             && self::fpdf_fonts_available();
         if ( $can_use_pdf ) {
             $this->stream_pdf();
@@ -387,14 +387,15 @@ class KE_Organizer_Report_PDF {
         }
         if ( ! $row ) {
             $row = array( 'tickets_sold' => 0, 'net_revenue' => 0.0, 'check_in_rate' => 0.0,
-                          'check_in_total' => 0, 'check_in_used' => 0 );
+                          'check_in_total' => 0, 'check_in_used' => 0, 'courtesy_tickets' => 0 );
         }
         return array_merge( $organizer_headline, array(
-            'tickets_sold'   => (int) ( $row['tickets_sold']  ?? 0 ),
-            'net_revenue'    => (float) ( $row['net_revenue']   ?? 0 ),
-            'check_in_rate'  => (float) ( $row['check_in_rate'] ?? 0 ),
-            'check_in_total' => (int) ( $row['check_in_total'] ?? 0 ),
-            'check_in_used'  => (int) ( $row['check_in_used']  ?? 0 ),
+            'tickets_sold'     => (int) ( $row['tickets_sold']  ?? 0 ),
+            'net_revenue'      => (float) ( $row['net_revenue']   ?? 0 ),
+            'check_in_rate'    => (float) ( $row['check_in_rate'] ?? 0 ),
+            'check_in_total'   => (int) ( $row['check_in_total'] ?? 0 ),
+            'check_in_used'    => (int) ( $row['check_in_used']  ?? 0 ),
+            'courtesy_tickets' => (int) ( $row['courtesy_tickets'] ?? 0 ),
             // Free vs paid is hard to derive from a single breakdown row;
             // leave the organizer-wide values rather than fabricate.
         ) );
@@ -604,16 +605,26 @@ class KE_Organizer_Report_PDF {
         $pdf->Cell( 0, 8, $this->latin1( __( 'Executive summary', 'kiwi-events' ) ), 0, 1 );
         $pdf->Ln( 2 );
 
-        // Render as a 2x2 grid of mini-cards
+        // Tickets sold shows "(X cortesía)" suffix when applicable so the
+        // organizer sees occupancy vs paid sales at a glance.
+        $tickets_sold_str = $this->fmt_int( $headline['tickets_sold'] );
+        $courtesy_n       = (int) ( $headline['courtesy_tickets'] ?? 0 );
+        if ( $courtesy_n > 0 ) {
+            $tickets_sold_str .= ' (' . $this->fmt_int( $courtesy_n ) . 'c)';
+        }
+
+        // Render as a row of mini-cards. Free tickets are intentionally
+        // omitted from the headline — they appear in the per-ticket-type
+        // breakdown table below.
         $cards = array(
-            array( __( 'Tickets sold', 'kiwi-events' ),    $this->fmt_int( $headline['tickets_sold'] ),    false ),
+            array( __( 'Tickets sold', 'kiwi-events' ),    $tickets_sold_str,                              false ),
             array( __( 'Net revenue',  'kiwi-events' ),    $this->fmt_money( $headline['net_revenue'] ),  true  ),
-            array( __( 'Free tickets', 'kiwi-events' ),    $this->fmt_int( $headline['free_tickets'] ),    false ),
             array( __( 'Check-in rate','kiwi-events' ),    $this->fmt_pct( $headline['check_in_rate'] ),   false ),
         );
 
-        $page_w = $pdf->GetPageWidth() - 30;
-        $cw     = ( $page_w - 9 ) / 4;
+        $n_cards = count( $cards );
+        $page_w  = $pdf->GetPageWidth() - 30;
+        $cw      = ( $page_w - 3 * ( $n_cards - 1 ) ) / $n_cards;
         $ch     = 22;
         $x = 15;
         $y = $pdf->GetY();
@@ -674,9 +685,14 @@ class KE_Organizer_Report_PDF {
                 $title = $this->safe_truncate( $e['title'] ?? '-', 48 );
                 $date  = $this->safe_date( $e['date'] ?? '' );
 
+                $sold_cell = $this->fmt_int( $e['tickets_sold'] ?? 0 );
+                $ev_cort   = (int) ( $e['courtesy_tickets'] ?? 0 );
+                if ( $ev_cort > 0 ) {
+                    $sold_cell .= ' (' . $this->fmt_int( $ev_cort ) . 'c)';
+                }
                 $pdf->Cell( 80, 6, $this->latin1( $title ), 0, 0, 'L', $alt );
                 $pdf->Cell( 30, 6, $this->latin1( $date  ), 0, 0, 'L', $alt );
-                $pdf->Cell( 22, 6, $this->latin1( $this->fmt_int( $e['tickets_sold'] ?? 0 ) ),     0, 0, 'R', $alt );
+                $pdf->Cell( 22, 6, $this->latin1( $sold_cell ),                                  0, 0, 'R', $alt );
                 $pdf->Cell( 30, 6, $this->latin1( $this->fmt_money( $e['net_revenue'] ?? 0 ) ),   0, 0, 'R', $alt );
                 $pdf->Cell( 0,  6, $this->latin1( $this->fmt_pct( $e['check_in_rate'] ?? 0 ) ),   0, 1, 'R', $alt );
                 $alt = ! $alt;
@@ -707,20 +723,26 @@ class KE_Organizer_Report_PDF {
         $pdf->SetTextColor( 75, 85, 99 ); // muted gray
         $total = 0;
 
+        $total_courtesy = 0;
         foreach ( $types as $t ) {
             try {
                 $pdf->SetX( $pdf->GetX() + $indent ); // indent from left margin
                 $name = $this->safe_truncate( $t['name'] ?? '-', 60 );
                 $sold = (int) ( $t['sold'] ?? 0 );
+                $courtesy = (int) ( $t['courtesy_count'] ?? 0 );
                 $total += $sold;
+                $total_courtesy += $courtesy;
                 $rev  = ! empty( $t['is_free'] )
                     ? __( 'Free', 'kiwi-events' )
                     : $this->fmt_money( $t['revenue'] ?? 0 ) . ' ' . __( 'net', 'kiwi-events' );
 
+                $sold_text = $this->fmt_int( $sold ) . ' sold'
+                           . ( $courtesy > 0 ? ' (' . $this->fmt_int( $courtesy ) . ' cortesia)' : '' );
+
                 // L bullet + name (~96mm), sold (~30mm), revenue cell (rest).
                 $pdf->Cell( 4,  5, $this->latin1( '-' ), 0, 0, 'L' );
                 $pdf->Cell( 92, 5, $this->latin1( $name ), 0, 0, 'L' );
-                $pdf->Cell( 30, 5, $this->latin1( $this->fmt_int( $sold ) . ' sold' ), 0, 0, 'R' );
+                $pdf->Cell( 30, 5, $this->latin1( $sold_text ), 0, 0, 'R' );
                 $pdf->Cell( 0,  5, $this->latin1( $rev ), 0, 1, 'R' );
             } catch ( \Throwable $row_e ) {
                 error_log( '[KiwiEvents] PDF type row skipped: ' . $row_e->getMessage() );
@@ -731,9 +753,11 @@ class KE_Organizer_Report_PDF {
             $pdf->SetX( $pdf->GetX() + $indent );
             $pdf->SetFont( 'Helvetica', 'B', 8 );
             $pdf->SetTextColor( 31, 41, 55 );
+            $total_text = $this->fmt_int( $total )
+                        . ( $total_courtesy > 0 ? ' (' . $this->fmt_int( $total_courtesy ) . ' cortesia)' : '' );
             $pdf->Cell( 4,  5, '', 0, 0, 'L' );
             $pdf->Cell( 92, 5, $this->latin1( __( 'Total', 'kiwi-events' ) ), 0, 0, 'L' );
-            $pdf->Cell( 30, 5, $this->latin1( $this->fmt_int( $total ) ), 0, 0, 'R' );
+            $pdf->Cell( 30, 5, $this->latin1( $total_text ), 0, 0, 'R' );
             $pdf->Cell( 0,  5, '', 0, 1, 'R' );
         } catch ( \Throwable $row_e ) {
             error_log( '[KiwiEvents] PDF type total skipped: ' . $row_e->getMessage() );
@@ -974,7 +998,7 @@ class KE_Organizer_Report_PDF {
     .meta div .v { font-size: 14px; font-weight: 700; color: var(--text); }
     section { background:#fff; border:1px solid var(--soft); border-radius: 12px; padding: 22px; margin-bottom: 18px; }
     section h2 { margin: 0 0 14px; font-size: 16px; font-weight: 700; }
-    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .stat { background:#fafbfc; border:1px solid var(--soft); border-radius: 10px; padding: 14px 16px; }
     .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
     .stat .v { font-size: 22px; font-weight: 800; color: var(--text); }
@@ -1019,9 +1043,14 @@ class KE_Organizer_Report_PDF {
     <section>
         <h2><?php esc_html_e( 'Executive summary', 'kiwi-events' ); ?></h2>
         <div class="grid">
-            <div class="stat"><div class="k"><?php esc_html_e( 'Tickets sold', 'kiwi-events' ); ?></div><div class="v"><?php echo esc_html( $this->fmt_int( $headline['tickets_sold'] ) ); ?></div></div>
+            <div class="stat"><div class="k"><?php esc_html_e( 'Tickets sold', 'kiwi-events' ); ?></div><div class="v"><?php
+                echo esc_html( $this->fmt_int( $headline['tickets_sold'] ) );
+                $hc = (int) ( $headline['courtesy_tickets'] ?? 0 );
+                if ( $hc > 0 ) {
+                    echo ' <span style="font-size:13px;color:#92400e;font-weight:500;">(' . esc_html( $this->fmt_int( $hc ) ) . ' cortesía)</span>';
+                }
+            ?></div></div>
             <div class="stat"><div class="k"><?php esc_html_e( 'Net revenue', 'kiwi-events' ); ?></div><div class="v accent"><?php echo esc_html( $this->fmt_money( $headline['net_revenue'] ) ); ?></div></div>
-            <div class="stat"><div class="k"><?php esc_html_e( 'Free tickets', 'kiwi-events' ); ?></div><div class="v"><?php echo esc_html( $this->fmt_int( $headline['free_tickets'] ) ); ?></div></div>
             <div class="stat"><div class="k"><?php esc_html_e( 'Check-in rate', 'kiwi-events' ); ?></div><div class="v"><?php echo esc_html( $this->fmt_pct( $headline['check_in_rate'] ) ); ?></div></div>
         </div>
     </section>
@@ -1040,20 +1069,36 @@ class KE_Organizer_Report_PDF {
                     <th class="num"><?php esc_html_e( 'Check-in',    'kiwi-events' ); ?></th>
                 </tr></thead>
                 <tbody>
-                <?php foreach ( $events as $e ) : ?>
+                <?php foreach ( $events as $e ) :
+                    $event_courtesy = (int) ( $e['courtesy_tickets'] ?? 0 );
+                ?>
                     <tr>
                         <td><?php echo esc_html( $e['title'] ); ?></td>
                         <td><?php echo esc_html( $e['date'] ? date_i18n( 'M j, Y', strtotime( $e['date'] ) ) : '—' ); ?></td>
-                        <td class="num"><?php echo esc_html( $this->fmt_int( $e['tickets_sold'] ) ); ?></td>
+                        <td class="num"><?php
+                            echo esc_html( $this->fmt_int( $e['tickets_sold'] ) );
+                            if ( $event_courtesy > 0 ) {
+                                echo ' <span style="color:#92400e;font-size:11px;">(' . esc_html( $this->fmt_int( $event_courtesy ) ) . ' cortesía)</span>';
+                            }
+                        ?></td>
                         <td class="num"><?php echo esc_html( $this->fmt_money( $e['net_revenue'] ) ); ?></td>
                         <td class="num"><?php echo esc_html( $this->fmt_pct( $e['check_in_rate'] ) ); ?></td>
                     </tr>
                     <?php if ( ! empty( $e['ticket_types'] ) ) : ?>
-                        <?php foreach ( $e['ticket_types'] as $tt ) : ?>
+                        <?php foreach ( $e['ticket_types'] as $tt ) :
+                            $tt_courtesy = (int) ( $tt['courtesy_count'] ?? 0 );
+                        ?>
                             <tr style="background:#fafbfc;">
                                 <td style="padding-left:32px; color:#4b5563; font-size:12px;">— <?php echo esc_html( $tt['name'] ?? '—' ); ?></td>
                                 <td></td>
-                                <td class="num" style="color:#4b5563; font-size:12px;"><?php echo esc_html( $this->fmt_int( $tt['sold'] ?? 0 ) ); ?> sold</td>
+                                <td class="num" style="color:#4b5563; font-size:12px;">
+                                    <?php
+                                    echo esc_html( $this->fmt_int( $tt['sold'] ?? 0 ) ) . ' sold';
+                                    if ( $tt_courtesy > 0 ) {
+                                        echo ' <span style="color:#92400e;">(' . esc_html( $this->fmt_int( $tt_courtesy ) ) . ' cortesía)</span>';
+                                    }
+                                    ?>
+                                </td>
                                 <td class="num" style="color:#4b5563; font-size:12px;">
                                     <?php echo ! empty( $tt['is_free'] )
                                         ? esc_html__( 'Free', 'kiwi-events' )
@@ -1162,7 +1207,7 @@ class KE_Organizer_Report_PDF {
  * own file, so it loads in lockstep with the report class and only when FPDF
  * is actually present.
  */
-if ( ! class_exists( 'KE_Organizer_FPDF_Report' ) ) {
+if ( ! class_exists( 'KE_Organizer_FPDF_Report', false ) ) {
     if ( class_exists( 'FPDF' ) ) {
         class KE_Organizer_FPDF_Report extends FPDF {
             /** @var KE_Organizer_Report_PDF */

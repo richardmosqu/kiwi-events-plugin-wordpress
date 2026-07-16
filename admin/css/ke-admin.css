@@ -5,45 +5,53 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-/* ─── Tokens ─────────────────────────────────────────────── */
+/* ─── Tokens ───────────────────────────────────────────────
+   Legacy admin tokens kept as ALIASES of the Kiwi brand tokens defined
+   in ke-admin-tokens.css. This lets the existing ~1800 lines of
+   selectors below keep referencing --ke-lime/--ke-text-*/--ke-glass-*
+   without per-rule rewrites — they all flow through to the Kiwi system
+   in one place. */
 :root {
-    --ke-lime:          #a3e635;
-    --ke-lime-dark:     #84cc16;
-    --ke-lime-darker:   #65a30d;
-    --ke-lime-glow:     rgba(163, 230, 53, 0.18);
-    --ke-lime-soft:     rgba(163, 230, 53, 0.12);
+    /* Kiwi green replaces the old lime palette. The single source of
+       truth for the green values lives in ke-admin-tokens.css. */
+    --ke-lime:          var(--kiwi-green);
+    --ke-lime-dark:     var(--kiwi-green-darker);
+    --ke-lime-darker:   var(--kiwi-green-text);   /* darkened for text on tint */
+    --ke-lime-glow:     var(--kiwi-green-glow);
+    --ke-lime-soft:     var(--kiwi-green-soft);
 
-    /* Text */
-    --ke-text-1:        #0f172a;
-    --ke-text-2:        #475569;
-    --ke-text-3:        #94a3b8;
+    /* Apple-style text scale (aliases of --kiwi-text-*). */
+    --ke-text-1:        var(--kiwi-text);
+    --ke-text-2:        var(--kiwi-text-muted);
+    --ke-text-3:        var(--kiwi-text-faint);
 
-    /* Glass */
-    --ke-glass-bg:      rgba(255, 255, 255, 0.72);
-    --ke-glass-border:  rgba(255, 255, 255, 0.58);
-    --ke-glass-blur:    blur(22px) saturate(200%);
-    --ke-glass-shadow:  0 8px 32px rgba(15, 23, 42, 0.07),
-                        0 2px 8px  rgba(15, 23, 42, 0.04),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    --ke-glass-shadow-hover:
-                        0 20px 48px rgba(15, 23, 42, 0.12),
-                        0 4px 12px  rgba(15, 23, 42, 0.06),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    /* Glass primitives — aliases of --kiwi-glass-*. */
+    --ke-glass-bg:      var(--kiwi-glass-bg);
+    --ke-glass-border:  var(--kiwi-glass-border);
+    --ke-glass-blur:    var(--kiwi-glass-blur);
+    --ke-glass-shadow:  var(--kiwi-shadow-card);
+    --ke-glass-shadow-hover: var(--kiwi-shadow-elevated);
 
-    /* Palette for accents */
-    --ke-indigo:        rgba(99, 102, 241, 0.10);
-    --ke-teal:          rgba(20,  184, 166, 0.10);
-    --ke-rose:          rgba(244,  63, 94,  0.10);
+    /* The old indigo/teal/rose accents are retained as named tints in case
+       any rule references them, but downgraded to neutral muted so they
+       can't introduce non-Kiwi color into the UI. */
+    --ke-indigo:        var(--kiwi-green-soft);
+    --ke-teal:          var(--kiwi-green-soft);
+    --ke-rose:          var(--kiwi-red-fill);
 
-    /* Misc */
-    --ke-radius:        18px;
-    --ke-radius-sm:     12px;
+    /* Radius scale — match the Kiwi scale where possible. */
+    --ke-radius:        var(--kiwi-radius-lg);
+    --ke-radius-sm:     var(--kiwi-radius-sm);
     --ke-radius-xs:     8px;
     --ke-font:          'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
-    --ke-transition:    all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --ke-transition:    all 0.25s var(--kiwi-ease);
 }
 
-/* ─── Mesh Canvas ─────────────────────────────────────────── */
+/* ─── Page canvas ──────────────────────────────────────────
+   Cream base with two extremely subtle Kiwi-tinted radials so glass
+   cards have *something* to refract against. The old multi-color
+   gradient blob system (indigo + teal + rose + lime) is gone — the
+   spec calls for cream-only with universal glass cards layered on top. */
 .ke-wrap,
 .ke-builder-wrap {
     font-family: var(--ke-font);
@@ -55,11 +63,11 @@
     box-sizing: border-box;
 
     background:
-        radial-gradient(ellipse 900px 700px at 5%  15%, rgba(163, 230, 53, 0.13) 0%, transparent 65%),
-        radial-gradient(ellipse 700px 500px at 90% 5%,  rgba(99, 102, 241, 0.09) 0%, transparent 65%),
-        radial-gradient(ellipse 600px 500px at 75% 90%, rgba(20, 184, 166, 0.09) 0%, transparent 65%),
-        radial-gradient(ellipse 500px 400px at 30% 80%, rgba(244, 63, 94, 0.06)  0%, transparent 65%),
-        #f1f5f9;
+        radial-gradient(ellipse at top left,
+            var(--kiwi-green-canvas-top) 0%, transparent 50%),
+        radial-gradient(ellipse at bottom right,
+            var(--kiwi-green-canvas-bottom) 0%, transparent 50%),
+        var(--kiwi-cream);
 }
 
 /* Compensate for WordPress's own padding */
@@ -67,18 +75,19 @@
 
 /* ─── Glass Card ─────────────────────────────────────────── */
 .ke-glass {
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
+    /* Solid container surface. No backdrop-filter on page-level cards —
+       reserved for true overlays (modal backdrops, dropdowns, toasts, sticky
+       admin header). Card surfaces with backdrop-filter blur every neighbor
+       when stacked. */
+    background:         var(--kiwi-surface);
     border:             1px solid var(--ke-glass-border);
     border-radius:      var(--ke-radius);
     box-shadow:         var(--ke-glass-shadow);
 }
 
 .ke-card {
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
+    /* Solid container surface. See .ke-glass above. */
+    background:         var(--kiwi-surface);
     border:             1px solid var(--ke-glass-border);
     border-radius:      var(--ke-radius);
     box-shadow:         var(--ke-glass-shadow);
@@ -118,90 +127,146 @@
     margin:             0;
 }
 
-/* ─── Buttons ────────────────────────────────────────────── */
+/* ─── Buttons ──────────────────────────────────────────────
+   Unified Kiwi button system. Every admin button uses one of:
+     .ke-btn-primary    — Kiwi green fill, dark text, primary CTA
+     .ke-btn-secondary  — glass background, dark text (Back / Save Draft)
+     .ke-btn-ghost      — alias of secondary (legacy markup still uses this)
+     .ke-btn-danger     — Apple red, white text (destructive)
+   The signature inset top-edge highlight is what gives the primary
+   button its "lit glass" feel — never replace with a flat box-shadow. */
 .ke-btn {
     display:            inline-flex;
     align-items:        center;
     justify-content:    center;
     gap:                6px;
-    padding:            10px 20px;
+    padding:            12px 24px;
     font-family:        var(--ke-font);
-    font-size:          13px;
+    font-size:          15px;
     font-weight:        600;
-    border-radius:      var(--ke-radius-sm);
+    line-height:        1.2;
+    border-radius:      var(--kiwi-radius-md);
     cursor:             pointer;
-    transition:         var(--ke-transition);
-    border:             none;
+    transition:         background .15s var(--kiwi-ease),
+                        border-color .15s var(--kiwi-ease),
+                        color .15s var(--kiwi-ease),
+                        box-shadow .15s var(--kiwi-ease),
+                        transform .12s var(--kiwi-ease);
+    border:             1px solid transparent;
     text-decoration:    none;
     white-space:        nowrap;
     letter-spacing:     -0.1px;
 }
 
 .ke-btn-primary {
-    background:         linear-gradient(135deg, var(--ke-lime), var(--ke-lime-dark));
-    color:              #0f1f00;
-    box-shadow:         0 4px 12px rgba(132, 204, 22, 0.3);
+    background:         var(--kiwi-green);
+    color:              var(--kiwi-green-ink);   /* dark text on lime — WCAG-safe in both modes */
+    border-color:       var(--kiwi-green);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 4px 12px var(--kiwi-btn-primary-shadow),
+        0 1px 3px var(--kiwi-shadow-4);
 }
-
 .ke-btn-primary:hover {
-    background:         linear-gradient(135deg, #bef264, var(--ke-lime));
+    background:         var(--kiwi-green-darker);
+    border-color:       var(--kiwi-green-darker);
+    color:              var(--kiwi-green-ink);
     transform:          translateY(-1px);
-    box-shadow:         0 8px 20px rgba(132, 204, 22, 0.4);
-    color:              #0f1f00;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-medium) inset,
+        0 6px 16px var(--kiwi-btn-primary-shadow-hover),
+        0 2px 4px var(--kiwi-shadow-5);
+}
+.ke-btn-primary:active {
+    transform:          translateY(0) scale(0.98);
+    box-shadow:         var(--kiwi-shadow-pressed);
 }
 
+/* Secondary button (Back, Save Draft, Cancel, etc.) — solid surface. No
+   backdrop-filter: these buttons live inside modals/cards where stacking
+   blurs would compound and smear text. */
+.ke-btn-secondary,
 .ke-btn-ghost {
-    background:         rgba(255, 255, 255, 0.65);
-    color:              var(--ke-text-2);
-    border:             1px solid rgba(255, 255, 255, 0.55);
-    backdrop-filter:    blur(8px);
+    background:         var(--kiwi-surface);
+    color:              var(--kiwi-text);
+    border-color:       var(--kiwi-border);
+    box-shadow:         var(--kiwi-shadow-card);
 }
-
+.ke-btn-secondary:hover,
 .ke-btn-ghost:hover {
-    background:         rgba(255, 255, 255, 0.9);
-    color:              var(--ke-text-1);
+    background:         var(--kiwi-white);
+    color:              var(--kiwi-text);
+    transform:          translateY(-1px);
+}
+.ke-btn-secondary:active,
+.ke-btn-ghost:active {
+    transform:          translateY(0) scale(0.98);
 }
 
 .ke-btn-danger {
-    background:         rgba(254, 226, 226, 0.8);
-    color:              #991b1b;
-    border:             1px solid rgba(254, 202, 202, 0.6);
+    background:         var(--kiwi-red);
+    color:              var(--kiwi-white-ink);
+    border-color:       var(--kiwi-red);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-faint) inset,
+        0 4px 12px var(--kiwi-red-edge-faint);
 }
-
 .ke-btn-danger:hover {
-    background:         #fee2e2;
-    color:              #7f1d1d;
+    background:         var(--kiwi-red-darker);
+    border-color:       var(--kiwi-red-darker);
+    color:              var(--kiwi-white-ink);
+    transform:          translateY(-1px);
+}
+.ke-btn-danger:active {
+    transform:          translateY(0) scale(0.98);
 }
 
-/* WP override */
+/* WordPress core .button-primary override inside KE admin pages.
+   Some WP-rendered controls (the post-publish "Publish" button, settings
+   "Save Changes", etc.) ship with WP's blue styling; this forces them
+   into the Kiwi system so the admin stays visually coherent. */
 .ke-wrap .button-primary,
-.ke-wrap .ke-btn-primary {
-    background:         linear-gradient(135deg, var(--ke-lime), var(--ke-lime-dark)) !important;
-    border:             none !important;
-    color:              #0f1f00 !important;
+.ke-builder-wrap .button-primary {
+    background:         var(--kiwi-green) !important;
+    border:             1px solid var(--kiwi-green) !important;
+    color:              var(--kiwi-text) !important;
     text-shadow:        none !important;
-    box-shadow:         0 4px 12px rgba(132, 204, 22, 0.3) !important;
-    border-radius:      var(--ke-radius-sm) !important;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 4px 12px var(--kiwi-green-line),
+        0 1px 3px var(--kiwi-shadow-4) !important;
+    border-radius:      var(--kiwi-radius-md) !important;
     font-weight:        600 !important;
+    padding:            12px 24px !important;
+}
+.ke-wrap .button-primary:hover,
+.ke-builder-wrap .button-primary:hover {
+    background:         var(--kiwi-green-darker) !important;
+    border-color:       var(--kiwi-green-darker) !important;
 }
 
 /* ─── Select ─────────────────────────────────────────────── */
+/* Solid surface — no backdrop-filter on form fields. */
 .ke-select {
     padding:            9px 14px;
-    border:             1px solid rgba(203, 213, 225, 0.7);
-    border-radius:      var(--ke-radius-sm);
-    background:         rgba(255, 255, 255, 0.8);
-    backdrop-filter:    blur(8px);
+    border:             1px solid var(--kiwi-border);
+    border-radius:      var(--kiwi-radius-md);
+    background:         var(--kiwi-surface);
     font-family:        var(--ke-font);
     font-size:          13px;
     color:              var(--ke-text-1);
     cursor:             pointer;
     transition:         var(--ke-transition);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 2px var(--kiwi-shadow-1) inset;
 }
 
 .ke-select:focus {
-    border-color:       var(--ke-lime-dark);
-    box-shadow:         0 0 0 3px var(--ke-lime-glow);
+    border-color:       var(--kiwi-green);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 0 0 3px var(--kiwi-green-glow);
     outline:            none;
 }
 
@@ -216,9 +281,8 @@
 .ke-kpi-mini { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
 .ke-kpi-card {
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
+    /* Solid metric card. No backdrop-filter on KPI tiles. */
+    background:         var(--kiwi-surface);
     border:             1px solid var(--ke-glass-border);
     border-radius:      var(--ke-radius);
     box-shadow:         var(--ke-glass-shadow);
@@ -236,7 +300,7 @@
     position:           absolute;
     inset:              0;
     border-radius:      inherit;
-    background:         linear-gradient(135deg, rgba(255,255,255,0.3) 0%, transparent 60%);
+    background:         linear-gradient(135deg, var(--kiwi-inner-highlight-faint) 0%, transparent 60%);
     pointer-events:     none;
 }
 
@@ -258,10 +322,15 @@
     z-index:            1;
 }
 
-.ke-kpi-revenue  .ke-kpi-icon { background: linear-gradient(135deg, rgba(163,230,53,0.25), rgba(132,204,22,0.15)); border: 1px solid rgba(163,230,53,0.3); }
-.ke-kpi-tickets  .ke-kpi-icon { background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(79,70,229,0.10)); border: 1px solid rgba(99,102,241,0.2); }
-.ke-kpi-events   .ke-kpi-icon { background: linear-gradient(135deg, rgba(20,184,166,0.18), rgba(13,148,136,0.10)); border: 1px solid rgba(20,184,166,0.2); }
-.ke-kpi-checkin  .ke-kpi-icon { background: linear-gradient(135deg, rgba(251,191,36,0.22), rgba(245,158,11,0.12)); border: 1px solid rgba(251,191,36,0.25); }
+/* KPI icon tints — kept as four visually distinct Apple-system color
+   chips (green / blue / orange / cream) so each card stays scannable.
+   Kiwi green is reserved for the "money in" card; the others map to
+   Apple's system blue/orange and a neutral cream so the cluster has
+   variety without introducing non-system color. */
+.ke-kpi-revenue  .ke-kpi-icon { background: linear-gradient(135deg, var(--kiwi-green-tint),  var(--kiwi-green-soft));      border: 1px solid var(--kiwi-green-line); }
+.ke-kpi-tickets  .ke-kpi-icon { background: linear-gradient(135deg, var(--kiwi-blue-fill),    var(--kiwi-blue-fill-soft));  border: 1px solid var(--kiwi-blue-edge); }
+.ke-kpi-events   .ke-kpi-icon { background: linear-gradient(135deg, var(--kiwi-orange-fill),  var(--kiwi-orange-kpi-mid));  border: 1px solid var(--kiwi-orange-edge-mid); }
+.ke-kpi-checkin  .ke-kpi-icon { background: linear-gradient(135deg, var(--kiwi-cream-deep),   var(--kiwi-cream));           border: 1px solid var(--kiwi-border); }
 
 .ke-kpi-content {
     display:            flex;
@@ -275,7 +344,9 @@
     font-weight:        700;
     text-transform:     uppercase;
     letter-spacing:     0.7px;
-    color:              var(--ke-text-3);
+    /* Use muted (not faint) so the small-caps label stays legible against
+       dark canvas. Faint disappears at 11px on #0f0f10. */
+    color:              var(--ke-text-2);
     margin-bottom:      4px;
 }
 
@@ -289,13 +360,12 @@
 
 /* ─── Builder Header (shared across all list pages) ─────── */
 .ke-builder-header {
+    /* Solid page-header surface. No backdrop-filter. */
     display:            flex;
     justify-content:    space-between;
     align-items:        center;
     margin-bottom:      24px;
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
+    background:         var(--kiwi-surface);
     border:             1px solid var(--ke-glass-border);
     border-radius:      var(--ke-radius);
     box-shadow:         var(--ke-glass-shadow);
@@ -376,20 +446,22 @@
     font-weight:        700;
     text-transform:     uppercase;
     letter-spacing:     0.7px;
-    color:              var(--ke-text-3);
-    border-bottom:      1px solid rgba(226, 232, 240, 0.6);
-    background:         rgba(248, 250, 252, 0.6);
+    /* Muted (not faint). 10.5px uppercase column headers disappear at faint
+       on dark canvas — bump one tier so the table grid stays scannable. */
+    color:              var(--ke-text-2);
+    border-bottom:      1px solid var(--kiwi-border);
+    background:         transparent;
     white-space:        nowrap;
 }
 
-.ke-table thead th:first-child { border-radius: var(--ke-radius-xs) 0 0 0; }
-.ke-table thead th:last-child  { border-radius: 0 var(--ke-radius-xs) 0 0; }
+.ke-table thead th:first-child { border-radius: var(--kiwi-radius-md) 0 0 0; }
+.ke-table thead th:last-child  { border-radius: 0 var(--kiwi-radius-md) 0 0; }
 
 .ke-table tbody td {
     padding:            13px 14px;
     font-size:          13px;
     color:              var(--ke-text-1);
-    border-bottom:      1px solid rgba(226, 232, 240, 0.45);
+    border-bottom:      1px solid var(--kiwi-border);
     vertical-align:     middle;
 }
 
@@ -400,7 +472,7 @@
 }
 
 .ke-table tbody tr:hover td {
-    background:         rgba(163, 230, 53, 0.06);
+    background:         var(--kiwi-green-soft);
 }
 
 .ke-muted {
@@ -423,13 +495,13 @@
 
 .ke-badge-completed,
 .ke-badge-valid,
-.ke-badge-free     { background: rgba(163,230,53,0.18); color: #365314; border: 1px solid rgba(163,230,53,0.3); }
-.ke-badge-pending  { background: rgba(251,191,36,0.18); color: #713f12; border: 1px solid rgba(251,191,36,0.3); }
+.ke-badge-free,
+.ke-badge-active   { background: var(--kiwi-green-tint); color: var(--kiwi-green-text); border: 1px solid var(--kiwi-green-line); }
+.ke-badge-pending  { background: var(--kiwi-orange-fill); color: var(--kiwi-orange-text-deep); border: 1px solid var(--kiwi-orange-edge-medium); }
 .ke-badge-refunded,
-.ke-badge-cancelled{ background: rgba(244, 63, 94,0.12); color: #881337; border: 1px solid rgba(244,63,94,0.2); }
-.ke-badge-used     { background: rgba(148,163,184,0.18); color: #475569; border: 1px solid rgba(148,163,184,0.3); }
-.ke-badge-draft    { background: rgba(148,163,184,0.18); color: #475569; border: 1px solid rgba(148,163,184,0.3); }
-.ke-badge-active   { background: rgba(163,230,53,0.18); color: #365314; border: 1px solid rgba(163,230,53,0.3); }
+.ke-badge-cancelled{ background: var(--kiwi-red-fill-medium); color: var(--kiwi-red-text-darker); border: 1px solid var(--kiwi-red-edge-mid); }
+.ke-badge-used,
+.ke-badge-draft    { background: var(--kiwi-cream-deep); color: var(--kiwi-text-muted); border: 1px solid var(--kiwi-border); }
 
 /* ─── Filters ────────────────────────────────────────────── */
 .ke-filters {
@@ -452,29 +524,35 @@
 .ke-filter-field label {
     font-size:          10.5px;
     font-weight:        700;
-    color:              var(--ke-text-3);
+    /* Muted (not faint). 10.5px small-caps filter labels (EVENT, STATUS,
+       SEARCH) need at least muted on dark canvas. */
+    color:              var(--ke-text-2);
     text-transform:     uppercase;
     letter-spacing:     0.6px;
 }
 
 .ke-filter-field select,
 .ke-filter-field input[type="text"] {
+    /* Solid form fields. No backdrop-filter on inputs. */
     padding:            9px 12px;
-    border:             1px solid rgba(203, 213, 225, 0.7);
-    border-radius:      var(--ke-radius-sm);
+    border:             1px solid var(--kiwi-border);
+    border-radius:      var(--kiwi-radius-md);
     font-family:        var(--ke-font);
     font-size:          13px;
     min-width:          170px;
-    background:         rgba(255, 255, 255, 0.75);
-    backdrop-filter:    blur(8px);
+    background:         var(--kiwi-surface);
     color:              var(--ke-text-1);
     transition:         var(--ke-transition);
+    box-shadow:
+        0 1px 2px var(--kiwi-shadow-1) inset;
 }
 
 .ke-filter-field select:focus,
 .ke-filter-field input:focus {
-    border-color:       var(--ke-lime-dark);
-    box-shadow:         0 0 0 3px var(--ke-lime-glow);
+    border-color:       var(--kiwi-green);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 0 0 3px var(--kiwi-green-glow);
     outline:            none;
 }
 
@@ -493,40 +571,46 @@
 }
 
 .ke-page-link {
+    /* Solid pagination buttons — no backdrop-filter. */
     display:            inline-flex;
     align-items:        center;
     justify-content:    center;
     width:              36px;
     height:             36px;
-    border-radius:      var(--ke-radius-sm);
-    border:             1px solid rgba(203, 213, 225, 0.6);
+    border-radius:      var(--kiwi-radius-sm);
+    border:             1px solid var(--kiwi-border);
     font-size:          13px;
     font-weight:        600;
     color:              var(--ke-text-2);
     text-decoration:    none;
-    background:         rgba(255,255,255,0.65);
-    backdrop-filter:    blur(8px);
+    background:         var(--kiwi-surface);
+    box-shadow:         0 0 0 1px var(--kiwi-glass-border-edge);
     transition:         var(--ke-transition);
 }
 
 .ke-page-link:hover {
-    background:         rgba(163, 230, 53, 0.15);
-    border-color:       var(--ke-lime-dark);
-    color:              var(--ke-lime-darker);
+    background:         var(--kiwi-green-tint);
+    border-color:       var(--kiwi-green);
+    color:              var(--kiwi-green-text);
 }
 
+/* Active page — Kiwi green fill, dark text (WCAG-safe; white on lime fails AA). */
 .ke-page-link.active {
-    background:         var(--ke-lime-dark);
-    color:              #fff;
-    border-color:       var(--ke-lime-dark);
-    box-shadow:         0 4px 12px rgba(132, 204, 22, 0.35);
+    background:         var(--kiwi-green);
+    color:              var(--kiwi-text);
+    border-color:       var(--kiwi-green);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 4px 12px var(--kiwi-green-glow-strong);
 }
 
 /* ─── Empty State ────────────────────────────────────────── */
 .ke-empty-state {
     text-align:         center;
     padding:            60px 24px;
-    color:              var(--ke-text-3);
+    /* Muted (not faint) so the supporting copy is still readable in dark
+       mode at 14px. The h3 below moves up to primary. */
+    color:              var(--ke-text-2);
     font-size:          14px;
 }
 
@@ -539,7 +623,10 @@
 .ke-empty-state h3 {
     font-size:          18px;
     font-weight:        700;
-    color:              var(--ke-text-2);
+    /* Primary (was muted). Empty-state headings ("Select an Event") are
+       the page focal point when the table is empty — promote to primary
+       so they pop against the dark surface. */
+    color:              var(--ke-text-1);
     margin:             0 0 8px;
 }
 
@@ -570,15 +657,17 @@
     grid-template-columns: 1fr 1fr;
     gap:                16px;
     padding:            16px 0;
-    border-top:         1px solid rgba(226, 232, 240, 0.5);
-    border-bottom:      1px solid rgba(226, 232, 240, 0.5);
+    border-top:         1px solid var(--kiwi-border);
+    border-bottom:      1px solid var(--kiwi-border);
     margin-bottom:      16px;
 }
 
 .ke-metric-item {}
 .ke-metric-label {
     font-size:          10.5px;
-    color:              var(--ke-text-3);
+    /* Muted (not faint). Same rationale as the KPI labels: 10.5px small-caps
+       labels need at least muted contrast on dark canvas. */
+    color:              var(--ke-text-2);
     font-weight:        700;
     text-transform:     uppercase;
     letter-spacing:     0.6px;
@@ -597,39 +686,57 @@
     font-weight:        500;
 }
 
+/* ─── Events Card Grid ──────────────────────────────────── */
+.ke-events-card-grid {
+    display:            grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap:                20px;
+}
+
 /* ─── Event Card ─────────────────────────────────────────── */
+/* Solid white per the Kiwi rebrand spec. overflow:hidden is critical —
+   it clips the .ke-event-card-thumb (banner) to the card's 20px radius
+   so the top corners of the banner round automatically. */
 .ke-event-card {
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
-    border:             1px solid var(--ke-glass-border);
-    border-radius:      var(--ke-radius);
-    box-shadow:         var(--ke-glass-shadow);
+    background:         var(--kiwi-surface);
+    border:             1px solid var(--kiwi-shadow-4);
+    border-radius:      20px;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 8px 24px var(--kiwi-shadow-4),
+        0 2px 6px var(--kiwi-shadow-3);
     overflow:           hidden;
     display:            flex;
     flex-direction:     column;
-    transition:         var(--ke-transition);
+    transition:         transform 0.2s var(--kiwi-ease), box-shadow 0.2s var(--kiwi-ease);
 }
 
 .ke-event-card:hover {
-    transform:          translateY(-3px);
-    box-shadow:         var(--ke-glass-shadow-hover);
+    transform:          translateY(-2px);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 16px 32px var(--kiwi-shadow-5),
+        0 4px 8px var(--kiwi-shadow-3);
 }
 
 .ke-event-card-thumb {
     position:           relative;
     height:             168px;
-    background:         linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    /* Placeholder when no event banner is set: Kiwi-tinted cream gradient
+       so it still feels on-brand rather than a slate hole. */
+    background:         linear-gradient(135deg, var(--kiwi-cream-deep), var(--kiwi-green-soft));
     background-size:    cover;
     background-position: center;
     overflow:           hidden;
+    /* Round only the top corners — bottom belongs to .ke-event-card-body. */
+    border-radius:      var(--kiwi-radius-md) var(--kiwi-radius-md) 0 0;
 }
 
 .ke-event-card-thumb::after {
     content:            '';
     position:           absolute;
     inset:              0;
-    background:         linear-gradient(to bottom, transparent 50%, rgba(15,23,42,0.25) 100%);
+    background:         linear-gradient(to bottom, transparent 55%, var(--kiwi-legacy-thumb-fade) 100%);
 }
 
 .ke-event-card-status {
@@ -683,42 +790,54 @@
     width:              100%;
 }
 
+/* Rounded card-action buttons per the Kiwi rebrand spec. 12px radius for
+   a clearly-rounded look (not pill), solid white for the secondary buttons,
+   Kiwi green for the primary (Attendees). Padding kept tight enough that
+   the 4-column action row still fits inside the 300px-min event card. */
 .ke-action-btn {
     display:            flex;
     align-items:        center;
     justify-content:    center;
-    padding:            9px 10px;
-    border-radius:      var(--ke-radius-xs);
-    font-size:          12.5px;
+    padding:            9px 12px;
+    border-radius:      12px;
+    font-size:          13px;
     font-weight:        600;
     text-decoration:    none;
-    transition:         var(--ke-transition);
+    transition:         background 0.15s var(--kiwi-ease), border-color 0.15s var(--kiwi-ease), color 0.15s var(--kiwi-ease);
     font-family:        var(--ke-font);
     cursor:             pointer;
-    border:             none;
+    border:             1px solid var(--kiwi-border);
     white-space:        nowrap;
 }
 
 .ke-action-btn-neutral {
-    background:         rgba(241, 245, 249, 0.8);
-    color:              var(--ke-text-2);
-    border:             1px solid rgba(226, 232, 240, 0.7);
+    background:         var(--kiwi-surface);
+    color:              var(--kiwi-text);
+    border:             1px solid var(--kiwi-border);
 }
 .ke-action-btn-neutral:hover {
-    background:         rgba(226, 232, 240, 0.9);
-    color:              var(--ke-text-1);
+    background:         var(--kiwi-surface-hover-tint);
+    border-color:       var(--kiwi-border-hover-tint);
+    color:              var(--kiwi-text);
 }
 
+/* "Dark" action button — the in-row primary CTA (Attendees). Kept Kiwi
+   green so it pops against the white card surface. */
 .ke-action-btn-dark {
-    background:         rgba(15, 23, 42, 0.85);
-    color:              #f8fafc;
+    background:         var(--kiwi-green);
+    color:              var(--kiwi-text);
+    border:             1px solid var(--kiwi-green);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 2px 6px var(--kiwi-green-glow);
 }
 .ke-action-btn-dark:hover {
-    background:         rgba(30, 41, 59, 0.95);
-    color:              #fff;
+    background:         var(--kiwi-green-darker);
+    border-color:       var(--kiwi-green-darker);
+    color:              var(--kiwi-text);
 }
 
-/* Toggle pill */
+/* Toggle pill — matches the rounded card-action button family. */
 .ke-toggle-pill {
     display:            flex;
     align-items:        center;
@@ -726,20 +845,21 @@
     gap:                8px;
     padding:            0 10px;
     height:             38px;
-    border-radius:      var(--ke-radius-xs);
-    border:             1px solid rgba(226, 232, 240, 0.7);
-    background:         rgba(255,255,255,0.7);
+    border-radius:      12px;
+    border:             1px solid var(--kiwi-border);
+    background:         var(--kiwi-surface);
     cursor:             pointer;
-    font-size:          12.5px;
+    font-size:          13px;
     font-weight:        600;
     font-family:        var(--ke-font);
-    color:              var(--ke-text-2);
-    transition:         var(--ke-transition);
+    color:              var(--kiwi-text);
+    transition:         background 0.15s var(--kiwi-ease), border-color 0.15s var(--kiwi-ease);
     white-space:        nowrap;
 }
 
 .ke-toggle-pill:hover {
-    background:         rgba(255,255,255,0.9);
+    background:         var(--kiwi-surface-hover-tint);
+    border-color:       var(--kiwi-border-hover-tint);
 }
 
 .ke-toggle-switch {
@@ -751,18 +871,19 @@
     flex-shrink:        0;
 }
 
-.ke-toggle-switch.on  { background: #2563eb; }
-.ke-toggle-switch.off { background: rgba(203,213,225,0.8); }
+/* On = Kiwi green (was indigo #2563eb); off = neutral cream-deep. */
+.ke-toggle-switch.on  { background: var(--kiwi-green); }
+.ke-toggle-switch.off { background: var(--kiwi-cream-deep); border: 1px solid var(--kiwi-border); box-sizing: border-box; }
 
 .ke-toggle-knob {
     width:              16px;
     height:             16px;
-    background:         #fff;
+    background:         var(--kiwi-white);
     border-radius:      50%;
     position:           absolute;
     top:                2px;
-    transition:         left 0.25s cubic-bezier(0.4,0,0.2,1);
-    box-shadow:         0 2px 4px rgba(0,0,0,0.12);
+    transition:         left 0.25s var(--kiwi-ease);
+    box-shadow:         0 2px 4px var(--kiwi-legacy-knob-shadow);
 }
 
 .ke-toggle-switch.on  .ke-toggle-knob { left: 18px; }
@@ -772,17 +893,20 @@
 .ke-progress-bar {
     width:              100%;
     height:             5px;
-    background:         rgba(226,232,240,0.6);
-    border-radius:      4px;
+    background:         var(--kiwi-cream-deep);
+    border-radius:      var(--kiwi-radius-pill);
     overflow:           hidden;
     margin-top:         6px;
+    border:             1px solid var(--kiwi-border);
 }
 
 .ke-progress-fill {
     height:             100%;
-    background:         linear-gradient(90deg, #10b981, #34d399);
-    border-radius:      4px;
-    transition:         width 0.6s ease;
+    /* Solid Kiwi green fill — was a teal->mint gradient that didn't match
+       the brand palette. */
+    background:         var(--kiwi-green);
+    border-radius:      var(--kiwi-radius-pill);
+    transition:         width 0.6s var(--kiwi-ease);
 }
 
 /* ─── Two-column layout (categories/organizers) ──────────── */
@@ -793,14 +917,17 @@
     align-items:        start;
 }
 
+/* Form-column card on split-layout admin pages (Add Category, Add Organizer).
+   Solid white per the Kiwi rebrand — matches .ke-section-card aesthetics. */
 .ke-form-card {
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
-    border:             1px solid var(--ke-glass-border);
-    border-radius:      var(--ke-radius);
-    box-shadow:         var(--ke-glass-shadow);
-    padding:            28px;
+    background:         var(--kiwi-surface);
+    border:             1px solid var(--kiwi-shadow-4);
+    border-radius:      20px;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 4px 16px var(--kiwi-shadow-2),
+        0 1px 3px var(--kiwi-shadow-3);
+    padding:            28px 32px;
     position:           sticky;
     top:                32px;
 }
@@ -843,23 +970,28 @@
 .ke-field textarea {
     width:              100%;
     padding:            10px 12px;
-    border:             1px solid rgba(203, 213, 225, 0.7);
-    border-radius:      var(--ke-radius-sm);
+    border:             1px solid var(--kiwi-glass-border);
+    border-radius:      var(--kiwi-radius-md);
     font-family:        var(--ke-font);
     font-size:          14px;
     color:              var(--ke-text-1);
-    background:         rgba(255, 255, 255, 0.75);
+    background:         var(--kiwi-glass-bg-input);
     transition:         var(--ke-transition);
     box-sizing:         border-box;
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 2px var(--kiwi-shadow-1) inset;
 }
 
 .ke-field input:focus,
 .ke-field select:focus,
 .ke-field textarea:focus {
-    border-color:       var(--ke-lime-dark);
-    box-shadow:         0 0 0 3px var(--ke-lime-glow);
+    border-color:       var(--kiwi-green);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 0 0 3px var(--kiwi-green-glow);
     outline:            none;
-    background:         #fff;
+    background:         var(--kiwi-white);
 }
 
 /* ─── Item Card Grid ─────────────────────────────────────── */
@@ -869,23 +1001,29 @@
     gap:                16px;
 }
 
+/* Per-entity tile on split-layout admin pages (each category, each organizer).
+   Solid white per the Kiwi rebrand — matches .ke-section-card aesthetics. */
 .ke-item-card {
-    background:         var(--ke-glass-bg);
-    backdrop-filter:    var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
-    border:             1px solid var(--ke-glass-border);
-    border-radius:      var(--ke-radius);
-    box-shadow:         var(--ke-glass-shadow);
-    padding:            20px;
+    background:         var(--kiwi-surface);
+    border:             1px solid var(--kiwi-shadow-4);
+    border-radius:      20px;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 4px 16px var(--kiwi-shadow-2),
+        0 1px 3px var(--kiwi-shadow-3);
+    padding:            24px;
     display:            flex;
     flex-direction:     column;
     gap:                14px;
-    transition:         var(--ke-transition);
+    transition:         transform 0.2s var(--kiwi-ease), box-shadow 0.2s var(--kiwi-ease);
 }
 
 .ke-item-card:hover {
     transform:          translateY(-2px);
-    box-shadow:         var(--ke-glass-shadow-hover);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 16px 32px var(--kiwi-shadow-5),
+        0 4px 8px var(--kiwi-shadow-3);
 }
 
 .ke-item-card-header {
@@ -897,8 +1035,9 @@
 .ke-item-card-icon {
     width:              48px;
     height:             48px;
-    border-radius:      12px;
-    background:         rgba(241, 245, 249, 0.8);
+    border-radius:      var(--kiwi-radius-sm);
+    background:         var(--kiwi-cream-deep);
+    border:             1px solid var(--kiwi-border);
     display:            flex;
     align-items:        center;
     justify-content:    center;
@@ -933,7 +1072,7 @@
     justify-content:    space-between;
     align-items:        center;
     padding-top:        12px;
-    border-top:         1px solid rgba(226, 232, 240, 0.5);
+    border-top:         1px solid var(--kiwi-border);
 }
 
 .ke-item-count {
@@ -946,23 +1085,25 @@
 .ke-id-chip {
     display:            inline-flex;
     align-items:        center;
-    background:         rgba(241, 245, 249, 0.8);
+    background:         var(--kiwi-cream-deep);
     color:              var(--ke-text-3);
     font-size:          10px;
     font-weight:        700;
     padding:            3px 8px;
-    border-radius:      6px;
+    border-radius:      var(--kiwi-radius-sm);
+    border:             1px solid var(--kiwi-border);
     letter-spacing:     0.4px;
     text-transform:     uppercase;
 }
 
 /* ─── Logo Upload ────────────────────────────────────────── */
 .ke-logo-upload-btn {
+    /* Solid dashed upload button — no backdrop-filter on buttons. */
     width:              100%;
     padding:            10px 12px;
-    border:             2px dashed rgba(203, 213, 225, 0.7);
-    border-radius:      var(--ke-radius-sm);
-    background:         rgba(248, 250, 252, 0.6);
+    border:             2px dashed var(--kiwi-border-strong);
+    border-radius:      var(--kiwi-radius-md);
+    background:         var(--kiwi-surface);
     color:              var(--ke-text-3);
     font-size:          13px;
     font-weight:        600;
@@ -973,9 +1114,9 @@
 }
 
 .ke-logo-upload-btn:hover {
-    border-color:       var(--ke-lime-dark);
-    color:              var(--ke-lime-darker);
-    background:         rgba(240, 253, 244, 0.6);
+    border-color:       var(--kiwi-green);
+    color:              var(--kiwi-green-text);
+    background:         var(--kiwi-green-soft);
 }
 
 .ke-logo-preview {
@@ -988,8 +1129,8 @@
     width:              80px;
     height:             80px;
     object-fit:         cover;
-    border-radius:      var(--ke-radius-sm);
-    border:             1px solid rgba(226, 232, 240, 0.7);
+    border-radius:      var(--kiwi-radius-sm);
+    border:             1px solid var(--kiwi-border);
     display:            block;
 }
 
@@ -999,8 +1140,8 @@
     right:              -8px;
     width:              22px;
     height:             22px;
-    background:         #ef4444;
-    color:              #fff;
+    background:         var(--kiwi-red);
+    color:              var(--kiwi-white-ink);
     border:             none;
     border-radius:      50%;
     cursor:             pointer;
@@ -1009,28 +1150,37 @@
     align-items:        center;
     justify-content:    center;
     line-height:        1;
-    box-shadow:         0 2px 6px rgba(239,68,68,0.4);
+    box-shadow:         0 2px 6px var(--kiwi-red-glow-shadow);
 }
 
 /* ─── Submit Button Full ─────────────────────────────────── */
+/* Full-width form submit — matches the primary button system (flat Kiwi
+   green fill + inset top-edge highlight + ambient shadow). */
 .ke-submit-full {
     width:              100%;
     padding:            12px;
-    background:         linear-gradient(135deg, var(--ke-lime), var(--ke-lime-dark));
-    border:             none;
-    border-radius:      var(--ke-radius-sm);
-    color:              #0f1f00;
+    background:         var(--kiwi-green);
+    border:             1px solid var(--kiwi-green);
+    border-radius:      var(--kiwi-radius-md);
+    color:              var(--kiwi-text);
     font-size:          14px;
     font-weight:        700;
     font-family:        var(--ke-font);
     cursor:             pointer;
     transition:         var(--ke-transition);
-    box-shadow:         0 4px 12px rgba(132, 204, 22, 0.3);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 4px 12px var(--kiwi-green-line),
+        0 1px 3px var(--kiwi-shadow-4);
 }
 
 .ke-submit-full:hover {
-    background:         linear-gradient(135deg, #bef264, var(--ke-lime));
-    box-shadow:         0 8px 20px rgba(132, 204, 22, 0.4);
+    background:         var(--kiwi-green-darker);
+    border-color:       var(--kiwi-green-darker);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-medium) inset,
+        0 6px 16px var(--kiwi-green-glow-strong),
+        0 2px 4px var(--kiwi-shadow-5);
     transform:          translateY(-1px);
 }
 
@@ -1039,10 +1189,13 @@
     display:            flex;
     gap:                24px;
     padding:            14px 20px;
-    background:         rgba(163, 230, 53, 0.08);
-    border:             1px solid rgba(163, 230, 53, 0.2);
-    border-radius:      var(--ke-radius-sm);
+    background:         var(--kiwi-green-soft);
+    border:             1px solid var(--kiwi-green-line);
+    border-radius:      var(--kiwi-radius-md);
     margin-bottom:      20px;
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 0 var(--kiwi-inner-highlight) inset;
 }
 
 .ke-stat-strip-item {}
@@ -1051,7 +1204,7 @@
     font-weight:        700;
     text-transform:     uppercase;
     letter-spacing:     0.6px;
-    color:              var(--ke-lime-darker);
+    color:              var(--kiwi-green-text);
 }
 .ke-stat-strip-value {
     font-size:          20px;
@@ -1076,15 +1229,27 @@
     .ke-wrap, .ke-builder-wrap { padding: 16px 16px 40px; }
     .ke-kpi-grid { grid-template-columns: 1fr 1fr; }
     .ke-dashboard-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .ke-builder-header { flex-direction: column; align-items: flex-start; gap: 12px; padding: 16px; }
+    .ke-builder-actions { width: 100%; }
+    .ke-builder-actions .ke-btn,
+    .ke-builder-actions .button { width: 100%; justify-content: center; }
     .ke-filter-row { flex-direction: column; }
     .ke-filter-field select, .ke-filter-field input[type="text"] { min-width: 100%; }
     .ke-table { font-size: 12px; }
     .ke-table thead th, .ke-table tbody td { padding: 10px 10px; }
+    .ke-events-card-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
     .ke-event-card-actions { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 480px) {
     .ke-kpi-grid { grid-template-columns: 1fr; }
+    .ke-events-card-grid { grid-template-columns: 1fr; gap: 14px; }
+    .ke-event-card-thumb { height: 140px; }
+    .ke-event-card-body { padding: 16px 16px 14px; }
+    .ke-event-card-title { font-size: 15px; }
+    .ke-metric-row { gap: 12px; padding: 12px 0; }
+    .ke-metric-value { font-size: 18px; }
+    .ke-event-card-actions { grid-template-columns: 1fr 1fr; gap: 6px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1101,7 +1266,7 @@
     justify-content: space-between;
     gap: 16px;
     padding-bottom: 20px;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+    border-bottom: 1px solid var(--kiwi-border);
     margin-bottom: 24px;
 }
 
@@ -1132,10 +1297,14 @@
 }
 
 .ke-color-field {
-    background: rgba(241, 245, 249, 0.6);
-    border: 1px solid rgba(15, 23, 42, 0.07);
-    border-radius: var(--ke-radius-sm);
+    /* Solid form-field container — no backdrop-filter on form chrome. */
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-md);
     padding: 20px;
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 0 var(--kiwi-inner-highlight) inset;
 }
 
 .ke-color-label {
@@ -1172,10 +1341,10 @@
     display: block;
     width: 36px;
     height: 36px;
-    border-radius: var(--ke-radius-xs);
-    border: 1.5px solid rgba(15, 23, 42, 0.12);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
-    transition: transform 0.15s ease;
+    border-radius: var(--kiwi-radius-sm);
+    border: 1.5px solid var(--kiwi-border-strong);
+    box-shadow: 0 2px 6px var(--kiwi-shadow-5);
+    transition: transform 0.15s var(--kiwi-ease);
 }
 
 .ke-swatch-wrap:hover .ke-swatch {
@@ -1194,19 +1363,19 @@
     flex: 1;
     height: 36px;
     padding: 0 12px;
-    border: 1.5px solid rgba(15, 23, 42, 0.12);
-    border-radius: var(--ke-radius-xs);
+    border: 1.5px solid var(--kiwi-border-strong);
+    border-radius: var(--kiwi-radius-sm);
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 13px;
     color: var(--ke-text-1);
-    background: #fff;
+    background: var(--kiwi-white);
     outline: none;
-    transition: border-color 0.18s ease;
+    transition: border-color 0.18s var(--kiwi-ease), box-shadow 0.18s var(--kiwi-ease);
 }
 
 .ke-hex-input:focus {
-    border-color: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    border-color: var(--kiwi-green);
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow);
 }
 
 .ke-color-preview-row {
@@ -1230,7 +1399,7 @@
     padding: 8px 18px;
     border: none;
     border-radius: 100px;
-    color: #fff;
+    color: var(--kiwi-white-ink);
     font-family: var(--ke-font);
     font-size: 13px;
     font-weight: 600;
@@ -1264,15 +1433,15 @@
 }
 
 .ke-settings-msg.ke-msg-success {
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    color: #059669;
+    background: var(--kiwi-green-soft);
+    border: 1px solid var(--kiwi-green-line);
+    color: var(--kiwi-green-text);
 }
 
 .ke-settings-msg.ke-msg-error {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    color: #dc2626;
+    background: var(--kiwi-red-fill);
+    border: 1px solid var(--kiwi-red-edge-soft);
+    color: var(--kiwi-red-text);
 }
 
 .ke-spinner {
@@ -1293,11 +1462,15 @@
 
 /* ─── Service fee form ─── */
 .ke-fee-form-wrap {
-    background: rgba(248, 250, 252, 0.8);
-    border: 1.5px solid rgba(15, 23, 42, 0.08);
-    border-radius: var(--ke-radius-sm);
+    /* Solid form wrapper — no backdrop-filter on form chrome. */
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-md);
     padding: 20px;
     margin-bottom: 20px;
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 0 var(--kiwi-inner-highlight) inset;
 }
 
 .ke-fee-form {}
@@ -1335,7 +1508,7 @@
 }
 
 .ke-fee-form-label span {
-    color: #ef4444;
+    color: var(--kiwi-red);
 }
 
 .ke-fee-form input[type="text"],
@@ -1343,27 +1516,28 @@
     width: 100%;
     height: 38px;
     padding: 0 12px;
-    border: 1.5px solid rgba(15, 23, 42, 0.12);
-    border-radius: var(--ke-radius-xs);
+    border: 1.5px solid var(--kiwi-border-strong);
+    border-radius: var(--kiwi-radius-sm);
     font-family: var(--ke-font);
     font-size: 14px;
     color: var(--ke-text-1);
-    background: #fff;
+    background: var(--kiwi-white);
     outline: none;
     box-sizing: border-box;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    transition: border-color 0.18s var(--kiwi-ease), box-shadow 0.18s var(--kiwi-ease);
 }
 
 .ke-fee-form input:focus {
-    border-color: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    border-color: var(--kiwi-green);
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow);
 }
 
 /* Fee type toggle tabs */
 .ke-fee-type-tabs {
     display: flex;
-    background: rgba(15, 23, 42, 0.05);
-    border-radius: var(--ke-radius-xs);
+    background: var(--kiwi-cream-deep);
+    border: 1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-sm);
     padding: 3px;
     gap: 3px;
 }
@@ -1387,25 +1561,27 @@
 }
 
 .ke-fee-tab.ke-tab-active {
-    background: #fff;
+    background: var(--kiwi-white);
     color: var(--ke-text-1);
-    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 1px 4px var(--kiwi-shadow-5);
 }
 
 /* Affix inputs */
 .ke-input-with-affix {
     display: flex;
     align-items: center;
-    border: 1.5px solid rgba(15, 23, 42, 0.12);
-    border-radius: var(--ke-radius-xs);
-    background: #fff;
+    border: 1.5px solid var(--kiwi-border-strong);
+    border-radius: var(--kiwi-radius-sm);
+    background: var(--kiwi-white);
     overflow: hidden;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    transition: border-color 0.18s var(--kiwi-ease), box-shadow 0.18s var(--kiwi-ease);
 }
 
 .ke-input-with-affix:focus-within {
-    border-color: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    border-color: var(--kiwi-green);
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow);
 }
 
 .ke-input-with-affix input {
@@ -1429,31 +1605,34 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--ke-text-3);
-    background: rgba(241, 245, 249, 0.8);
+    background: var(--kiwi-cream-deep);
     height: 38px;
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    border-right: 1px solid rgba(15, 23, 42, 0.07);
+    border-right: 1px solid var(--kiwi-border);
 }
 
 .ke-affix-suffix {
     border-right: none;
-    border-left: 1px solid rgba(15, 23, 42, 0.07);
+    border-left: 1px solid var(--kiwi-border);
 }
 
-/* Formula chip / preview */
+/* Formula chip / preview — tinted glass with Kiwi-system accent. The
+   formula text uses the darkened green variant so 12px monospace stays
+   legible (AA) on the tinted background; Kiwi green raw would be too
+   light for body-size text. */
 .ke-formula-chip {
     height: 38px;
     display: flex;
     align-items: center;
     padding: 0 12px;
-    background: rgba(99, 102, 241, 0.06);
-    border: 1.5px solid rgba(99, 102, 241, 0.14);
+    background: var(--kiwi-green-soft);
+    border: 1.5px solid var(--kiwi-green-line);
     border-radius: var(--ke-radius-xs);
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 12px;
-    color: #6366f1;
+    color: var(--kiwi-green-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1467,7 +1646,7 @@
     flex-wrap: wrap;
     gap: 12px;
     padding-top: 16px;
-    border-top: 1px solid rgba(15, 23, 42, 0.06);
+    border-top: 1px solid var(--kiwi-border);
 }
 
 .ke-fee-form-actions {
@@ -1478,14 +1657,13 @@
 
 /* ─── Fee list cards ─── */
 .ke-fee-card {
+    /* Solid list-item card. No backdrop-filter on stacked content rows. */
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
     padding: 16px 20px;
-    background: var(--ke-glass-bg);
-    backdrop-filter: var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
+    background: var(--kiwi-surface);
     border: 1px solid var(--ke-glass-border);
     border-radius: var(--ke-radius-sm);
     box-shadow: var(--ke-glass-shadow);
@@ -1522,16 +1700,18 @@
     flex-shrink: 0;
 }
 
+/* Formula fee = Kiwi-tinted (computed/dynamic). Fixed fee = neutral cream
+   chip. Both were on non-Kiwi accents (indigo + teal) before. */
 .ke-fee-badge-formula {
-    background: rgba(99, 102, 241, 0.1);
-    color: #6366f1;
-    border: 1px solid rgba(99, 102, 241, 0.2);
+    background: var(--kiwi-green-soft);
+    color: var(--kiwi-green-text);
+    border: 1px solid var(--kiwi-green-line);
 }
 
 .ke-fee-badge-fixed {
-    background: rgba(20, 184, 166, 0.1);
-    color: #0d9488;
-    border: 1px solid rgba(20, 184, 166, 0.2);
+    background: var(--kiwi-cream-deep);
+    color: var(--kiwi-text-muted);
+    border: 1px solid var(--kiwi-border);
 }
 
 .ke-fee-card-name {
@@ -1545,9 +1725,10 @@
     font-size: 12.5px;
     color: var(--ke-text-3);
     font-family: 'SF Mono', 'Fira Code', monospace;
-    background: rgba(15, 23, 42, 0.04);
+    background: var(--kiwi-cream-deep);
+    border: 1px solid var(--kiwi-border);
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--kiwi-radius-sm);
 }
 
 .ke-fee-card-actions {
@@ -1556,14 +1737,14 @@
     flex-shrink: 0;
 }
 
-/* Danger action button variant */
+/* Danger action button variant — Apple system red (--kiwi-red = #ff3b30). */
 .ke-action-btn-danger {
-    color: #ef4444 !important;
-    border-color: rgba(239, 68, 68, 0.2) !important;
+    color: var(--kiwi-red) !important;
+    border-color: var(--kiwi-red-edge-faint) !important;
 }
 .ke-action-btn-danger:hover {
-    background: rgba(239, 68, 68, 0.06) !important;
-    border-color: rgba(239, 68, 68, 0.35) !important;
+    background: var(--kiwi-red-fill-soft) !important;
+    border-color: var(--kiwi-red-edge) !important;
 }
 
 /* Empty state */
@@ -1579,4 +1760,222 @@
     font-size: 13px;
     color: var(--ke-text-3);
     margin: 2px 0 0;
+}
+
+/* ─── Event URL row (below the title input) ───────────────────────── */
+.ke-slug-row {
+    margin: 6px 0 12px;
+    padding: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--kiwi-wp-text-muted);
+}
+.ke-slug-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.ke-slug-display-label {
+    font-weight: 600;
+    color: var(--kiwi-wp-text);
+}
+.ke-slug-display-link {
+    color: var(--kiwi-wp-link);
+    text-decoration: none;
+    word-break: break-all;
+}
+.ke-slug-display-link:hover {
+    text-decoration: underline;
+}
+.ke-slug-edit-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    margin-left: 2px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--kiwi-wp-text-muted);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.ke-slug-edit-toggle:hover {
+    background: var(--kiwi-wp-surface-hover);
+    color: var(--kiwi-wp-text);
+    border-color: var(--kiwi-wp-border-soft);
+}
+.ke-slug-edit-toggle .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+}
+.ke-slug-row.is-editing .ke-slug-display {
+    display: none;
+}
+.ke-slug-editor {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.ke-slug-editor .ke-slug-input {
+    flex: 1 1 280px;
+    min-width: 220px;
+    padding: 6px 10px;
+    border: 1px solid var(--kiwi-wp-border-strong);
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+}
+.ke-slug-editor .ke-slug-input:focus {
+    border-color: var(--kiwi-wp-link);
+    box-shadow: 0 0 0 1px var(--kiwi-wp-link);
+    outline: none;
+}
+.ke-slug-help {
+    flex-basis: 100%;
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--kiwi-wp-text-faint);
+}
+.ke-slug-history {
+    margin-top: 8px;
+}
+.ke-slug-history > summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kiwi-wp-text-faint);
+    list-style: revert;
+    user-select: none;
+    display: inline-block;
+}
+.ke-slug-history > summary:hover {
+    color: var(--kiwi-wp-text);
+}
+.ke-slug-history-list {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.ke-slug-history-list li {
+    margin: 0 0 4px;
+    line-height: 1.4;
+}
+.ke-slug-history-list code {
+    font-size: 11.5px;
+    color: var(--kiwi-wp-text-muted);
+    background: var(--kiwi-wp-surface-hover);
+    padding: 1px 5px;
+    border-radius: 3px;
+    word-break: break-all;
+}
+.ke-slug-history-when {
+    font-size: 11px;
+    color: var(--kiwi-wp-border-strong);
+    margin-left: 6px;
+}
+
+/* ─── Per-category shortcodes block (inside each category card) ───── */
+.ke-cat-shortcodes--inline {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    background: var(--kiwi-cream-deep);
+    border: 1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-sm);
+}
+.ke-cat-shortcodes-help {
+    margin: 0 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--kiwi-wp-text-faint);
+}
+.ke-cat-shortcode-row {
+    margin-bottom: 8px;
+}
+.ke-cat-shortcode-row:last-child {
+    margin-bottom: 0;
+}
+.ke-cat-shortcode-label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--kiwi-wp-text-muted);
+    margin-bottom: 3px;
+}
+.ke-cat-shortcode-input-group {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+}
+.ke-cat-shortcode-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--kiwi-wp-border);
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    background: var(--kiwi-surface);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--kiwi-wp-text);
+    cursor: text;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ke-cat-shortcode-input:focus {
+    outline: none;
+    border-color: var(--kiwi-wp-link);
+    box-shadow: 0 0 0 1px var(--kiwi-wp-link);
+    border-right: 1px solid var(--kiwi-wp-link);
+}
+.ke-cat-shortcode-copy {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    padding: 0 8px !important;
+    border-radius: 0 4px 4px 0 !important;
+    border-left: none !important;
+    cursor: pointer;
+}
+.ke-cat-shortcode-copy .dashicons {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+    line-height: 1;
+}
+.ke-cat-shortcode-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 10px 16px;
+    background: var(--kiwi-surface);
+    color: var(--kiwi-text);
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--kiwi-shadow-4);
+    border-radius: var(--kiwi-radius-md);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 12px 24px var(--kiwi-shadow-6),
+        0 4px 8px var(--kiwi-shadow-4);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.18s var(--kiwi-ease), transform 0.18s var(--kiwi-ease);
+    pointer-events: none;
+    z-index: 100000;
+}
+.ke-cat-shortcode-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
 }

@@ -9,32 +9,143 @@ jQuery(document).ready(function ($) {
     let ticketIndex = 0;
     let cachedTemplates = [];   // templates for selected organizer
 
+    // Highest step the user has reached in this session. In create mode this
+    // gates which step indicators are clickable (no skipping ahead). In edit
+    // mode every step is treated as reachable so the user can jump anywhere.
+    const isEditMode = !!window.keIsEdit;
+    let maxStepReached = isEditMode ? TOTAL_STEPS : 1;
+
     // ─── Step navigation ───────────────────────────────────────────────────
     function goToStep(n) {
         if (n < 1 || n > TOTAL_STEPS) return;
+        if (n > maxStepReached) maxStepReached = n;
 
-        // Panels
-        $('.ke-wizard-panel').removeClass('active');
-        $('#ke-step-' + n).addClass('active');
+        const $current = $('.ke-wizard-panel.active');
+        const $target  = $('#ke-step-' + n);
+
+        // Smooth cross-fade: fade out current, swap, fade in target.
+        function swapPanels() {
+            $('.ke-wizard-panel').removeClass('active is-leaving');
+            $target.addClass('active is-entering');
+            // Next tick: remove is-entering so the .active opacity:1 transition runs.
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () { $target.removeClass('is-entering'); });
+            });
+        }
+
+        if ($current.length && $current.get(0) !== $target.get(0)) {
+            $current.addClass('is-leaving');
+            setTimeout(swapPanels, 180);
+        } else {
+            swapPanels();
+        }
 
         // Nav bars
         $('.ke-wizard-nav').hide();
         $('#ke-nav-' + n).show();
 
         // Progress bar
-        $('.ke-wizard-step-item').each(function () {
-            const s = parseInt($(this).data('step'), 10);
-            $(this).removeClass('active done');
-            if (s < n)       $(this).addClass('done');
-            else if (s === n) $(this).addClass('active');
-        });
-        $('.ke-wizard-line').each(function (i) {
-            $(this).toggleClass('done', i < n - 1);
-        });
+        updateStepIndicators(n);
 
         currentStep = n;
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+
+    // Centralizes the active/done class logic AND the clickable/locked
+    // affordances. Called whenever currentStep or maxStepReached changes.
+    //
+    // data-step-state semantics (see CSS):
+    //   active     = current step (filled accent circle)
+    //   completed  = visited; gets a small ✓ on the circle
+    //   available  = clickable but not yet visited (edit mode future steps)
+    //   locked     = create mode beyond maxStepReached (gray, non-clickable)
+    function updateStepIndicators(n) {
+        $('.ke-wizard-step-item').each(function () {
+            const s = parseInt($(this).data('step'), 10);
+            $(this).removeClass('active done');
+
+            let state;
+            if (s === n) {
+                state = 'active';
+                $(this).addClass('active');
+            } else if (s < n) {
+                state = 'completed';
+                $(this).addClass('done');
+            } else if (isEditMode) {
+                // Edit mode: data already exists in DB for every step.
+                // Treat future steps as visitable but not "completed by user".
+                state = 'available';
+            } else if (s <= maxStepReached) {
+                // Create mode: user has previously walked through this step
+                // and moved back — count it as completed.
+                state = 'completed';
+                $(this).addClass('done');
+            } else {
+                state = 'locked';
+            }
+            $(this).attr('data-step-state', state);
+
+            const reachable = state !== 'locked';
+            $(this)
+                .attr('data-clickable', reachable ? 'true' : 'false')
+                .attr('data-locked',    reachable ? 'false' : 'true')
+                .attr('aria-disabled',  reachable ? 'false' : 'true');
+        });
+
+        // Connector line is "lit" iff neither adjacent step is locked.
+        $('.ke-wizard-line').each(function (i) {
+            const $left  = $('.ke-wizard-step-item[data-step="' + (i + 1) + '"]');
+            const $right = $('.ke-wizard-step-item[data-step="' + (i + 2) + '"]');
+            const lit = $left.attr('data-step-state') !== 'locked'
+                     && $right.attr('data-step-state') !== 'locked';
+            $(this)
+                .attr('data-line-state', lit ? 'lit' : 'dim')
+                .toggleClass('done', i < n - 1);
+        });
+    }
+
+    // Attempt a jump triggered by clicking a step indicator. Enforces the
+    // create-mode rules (no skipping ahead, and can't leave a step with empty
+    // required fields). Edit mode is always permissive.
+    function attemptJumpToStep(targetStep) {
+        if (targetStep === currentStep) return;
+        if (targetStep < 1 || targetStep > TOTAL_STEPS) return;
+
+        if (!isEditMode) {
+            if (targetStep > maxStepReached) {
+                showError('Complete this step before jumping ahead.', currentStep);
+                return;
+            }
+            // Validate before leaving when moving forward.
+            if (targetStep > currentStep && !validateStep(currentStep)) {
+                showError('Complete required fields in this step first.', currentStep);
+                return;
+            }
+        }
+        goToStep(targetStep);
+    }
+
+    // Click + keyboard handlers on the step pills.
+    $(document).on('click', '.ke-wizard-step-item', function () {
+        if ($(this).attr('data-locked') === 'true') return;
+        const s = parseInt($(this).data('step'), 10);
+        if (!isNaN(s)) attemptJumpToStep(s);
+    });
+    $(document).on('keydown', '.ke-wizard-step-item', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+        if ($(this).attr('data-locked') === 'true') return;
+        e.preventDefault();
+        const s = parseInt($(this).data('step'), 10);
+        if (!isNaN(s)) attemptJumpToStep(s);
+    });
+
+    // Prime clickable/locked attributes on first load.
+    updateStepIndicators(currentStep);
+
+    // Signal to the inline vanilla-JS fallback in event-builder.php that the
+    // main wizard module loaded successfully; the fallback uses this to skip
+    // double-binding step handlers.
+    window.keWizardJsReady = true;
 
     // ─── Inline error display ─────────────────────────────────────────────
     function showError(msg, step) {
@@ -121,6 +232,173 @@ jQuery(document).ready(function ($) {
         saveEvent('publish');
     });
 
+    // ─── Slug field (Event URL — single-line inline editor) ──────────────
+    //
+    // Display row reads: "Event URL: <base>/<slug> [✎]" — one line, no card.
+    // Pencil swaps the slug span for an <input> on the same line plus ✓ / ×
+    // buttons. Enter confirms, Escape cancels. Validation errors render on
+    // their own row below, only while editing.
+    //
+    // Phase 1 (this commit): no persistence of a "manually set" flag.
+    //   • CREATE mode (no existing slug) mirrors the title into the slug span.
+    //   • EDIT mode (existing slug) starts with the saved slug, no mirroring.
+    //   • Any pencil edit pauses mirroring for the rest of the session.
+    // Phase 2 will replace the in-session flag with a persistent post-meta
+    // boolean so the lock survives reloads.
+    (function initSlugField() {
+        const $row     = $('#ke-slug-field');
+        if (!$row.length) return;
+        const $value   = $('#ke-slug-value');
+        const $input   = $('#ke-event-slug');
+        const $pencil  = $('#ke-slug-pencil');
+        const $confirm = $('#ke-slug-confirm');
+        const $cancel  = $('#ke-slug-cancel');
+        const $error   = $('#ke-slug-error');
+
+        const existingSlug = String(window.keExistingSlug || '');
+        // Persistent lock from `_ke_slug_manually_set` post meta (Phase 2).
+        // Once true, the title→slug mirror is permanently off for this event
+        // across reloads. New events default to false (auto-tracking on);
+        // Phase 3 migration flips existing events to true so their
+        // established URLs are safe.
+        let slugLockedPersistent = !!window.keSlugManuallySet;
+        // True only while the inline editor is open — suppresses mirroring
+        // during an in-flight edit but does NOT flip the persistent lock,
+        // so cancelling the edit restores the prior mirror behavior.
+        let isEditing = false;
+        // Snapshot taken when entering edit mode, used to revert on cancel.
+        let editStartValue = existingSlug;
+        // Expose to collectFormData() so the persistent flag travels with
+        // the save payload.
+        window.keSlugLockedThisSession = slugLockedPersistent;
+
+        function clientSanitize(raw) {
+            return String(raw || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[̀-ͯ]/g, '')   // strip accents
+                .replace(/[^a-z0-9\s-]/g, '')
+                .trim()
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '')
+                .slice(0, 60);
+        }
+
+        function showError(msg) {
+            $error.text(msg || '').attr('hidden', msg ? null : true);
+        }
+
+        function commitDisplay(slug) {
+            $input.val(slug);
+            $value.text(slug);
+        }
+
+        function enterEditMode() {
+            isEditing = true;
+            editStartValue = $input.val();
+            $row.attr('data-mode', 'edit');
+            $value.attr('hidden', true);
+            $input.attr('hidden', null).trigger('focus').trigger('select');
+            $pencil.attr('hidden', true);
+            $confirm.attr('hidden', null);
+            $cancel.attr('hidden', null);
+        }
+
+        function exitEditMode(commitValue) {
+            isEditing = false;
+            const final = clientSanitize(commitValue);
+            commitDisplay(final);
+            $row.attr('data-mode', 'display');
+            $value.attr('hidden', null);
+            $input.attr('hidden', true);
+            $pencil.attr('hidden', null);
+            $confirm.attr('hidden', true);
+            $cancel.attr('hidden', true);
+            showError('');
+        }
+
+        // Title → slug mirror. Runs whenever the persistent lock is off AND
+        // we're not currently editing the slug directly. Cancelling an edit
+        // therefore restores the mirror; only ✓ confirm flips the lock on.
+        $('#ke-event-title').on('input', function () {
+            if (slugLockedPersistent || isEditing) return;
+            commitDisplay(clientSanitize($(this).val()));
+        });
+
+        $pencil.on('click', enterEditMode);
+        $confirm.on('click', function () {
+            // Confirming a manual edit flips the persistent lock. The payload
+            // ships slug_manually_set=true so the server writes the meta and
+            // future title changes can't auto-overwrite this slug. Reverting
+            // via × leaves the flag untouched.
+            const next = clientSanitize($input.val());
+            if (next !== editStartValue) {
+                slugLockedPersistent = true;
+                window.keSlugLockedThisSession = true;
+            }
+            exitEditMode($input.val());
+        });
+        $cancel.on('click', function () {
+            exitEditMode(editStartValue);
+        });
+        $input.on('keydown', function (e) {
+            if (e.key === 'Enter')  { e.preventDefault(); $confirm.trigger('click'); }
+            if (e.key === 'Escape') { e.preventDefault(); $cancel.trigger('click'); }
+        });
+
+        // Debounced uniqueness check while typing in the inline input. Does
+        // NOT flip the persistent lock — that only happens on ✓ confirm.
+        let debounceTimer = null;
+        let lastQuery     = null;
+        $input.on('input', function () {
+            const sanitized = clientSanitize($(this).val());
+            if (sanitized !== $(this).val()) {
+                $(this).val(sanitized);
+            }
+            $value.text(sanitized);
+
+            if (!sanitized) {
+                showError('Lowercase letters, numbers, and hyphens only');
+                return;
+            }
+            // Clear the previous error while we re-check; only show the
+            // result when the server responds.
+            showError('');
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                const data = window.keBuilderData || {};
+                const url  = (data.restUrl || '') + 'events/check-slug?slug='
+                           + encodeURIComponent(sanitized)
+                           + '&exclude_id=' + encodeURIComponent(window.keEventId || 0);
+                lastQuery = sanitized;
+                fetch(url, {
+                    credentials: 'same-origin',
+                    headers: { 'X-WP-Nonce': data.nonce || '' }
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (resp) {
+                    if (lastQuery !== sanitized) return; // stale
+                    if (resp && resp.available) {
+                        showError('');
+                        return;
+                    }
+                    const reasons = {
+                        invalid_format: 'Lowercase letters, numbers, and hyphens only',
+                        too_long:       'Too long — max 60 characters',
+                        in_use:         'Already in use by another event',
+                        reserved:       'Reserved slug'
+                    };
+                    showError(reasons[resp && resp.reason] || 'Slug is not available');
+                })
+                .catch(function () {
+                    // Network blip: don't block the user; server will validate.
+                    showError('');
+                });
+            }, 300);
+        });
+    })();
+
     // ─── Location type toggle ──────────────────────────────────────────────
     $('input[name="ke_location_type"]').on('change', function () {
         const val = $(this).val();
@@ -191,16 +469,39 @@ jQuery(document).ready(function ($) {
         const isPaid          = (data.ticket_type || 'free') === 'paid';
         const isLimited       = (data.capacity_type || 'limited') === 'limited';
         const showRem         = (data.show_remaining || 'yes') === 'yes';
+        const ticketTypeId    = parseInt(data.id, 10) || 0;
+        const sold            = parseInt(data.quantity_sold, 10) || 0;
+        const totalQty        = parseInt(data.qty, 10) || 0;
+        const isActive        = (data.status || 'active') === 'active';
+        // Sold counter only renders for saved ticket types (have a DB id).
+        const soldDenominator = isLimited && totalQty > 0 ? `/${totalQty}` : '';
+        const soldHtml        = ticketTypeId > 0
+            ? `<span class="ke-tkt-sold" title="Tickets sold">Sold: <strong>${sold}</strong>${soldDenominator}</span>`
+            : '';
+        // Active toggle only renders for saved ticket types; unsaved cards
+        // have no DB row to toggle against.
+        const toggleHtml      = ticketTypeId > 0
+            ? `<button type="button" class="ke-toggle-switch ke-tkt-active-toggle ${isActive ? 'on' : 'off'}" data-ticket-type-id="${ticketTypeId}" title="${isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}" aria-pressed="${isActive ? 'true' : 'false'}"><span class="ke-toggle-knob"></span></button>`
+            : '';
+        // "Ventas cerradas" indicator. Computed server-side in PHP hydration
+        // (KE_Ticket_Types::is_sales_closed) so the badge never drifts against
+        // the admin's local browser clock or timezone.
+        const closedBadge     = data.is_closed
+            ? `<span class="ke-tkt-badge ke-tkt-closed-badge" title="Sales cutoff has passed">⏱ Ventas cerradas</span>`
+            : '';
 
         return `
-<div class="ke-tkt-card" data-idx="${idx}" data-id="${data.id || 0}">
+<div class="ke-tkt-card ${isActive ? '' : 'is-inactive'}" data-idx="${idx}" data-id="${ticketTypeId}">
     <div class="ke-tkt-header">
         <div class="ke-tkt-header-left">
             <span class="ke-tkt-drag-handle" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</span>
             <span class="ke-tkt-badge ${isPaid ? 'paid' : 'free'}">${isPaid ? 'PAID' : 'FREE'}</span>
             <span class="ke-tkt-title-preview">${escHtml(data.name || 'New Ticket')}</span>
+            ${closedBadge}
         </div>
         <div class="ke-tkt-header-right">
+            ${soldHtml}
+            ${toggleHtml}
             <button type="button" class="ke-tkt-collapse-btn" title="Collapse/Expand">▴</button>
             <button type="button" class="ke-tkt-remove-btn" title="Remove ticket">✕</button>
         </div>
@@ -278,6 +579,12 @@ jQuery(document).ready(function ($) {
                 <span class="ke-toggle-label">Show remaining tickets count</span>
             </label>
         </div>
+
+        <div class="ke-form-group">
+            <label class="ke-label">Cierre de venta (opcional)</label>
+            <input type="datetime-local" class="ke-input ke-tkt-sale-end" value="${escAttr(data.sale_end || '')}">
+            <p class="ke-hint">Ventas se cierran a esta hora aunque queden boletos disponibles. Déjalo vacío para vender hasta que finalice el evento o se agoten.</p>
+        </div>
     </div>
 </div>`;
     }
@@ -326,6 +633,50 @@ jQuery(document).ready(function ($) {
             if (!confirm('Remove this ticket type?')) return;
             $card.remove();
             updateEmptyState();
+        });
+
+        // Active toggle. Optimistic UI: flip immediately, POST, rollback on
+        // failure. Only rendered for saved ticket types (data-ticket-type-id > 0).
+        $card.find('.ke-tkt-active-toggle').on('click', function () {
+            const $btn = $(this);
+            if ($btn.prop('disabled')) return;
+            const typeId  = parseInt($btn.attr('data-ticket-type-id'), 10) || 0;
+            const eventId = parseInt(window.keEventId, 10) || 0;
+            if (!typeId || !eventId) return;
+
+            const base  = (window.keBuilderData && window.keBuilderData.restUrl) || '/wp-json/ke/v1/';
+            const nonce = (window.keBuilderData && window.keBuilderData.nonce)   || '';
+
+            const wasOn = $btn.hasClass('on');
+            // Optimistic flip
+            $btn.toggleClass('on off');
+            $card.toggleClass('is-inactive', wasOn);
+            $btn.prop('disabled', true).attr('aria-pressed', wasOn ? 'false' : 'true');
+
+            fetch(base + 'events/' + eventId + '/ticket-types/' + typeId + '/toggle-active', {
+                method:  'POST',
+                headers: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' }
+            })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (res) {
+                if (!res.ok || !res.data || !res.data.success) {
+                    // Rollback
+                    $btn.toggleClass('on off');
+                    $card.toggleClass('is-inactive', !wasOn);
+                    $btn.attr('aria-pressed', wasOn ? 'true' : 'false');
+                    alert((res.data && res.data.message) || 'Could not update ticket status.');
+                } else {
+                    const nowActive = res.data.status === 'active';
+                    $btn.attr('title', nowActive ? 'Active — click to deactivate' : 'Inactive — click to activate');
+                }
+            })
+            .catch(function () {
+                $btn.toggleClass('on off');
+                $card.toggleClass('is-inactive', !wasOn);
+                $btn.attr('aria-pressed', wasOn ? 'true' : 'false');
+                alert('Network error. Could not update ticket status.');
+            })
+            .finally(function () { $btn.prop('disabled', false); });
         });
     }
 
@@ -378,6 +729,10 @@ jQuery(document).ready(function ($) {
             const $c = $(this);
             const capType = $c.find('.ke-tkt-cap-radio:checked').val() || 'limited';
 
+            // Per-ticket sales cutoff. Empty input → null so the REST layer's
+            // array_key_exists check still fires (key present, value null) and
+            // the CRUD layer writes SQL NULL to clear a previously-set cutoff.
+            const saleEndRaw = ($c.find('.ke-tkt-sale-end').val() || '').trim();
             tickets.push({
                 id:             parseInt($c.data('id'), 10) || 0,
                 name:           $c.find('.ke-tkt-name').val().trim(),
@@ -389,6 +744,7 @@ jQuery(document).ready(function ($) {
                 min_per_order:  parseInt($c.find('.ke-tkt-min').val(), 10) || 1,
                 max_per_order:  parseInt($c.find('.ke-tkt-max').val(), 10) || 10,
                 show_remaining: $c.find('.ke-tkt-show-remaining').is(':checked') ? 'yes' : 'no',
+                sale_end:       saleEndRaw === '' ? null : saleEndRaw,
             });
         });
 
@@ -400,6 +756,8 @@ jQuery(document).ready(function ($) {
         return {
             event_id:              window.keEventId || 0,
             title:                 $('#ke-event-title').val().trim(),
+            slug:                  ($('#ke-event-slug').val() || '').trim(),
+            slug_manually_set:     !!window.keSlugLockedThisSession,
             content:               $('#ke-event-description').val(),
             event_start:           startDate ? startDate + 'T' + startTime : '',
             event_end:             endDate   ? endDate   + 'T' + endTime   : '',
@@ -420,6 +778,9 @@ jQuery(document).ready(function ($) {
             email_from_name:       $('#ke-email-from-name').val().trim(),
             email_custom_message:  $('#ke-email-custom-message').val().trim(),
             is_featured:           $('#ke-is-featured').is(':checked') ? 1 : 0,
+            show_in_main_shortcode: $('#ke-show-in-main-shortcode').length
+                                        ? ($('#ke-show-in-main-shortcode').is(':checked') ? 1 : 0)
+                                        : 1,
             promo_label:           $('#ke-promo-label').val().trim(),
             service_fee_id:        $('#ke-service-fee-id').val() || '',
             banner_id:             parseInt($('#ke-banner-id').val(), 10) || 0,
@@ -427,7 +788,19 @@ jQuery(document).ready(function ($) {
             extras:                collectExtras(),
             extra_fields:          collectExtraFields(),
             reservations:          collectReservations(),
+            promoter_assignments:  collectPromoterAssignments(),
+            promoter_terms:        collectPromoterTerms(),
         };
+    }
+
+    function collectPromoterTerms() {
+        // wp_editor renders into a textarea named ke_promoter_event_terms;
+        // when visual mode is active the rich text is held by tinymce.
+        if (typeof tinymce !== 'undefined' && tinymce.get && tinymce.get('ke_promoter_event_terms')) {
+            return tinymce.get('ke_promoter_event_terms').getContent() || '';
+        }
+        const el = document.getElementById('ke_promoter_event_terms');
+        return el ? el.value : '';
     }
 
     function collectExtras() {
@@ -474,6 +847,11 @@ jQuery(document).ready(function ($) {
                     .map(function (it) {
                         return { question: String(it.question || ''), answer: String(it.answer || '') };
                     });
+            }
+            if (type === 'additional_info') {
+                const r = String($('#ke-addinfo-refundable').val() || '').toLowerCase();
+                config.refundable  = (r === 'yes' || r === 'no') ? r : '';
+                config.disclaimers = String($('#ke-addinfo-disclaimers').val() || '');
             }
             extras.push({
                 type:    type,
@@ -524,7 +902,12 @@ jQuery(document).ready(function ($) {
         if (autoSaveInFlight) return;
         const data = collectFormData();
         if (!data.title) return;
-        data.status = 'draft';
+        // Autosave must NOT touch post_status. Sending status:'draft' here
+        // silently reverted already-published events to draft (making them
+        // vanish from [kiwi_events]). Omitting status entirely tells the REST
+        // handler to preserve whatever status the event currently has. Only
+        // the explicit Publish / Save-Draft buttons set status.
+        delete data.status;
 
         autoSaveInFlight = true;
         showSaveState('saving', 'Saving…');
@@ -545,6 +928,9 @@ jQuery(document).ready(function ($) {
                     window.keEventId = res.id;
                     window.keIsEdit  = true;
                     showSaveState('saved', 'Saved');
+                    // Autosave landed — snapshot now matches server. The
+                    // persistent-bar (if enabled) drops back to Idle.
+                    if (typeof markCleanSnapshot === 'function') markCleanSnapshot();
                 } else {
                     showSaveState('error', "Couldn't save");
                 }
@@ -561,8 +947,217 @@ jQuery(document).ready(function ($) {
     $(document).on('input change',
         '#ke-builder-form input, #ke-builder-form textarea, #ke-builder-form select, ' +
         '.ke-builder-card input, .ke-builder-card textarea, .ke-builder-card select',
-        triggerAutoSave
+        function () {
+            triggerAutoSave();
+            schedulePersistentDirtyCheck();
+        }
     );
+
+    // ─── Persistent "Save changes" bar (edit mode only) — Item #2 ─────────
+    //
+    // Snapshot-diff against `collectFormData()` to detect whether the wizard
+    // has unsaved changes. The autosave loop keeps things on disk in the
+    // background; this bar gives the user an *explicit* status + commit button
+    // they can hit from any step without walking to the final wizard panel.
+    const $persistentBar    = $('#ke-persistent-savebar');
+    const $persistentBtn    = $('#ke-persistent-save-btn');
+    const $persistentStatus = $('#ke-persistent-savebar-status');
+    const persistentEnabled = isEditMode && $persistentBar.length > 0;
+
+    let cleanSnapshot = null;
+    let dirtyCheckTimer = null;
+    let persistentSaveInFlight = false;
+    let persistentQueuedSave = false;
+    let savedFlashTimer = null;
+
+    function captureSnapshot() {
+        try {
+            return JSON.stringify(collectFormData());
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Called by external save flows (autosave + explicit publish) to mark
+    // current form state as "matches what's on the server".
+    function markCleanSnapshot() {
+        if (!persistentEnabled) return;
+        cleanSnapshot = captureSnapshot();
+        setPersistentState('idle');
+    }
+    // Exposed so tests / future code can force a re-snapshot.
+    window.keMarkCleanSnapshot = markCleanSnapshot;
+
+    function isDirty() {
+        if (cleanSnapshot === null) return false;
+        const now = captureSnapshot();
+        return now !== null && now !== cleanSnapshot;
+    }
+
+    function schedulePersistentDirtyCheck() {
+        if (!persistentEnabled) return;
+        clearTimeout(dirtyCheckTimer);
+        dirtyCheckTimer = setTimeout(function () {
+            const state = $persistentBtn.attr('data-state');
+            if (state === 'saving') return; // don't fight an in-flight save
+            if (isDirty()) {
+                if (state !== 'dirty') setPersistentState('dirty');
+            } else {
+                if (state === 'dirty') setPersistentState('idle');
+            }
+        }, 150);
+    }
+
+    function setPersistentState(state, message) {
+        if (!persistentEnabled) return;
+        clearTimeout(savedFlashTimer);
+
+        $persistentBtn.attr('data-state', state);
+        $persistentStatus.attr('data-state', state);
+
+        const $icon  = $persistentBtn.find('.ke-persistent-save-icon');
+        const $label = $persistentBtn.find('.ke-persistent-save-label');
+        const $stext = $persistentStatus.find('.ke-savebar-text');
+
+        switch (state) {
+            case 'idle':
+                $persistentBtn.prop('disabled', true).attr('title', 'No changes to save.');
+                $icon.text('✓');
+                $label.text('Saved');
+                $stext.text('No unsaved changes');
+                break;
+            case 'dirty':
+                $persistentBtn.prop('disabled', false).attr('title', 'Save your changes now.');
+                $icon.text('💾');
+                $label.text('Save changes');
+                $stext.text('Unsaved changes');
+                break;
+            case 'saving':
+                $persistentBtn.prop('disabled', true).attr('title', 'Saving…');
+                $icon.text(''); // CSS turns this into a spinner
+                $label.text('Saving…');
+                $stext.text('Saving…');
+                break;
+            case 'saved':
+                $persistentBtn.prop('disabled', true).attr('title', 'Saved.');
+                $icon.text('✓');
+                $label.text('Saved');
+                $stext.text('All changes saved');
+                // Brief flash, then fall back to idle.
+                savedFlashTimer = setTimeout(function () {
+                    if ($persistentBtn.attr('data-state') === 'saved') setPersistentState('idle');
+                }, 2000);
+                break;
+            case 'error':
+                $persistentBtn.prop('disabled', false).attr('title', message || 'Save failed — try again.');
+                $icon.text('!');
+                $label.text('Try again');
+                $stext.text(message || 'Save failed');
+                break;
+        }
+    }
+
+    // Bottom-center toast — used only by the persistent-save flow so the user
+    // gets confirmation that doesn't interrupt their current step context.
+    function showPersistentToast(message, kind) {
+        const $stack = $('#ke-toast-stack');
+        if (!$stack.length) return;
+        const $t = $('<div class="ke-toast"></div>').text(message);
+        if (kind === 'success') $t.addClass('is-success');
+        if (kind === 'error')   $t.addClass('is-error');
+        $stack.append($t);
+        requestAnimationFrame(function () { $t.addClass('is-visible'); });
+        setTimeout(function () {
+            $t.removeClass('is-visible');
+            setTimeout(function () { $t.remove(); }, 250);
+        }, 2500);
+    }
+
+    function persistentSave() {
+        if (!persistentEnabled) return;
+        if (persistentSaveInFlight) { persistentQueuedSave = true; return; }
+
+        const data = collectFormData();
+        if (!data.title) {
+            goToStep(1);
+            showError('Event name is required.', 1);
+            $('#ke-event-title').focus();
+            return;
+        }
+
+        // Persistent button only ever lives in edit mode so this is always a PUT.
+        // We preserve current post status by sending 'publish' (matches what the
+        // explicit Save Changes button does today on existing events).
+        data.status = 'publish';
+
+        persistentSaveInFlight = true;
+        autoSaveInFlight = true;
+        clearTimeout(autoSaveTimer);
+        setPersistentState('saving');
+
+        const url = keBuilderData.restUrl + 'events/' + data.event_id;
+
+        $.ajax({
+            url: url, method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            beforeSend: function (xhr) { xhr.setRequestHeader('X-WP-Nonce', keBuilderData.nonce); },
+            success: function (res) {
+                if (res && res.id) {
+                    markCleanSnapshot();
+                    setPersistentState('saved');
+                    showPersistentToast('Event saved successfully', 'success');
+                } else {
+                    setPersistentState('error', 'Unexpected response from server');
+                }
+            },
+            error: function (xhr) {
+                let msg = 'Save failed';
+                try {
+                    const body = JSON.parse(xhr.responseText);
+                    if (body && body.message) msg = body.message;
+                } catch (e) {}
+                setPersistentState('error', msg);
+                showPersistentToast(msg, 'error');
+            },
+            complete: function () {
+                persistentSaveInFlight = false;
+                autoSaveInFlight = false;
+                if (persistentQueuedSave) {
+                    persistentQueuedSave = false;
+                    // A change came in mid-flight — re-evaluate.
+                    schedulePersistentDirtyCheck();
+                    if (isDirty()) persistentSave();
+                }
+            }
+        });
+    }
+
+    $persistentBtn.on('click', function () {
+        if ($(this).prop('disabled')) return;
+        persistentSave();
+    });
+
+    // beforeunload — only when there are genuine unsaved changes.
+    window.addEventListener('beforeunload', function (e) {
+        if (!persistentEnabled) return;
+        if (persistentSaveInFlight) return; // assume the in-flight save will land
+        if (!isDirty()) return;
+        e.preventDefault();
+        // Modern browsers ignore the custom string but still display a generic prompt.
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+    });
+
+    // Capture the initial baseline AFTER tickets/extras/promoters have hydrated.
+    // 250ms is enough headroom for the existing per-step bootstrap code below
+    // to populate the DOM from `window.keExisting*` arrays.
+    if (persistentEnabled) {
+        setTimeout(function () {
+            cleanSnapshot = captureSnapshot();
+            setPersistentState('idle');
+        }, 250);
+    }
 
     // ─── Save ──────────────────────────────────────────────────────────────
     function saveEvent(status) {
@@ -602,6 +1197,8 @@ jQuery(document).ready(function ($) {
                     window.keIsEdit  = true;
                     if (wasFirstPublish) celebratePublish();
                     showSuccessModal(res.id, res.permalink || '', status);
+                    // Explicit save landed — bring the persistent bar back to Idle.
+                    if (typeof markCleanSnapshot === 'function') markCleanSnapshot();
                 } else {
                     showError('Unexpected response from server.');
                 }
@@ -702,7 +1299,7 @@ jQuery(document).ready(function ($) {
         const $c = $('#ke-tpl-picker-list');
         $c.empty();
         if (!list || !list.length) {
-            $c.html('<p style="color:#94a3b8;font-size:14px;">No templates available.</p>');
+            $c.html('<p style="color:var(--kiwi-legacy-text-faint);font-size:14px;">No templates available.</p>');
             return;
         }
         list.forEach(function (tpl) {
@@ -718,7 +1315,7 @@ jQuery(document).ready(function ($) {
                 '    <div class="ke-tpl-picker-meta">' + (tpl.tickets || []).length + ' ticket type' + ((tpl.tickets || []).length !== 1 ? 's' : '') + '</div>',
                 chips ? '<div class="ke-tpl-picker-chips">' + chips + '</div>' : '',
                 '  </div>',
-                '  <span style="color:#6366f1;font-size:13px;font-weight:700;flex-shrink:0;margin-left:12px;">Apply →</span>',
+                '  <span style="color:var(--kiwi-legacy-indigo-500);font-size:13px;font-weight:700;flex-shrink:0;margin-left:12px;">Apply →</span>',
                 '</div>',
             ].join(''));
 
@@ -779,12 +1376,31 @@ jQuery(document).ready(function ($) {
     $(document).on('change', '.ke-extra-toggle', function () {
         $(this).closest('.ke-extra-card').toggleClass('is-enabled', this.checked);
         const t = $(this).data('type');
-        if (t === 'lineup')       updateLineupEditorVisibility();
-        if (t === 'gallery')      updateGalleryEditorVisibility();
-        if (t === 'testimonials') updateTestimonialsEditorVisibility();
-        if (t === 'schedule')     updateScheduleEditorVisibility();
-        if (t === 'faq')          updateFaqEditorVisibility();
+        if (t === 'lineup')          updateLineupEditorVisibility();
+        if (t === 'gallery')         updateGalleryEditorVisibility();
+        if (t === 'testimonials')    updateTestimonialsEditorVisibility();
+        if (t === 'schedule')        updateScheduleEditorVisibility();
+        if (t === 'faq')             updateFaqEditorVisibility();
+        if (t === 'additional_info') updateAddInfoEditorVisibility();
     });
+
+    function updateAddInfoEditorVisibility() {
+        const on = $('.ke-extra-toggle[data-type="additional_info"]').is(':checked');
+        $('#ke-addinfo-editor').toggle(on);
+    }
+
+    // Hydrate Additional Information editor on edit.
+    (function hydrateAdditionalInfo() {
+        if (!Array.isArray(window.keExistingExtras)) return;
+        const extra = window.keExistingExtras.find(function (e) { return e && e.type === 'additional_info'; });
+        const cfg   = extra && extra.config ? extra.config : null;
+        if (!cfg) return;
+        $('#ke-addinfo-refundable').val(
+            (cfg.refundable === 'yes' || cfg.refundable === 'no') ? cfg.refundable : ''
+        );
+        $('#ke-addinfo-disclaimers').val(String(cfg.disclaimers || ''));
+    })();
+    updateAddInfoEditorVisibility();
 
     // ─── Lineup editor ─────────────────────────────────────────────────────
     // Artists survive an off→on toggle: we keep the array in memory and in
@@ -1873,5 +2489,161 @@ jQuery(document).ready(function ($) {
     });
 
     renderResvForm();
+
+    // ═══════════════════════════════════════════════════════════════════
+    // PROMOTERS — per-event commission assignment
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Local state. Hydrated from the editor's data-attrs on first render.
+    let promoterAssignments = []; // [{ promoter_id, name, email, slug, status, commission_type, commission_value }]
+    let allPromoters        = []; // [{ id, name, email, slug, status }]
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function readPromoterEditorDataset() {
+        const $ed = $('#ke-promoters-editor');
+        if (!$ed.length) return;
+        try {
+            const raw = $ed.attr('data-assignments') || '[]';
+            promoterAssignments = JSON.parse(raw) || [];
+        } catch (e) { promoterAssignments = []; }
+        try {
+            const raw = $ed.attr('data-all-promoters') || '[]';
+            allPromoters = JSON.parse(raw) || [];
+        } catch (e) { allPromoters = []; }
+    }
+
+    function renderPromoterRows() {
+        const $list  = $('#ke-promoters-list');
+        const $empty = $('#ke-promoters-empty');
+        if (!$list.length) return;
+
+        if (!promoterAssignments.length) {
+            $list.empty();
+            $empty.show();
+        } else {
+            $empty.hide();
+            const rows = promoterAssignments.map(function (a, idx) {
+                const typeLabel = a.commission_type === 'fixed' ? '$ fixed' : '% of price';
+                const statusBg  = a.status === 'active'   ? 'var(--kiwi-legacy-green-pill-bg)'
+                               : a.status === 'pending'   ? 'var(--kiwi-legacy-yellow-pill-bg)'
+                                                          : 'var(--kiwi-legacy-row-bg)';
+                const statusFg  = a.status === 'active'   ? 'var(--kiwi-legacy-emerald-800)'
+                               : a.status === 'pending'   ? 'var(--kiwi-legacy-yellow-pill-text)'
+                                                          : 'var(--kiwi-legacy-text-mid)';
+                return ''
+                    + '<div class="ke-promoter-row" data-idx="' + idx + '" '
+                    +      'style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 12px; background:var(--kiwi-surface); border:1px solid var(--kiwi-legacy-row-bg-alt); border-radius:8px;">'
+                    +   '<div style="flex:1 1 220px; min-width:0;">'
+                    +     '<div style="font-weight:600; font-size:13px; color:var(--kiwi-legacy-dark-2);">' + escHtml(a.name)
+                    +       ' <span style="display:inline-block; margin-left:6px; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; text-transform:uppercase; background:' + statusBg + '; color:' + statusFg + ';">' + escHtml(a.status) + '</span>'
+                    +     '</div>'
+                    +     '<div style="font-size:12px; color:var(--kiwi-legacy-text-muted);">'
+                    +       escHtml(a.email) + ' · <code style="font-size:11px;">' + escHtml(a.slug) + '</code>'
+                    +     '</div>'
+                    +   '</div>'
+                    +   '<select class="ke-select ke-promoter-row-type" style="width:130px;">'
+                    +     '<option value="percentage"' + (a.commission_type !== 'fixed' ? ' selected' : '') + '>% of price</option>'
+                    +     '<option value="fixed"'      + (a.commission_type === 'fixed' ? ' selected' : '') + '>$ fixed</option>'
+                    +   '</select>'
+                    +   '<input type="number" class="ke-input ke-input-sm ke-promoter-row-value" min="0" step="0.01" value="' + escHtml(a.commission_value) + '" style="width:90px;">'
+                    +   '<button type="button" class="ke-btn ke-btn-ghost ke-promoter-row-remove" aria-label="Remove" title="Remove" style="padding:6px 10px;">✕</button>'
+                    + '</div>';
+            }).join('');
+            $list.html(rows);
+        }
+    }
+
+    function refreshPromoterPicker() {
+        const $picker = $('#ke-promoter-picker');
+        if (!$picker.length) return;
+
+        const assignedIds = {};
+        promoterAssignments.forEach(function (a) { assignedIds[a.promoter_id] = true; });
+
+        const opts = ['<option value="">— Choose a promoter to add —</option>'];
+        allPromoters.forEach(function (p) {
+            if (assignedIds[p.id]) return;
+            const tag = p.status === 'pending' ? ' (pending)' : '';
+            opts.push('<option value="' + p.id + '">' + escHtml(p.name) + tag + ' — ' + escHtml(p.email) + '</option>');
+        });
+        $picker.html(opts.join(''));
+    }
+
+    function renderPromoters() {
+        renderPromoterRows();
+        refreshPromoterPicker();
+    }
+
+    function collectPromoterAssignments() {
+        // Single source of truth is the in-memory array — DOM-bound type/value
+        // inputs are mirrored into it on change below.
+        return promoterAssignments.map(function (a) {
+            return {
+                promoter_id:      parseInt(a.promoter_id, 10) || 0,
+                commission_type:  a.commission_type === 'fixed' ? 'fixed' : 'percentage',
+                commission_value: Math.max(0, parseFloat(a.commission_value) || 0),
+            };
+        }).filter(function (a) { return a.promoter_id > 0; });
+    }
+
+    // Add row
+    $(document).on('click', '#ke-promoter-add-btn', function () {
+        const pid   = parseInt($('#ke-promoter-picker').val(), 10) || 0;
+        if (!pid) return;
+        const found = allPromoters.find(function (p) { return p.id === pid; });
+        if (!found) return;
+
+        const type  = $('#ke-promoter-picker-type').val() === 'fixed' ? 'fixed' : 'percentage';
+        const value = Math.max(0, parseFloat($('#ke-promoter-picker-value').val()) || 0);
+
+        promoterAssignments.push({
+            promoter_id:      pid,
+            name:             found.name,
+            email:            found.email,
+            slug:             found.slug,
+            status:           found.status,
+            commission_type:  type,
+            commission_value: value,
+        });
+
+        $('#ke-promoter-picker-value').val('');
+        renderPromoters();
+        triggerAutoSave();
+    });
+
+    // Remove row
+    $(document).on('click', '.ke-promoter-row-remove', function () {
+        const idx = parseInt($(this).closest('.ke-promoter-row').data('idx'), 10);
+        if (Number.isNaN(idx)) return;
+        promoterAssignments.splice(idx, 1);
+        renderPromoters();
+        triggerAutoSave();
+    });
+
+    // Sync type + value back into state
+    $(document).on('change', '.ke-promoter-row-type', function () {
+        const idx = parseInt($(this).closest('.ke-promoter-row').data('idx'), 10);
+        if (Number.isNaN(idx) || !promoterAssignments[idx]) return;
+        promoterAssignments[idx].commission_type = $(this).val() === 'fixed' ? 'fixed' : 'percentage';
+        triggerAutoSave();
+    });
+    $(document).on('input', '.ke-promoter-row-value', function () {
+        const idx = parseInt($(this).closest('.ke-promoter-row').data('idx'), 10);
+        if (Number.isNaN(idx) || !promoterAssignments[idx]) return;
+        const v = parseFloat($(this).val());
+        promoterAssignments[idx].commission_value = Number.isNaN(v) ? 0 : Math.max(0, v);
+        triggerAutoSave();
+    });
+
+    readPromoterEditorDataset();
+    renderPromoters();
 
 });

@@ -16,10 +16,12 @@ if ( ! is_wp_error( $organizers ) ) {
 ?>
 <div class="wrap ke-builder-wrap">
 
-    <!-- ── Header ── -->
-    <div class="ke-builder-header">
-        <div class="ke-builder-title">
-            <h1>Event Organizers</h1>
+    <!-- ── Header — own white section card ── -->
+    <div class="ke-section-card ke-section-card--compact">
+        <div class="ke-builder-header">
+            <div class="ke-builder-title">
+                <h1>Event Organizers</h1>
+            </div>
         </div>
     </div>
 
@@ -35,7 +37,7 @@ if ( ! is_wp_error( $organizers ) ) {
                 <?php wp_nonce_field('ke_add_organizer_nonce'); ?>
 
                 <div class="ke-field">
-                    <label>Name <span style="color:#ef4444;">*</span></label>
+                    <label>Name <span style="color:var(--kiwi-red);">*</span></label>
                     <input type="text" name="organizer_name" required placeholder="e.g. Kiwi Productions">
                 </div>
 
@@ -51,7 +53,7 @@ if ( ! is_wp_error( $organizers ) ) {
                 <div class="ke-field">
                     <label><?php esc_html_e( 'Organizer Password', 'kiwi-events' ); ?></label>
                     <input type="password" name="organizer_scanner_password" value="" autocomplete="new-password" placeholder="<?php esc_attr_e( 'Optional', 'kiwi-events' ); ?>">
-                    <p class="ke-help" style="font-size:12px;color:#64748b;margin-top:6px;">
+                    <p class="ke-help" style="font-size:12px;color:var(--kiwi-text-muted);margin-top:6px;">
                         <?php esc_html_e( 'This password protects two things: (1) Kiwi Scanner access for staff to scan tickets at events, and (2) the Organizer Dashboard at /organizer/[slug] where you can view sales, attendees, and download reports for all your events.', 'kiwi-events' ); ?>
                     </p>
                 </div>
@@ -63,7 +65,7 @@ if ( ! is_wp_error( $organizers ) ) {
         <!-- ── Grid ── -->
         <div>
             <?php if ( empty( $organizers ) || is_wp_error( $organizers ) ) : ?>
-                <div class="ke-card">
+                <div class="ke-section-card">
                     <div class="ke-empty-state">
                         <span class="ke-empty-state-icon">🎪</span>
                         <h3>No Organizers Yet</h3>
@@ -298,7 +300,7 @@ if ( ! is_wp_error( $organizers ) ) {
                     <?php esc_html_e( 'Reset', 'kiwi-events' ); ?>
                 </button>
             </div>
-            <p class="ke-help" style="font-size:12px;color:#64748b;margin-top:10px;">
+            <p class="ke-help" style="font-size:12px;color:var(--kiwi-text-muted);margin-top:10px;">
                 <?php esc_html_e( 'For your security, the password cannot be displayed. Reset it to a value you choose if you need to share or recover access. All active scanner and dashboard sessions for this organizer will be signed out on reset.', 'kiwi-events' ); ?>
             </p>
         </div>
@@ -320,7 +322,7 @@ if ( ! is_wp_error( $organizers ) ) {
                     <?php esc_html_e( 'Cancel', 'kiwi-events' ); ?>
                 </button>
             </div>
-            <p class="ke-help" style="font-size:12px;color:#64748b;margin-top:10px;">
+            <p class="ke-help" style="font-size:12px;color:var(--kiwi-text-muted);margin-top:10px;">
                 <?php esc_html_e( 'Minimum 4 characters. The password protects (1) Kiwi Scanner access at events, and (2) the Organizer Dashboard at /organizer/[slug].', 'kiwi-events' ); ?>
             </p>
         </div>
@@ -413,58 +415,69 @@ if ( ! is_wp_error( $organizers ) ) {
 <?php endif; ?>
 
 <style>
-/* ── Scanner password modal ── */
+/* ── Scanner password modal ──
+   Migrated to Kiwi tokens: dark slate backdrop → black + blur, white card →
+   glass-bg-strong + backdrop-filter, slate text/borders → Kiwi neutrals,
+   Tailwind reds → var(--kiwi-red) rgba. */
 .ke-pwd-overlay {
     position: fixed; inset: 0;
-    background: rgba(15,23,42,.45);
+    background: var(--kiwi-shadow-7);
     z-index: 99998;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 .ke-pwd-modal {
     position: fixed; top: 50%; left: 50%;
     transform: translate(-50%,-50%);
     width: 460px; max-width: 92vw;
-    background: #fff;
+    background: var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid var(--kiwi-shadow-4);
     z-index: 99999;
-    border-radius: 14px;
-    box-shadow: 0 20px 60px rgba(15,23,42,.28);
+    border-radius: 24px;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 24px 48px var(--kiwi-legacy-knob-shadow-15),
+        0 8px 16px var(--kiwi-shadow-5);
     overflow: hidden;
 }
 .ke-pwd-modal-header {
     display: flex; justify-content: space-between; align-items: center;
     padding: 18px 20px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--kiwi-border);
 }
-.ke-pwd-modal-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
+.ke-pwd-modal-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--kiwi-text); }
 .ke-pwd-close {
-    background: #f1f5f9; border: none; border-radius: 8px;
-    padding: 4px; cursor: pointer; color: #64748b;
+    background: var(--kiwi-cream-deep); border: 1px solid var(--kiwi-border); border-radius: var(--kiwi-radius-sm);
+    padding: 4px; cursor: pointer; color: var(--kiwi-text-muted);
+    transition: background .15s var(--kiwi-ease), color .15s var(--kiwi-ease);
 }
-.ke-pwd-close:hover { background: #e2e8f0; color: #0f172a; }
+.ke-pwd-close:hover { background: var(--kiwi-green-soft); color: var(--kiwi-text); border-color: var(--kiwi-green-line); }
 .ke-pwd-modal-body { padding: 18px 20px; }
-.ke-pwd-org-name { font-size: 13px; color: #64748b; margin: 0 0 14px; }
+.ke-pwd-org-name { font-size: 13px; color: var(--kiwi-text-muted); margin: 0 0 14px; }
 .ke-pwd-modal-footer {
     display: flex; justify-content: flex-end; gap: 8px;
     padding: 14px 20px;
-    border-top: 1px solid #f1f5f9;
-    background: #f8fafc;
+    border-top: 1px solid var(--kiwi-border);
+    background: var(--kiwi-cream-deep);
 }
 .ke-pwd-input-wrap { position: relative; display: flex; }
 .ke-pwd-input-wrap input { flex: 1; padding-right: 40px; }
 .ke-pwd-toggle {
     position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-    background: transparent; border: none; cursor: pointer; color: #64748b;
+    background: transparent; border: none; cursor: pointer; color: var(--kiwi-text-muted);
     padding: 4px;
+    transition: color .15s var(--kiwi-ease);
 }
-.ke-pwd-toggle:hover { color: #0f172a; }
+.ke-pwd-toggle:hover { color: var(--kiwi-text); }
 
 .ke-pwd-error {
-    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin: 0 0 14px;
-    background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+    padding: 10px 12px; border-radius: var(--kiwi-radius-sm); font-size: 13px; margin: 0 0 14px;
+    background: var(--kiwi-red-fill); color: var(--kiwi-red); border: 1px solid var(--kiwi-red-edge-mid);
 }
 .ke-pwd-label {
-    display: block; font-size: 12px; font-weight: 600; color: #475569;
+    display: block; font-size: 12px; font-weight: 600; color: var(--kiwi-text-muted);
     text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
 }
 .ke-pwd-display-row {
@@ -473,39 +486,42 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-pwd-dots {
     flex: 1; min-height: 38px;
     padding: 8px 14px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    background: var(--kiwi-glass-bg-input);
+    border: 1px solid var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-sm);
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge);
     display: flex; align-items: center;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 18px; line-height: 1;
     letter-spacing: 0.18em;
-    color: #0f172a;
+    color: var(--kiwi-text);
     word-break: break-all;
     overflow: hidden;
 }
 .ke-pwd-dots.is-empty {
-    color: #94a3b8;
+    color: var(--kiwi-text-muted);
     font-style: italic;
     font-size: 13px;
     letter-spacing: 0;
     font-family: inherit;
 }
-.ke-pwd-loading { color: #94a3b8; font-size: 13px; letter-spacing: 0; font-family: inherit; }
+.ke-pwd-loading { color: var(--kiwi-text-muted); font-size: 13px; letter-spacing: 0; font-family: inherit; }
 
 .ke-pwd-edit-actions {
     display: flex; align-items: center; gap: 14px; margin-top: 10px;
 }
 .ke-pwd-cancel-link {
     background: transparent; border: none; cursor: pointer;
-    color: #64748b; font-size: 13px; text-decoration: underline;
+    color: var(--kiwi-text-muted); font-size: 13px; text-decoration: underline;
     padding: 4px 0;
+    transition: color .15s var(--kiwi-ease);
 }
-.ke-pwd-cancel-link:hover { color: #0f172a; }
+.ke-pwd-cancel-link:hover { color: var(--kiwi-text); }
 
-.ke-open-pwd-btn.ke-pwd-set { color: #047857; }
+.ke-open-pwd-btn.ke-pwd-set { color: var(--kiwi-green-text); }
 
-/* Top-right X delete on organizer cards */
+/* Top-right X delete on organizer cards. Uses Apple-red rgba for hover so it
+   reads as destructive without competing with the Kiwi green primary action. */
 .ke-org-card { position: relative; }
 .ke-org-card-delete {
     position: absolute;
@@ -518,22 +534,22 @@ if ( ! is_wp_error( $organizers ) ) {
     align-items: center;
     justify-content: center;
     background: transparent;
-    color: #71717a;
+    color: var(--kiwi-text-muted);
     text-decoration: none;
-    transition: background-color .15s ease, color .15s ease, transform .15s ease;
+    transition: background-color .15s var(--kiwi-ease), color .15s var(--kiwi-ease), transform .15s var(--kiwi-ease);
     z-index: 2;
 }
 .ke-org-card-delete:hover,
 .ke-org-card-delete:focus-visible {
-    background: rgba(239, 68, 68, 0.08);
-    color: #ef4444;
+    background: var(--kiwi-red-fill);
+    color: var(--kiwi-red);
     outline: none;
 }
-.ke-org-card-delete:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35); }
+.ke-org-card-delete:focus-visible { box-shadow: 0 0 0 2px var(--kiwi-red-edge-focus); }
 
 /* Slide-out animation on confirmed delete (driven by JS) */
 .ke-org-card.is-removing {
-    transition: opacity .25s ease, transform .25s ease;
+    transition: opacity .25s var(--kiwi-ease), transform .25s var(--kiwi-ease);
     opacity: 0;
     transform: translateX(24px);
     pointer-events: none;
@@ -547,8 +563,9 @@ if ( ! is_wp_error( $organizers ) ) {
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    border: 1px solid rgba(226, 232, 240, .6);
-    background: #f8fafc;
+    border: 1px solid var(--kiwi-glass-border);
+    background: var(--kiwi-cream-deep);
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge);
     padding: 0;
     flex-shrink: 0;
     overflow: hidden;
@@ -556,16 +573,16 @@ if ( ! is_wp_error( $organizers ) ) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: box-shadow .15s ease, transform .15s ease;
+    transition: box-shadow .15s var(--kiwi-ease), transform .15s var(--kiwi-ease);
 }
 .ke-org-logo-btn:hover,
 .ke-org-logo-btn:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, .35);
+    box-shadow: 0 0 0 2px var(--kiwi-green), 0 0 0 5px var(--kiwi-green-glow);
     transform: scale(1.03);
 }
 .ke-org-logo-btn.is-empty {
-    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    background: linear-gradient(135deg, var(--kiwi-cream-deep), var(--kiwi-green-soft));
 }
 .ke-org-logo-btn .ke-org-logo-img {
     width: 100%;
@@ -580,13 +597,13 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-org-logo-btn .ke-org-logo-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, .55);
-    color: #fff;
+    background: var(--kiwi-overlay-mid);
+    color: var(--kiwi-white-ink);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity .15s ease;
+    transition: opacity .15s var(--kiwi-ease);
 }
 .ke-org-logo-btn:hover .ke-org-logo-overlay,
 .ke-org-logo-btn:focus-visible .ke-org-logo-overlay {
@@ -597,43 +614,61 @@ if ( ! is_wp_error( $organizers ) ) {
 }
 .ke-org-logo-btn.is-loading .ke-org-logo-overlay {
     opacity: 1;
-    background: rgba(15, 23, 42, .7);
+    background: var(--kiwi-overlay-deepest);
 }
 
-/* Toast */
+/* Toast — glass-strong panel with green-tint default and Apple-red error
+   variant. Replaces the slate-navy/Tailwind-red pill. */
 .ke-toast {
     position: fixed; bottom: 24px; right: 24px;
-    background: #0f172a; color: #fff;
+    background: var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid var(--kiwi-shadow-4);
+    color: var(--kiwi-text);
     padding: 12px 18px;
-    border-radius: 10px;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+    border-radius: var(--kiwi-radius-md);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 12px 24px var(--kiwi-shadow-6),
+        0 4px 8px var(--kiwi-shadow-4);
     font-size: 13px; font-weight: 500;
     z-index: 100000;
     max-width: 420px;
     opacity: 0;
     transform: translateY(8px);
-    transition: opacity .2s ease, transform .2s ease;
+    transition: opacity .2s var(--kiwi-ease), transform .2s var(--kiwi-ease);
 }
 .ke-toast.is-visible { opacity: 1; transform: translateY(0); }
-.ke-toast.is-error   { background: #b91c1c; }
+.ke-toast.is-error   {
+    background: var(--kiwi-red-fill-medium);
+    border-color: var(--kiwi-red-edge-strong);
+    color: var(--kiwi-red);
+}
 
 /* ── Public profile modal ── */
 .ke-prof-overlay {
     position: fixed; inset: 0;
-    background: rgba(15,23,42,.45);
+    background: var(--kiwi-shadow-7);
     z-index: 99998;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 .ke-prof-modal {
     position: fixed; top: 50%; left: 50%;
     transform: translate(-50%,-50%);
     width: 580px; max-width: 92vw;
     max-height: 88vh;
-    background: #fff;
+    background: var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid var(--kiwi-shadow-4);
     z-index: 99999;
-    border-radius: 14px;
-    box-shadow: 0 20px 60px rgba(15,23,42,.28);
+    border-radius: 24px;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 24px 48px var(--kiwi-legacy-knob-shadow-15),
+        0 8px 16px var(--kiwi-shadow-5);
     overflow: hidden;
     display: flex; flex-direction: column;
 }
@@ -641,63 +676,68 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-prof-modal-header {
     display: flex; justify-content: space-between; align-items: flex-start;
     padding: 18px 20px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--kiwi-border);
     flex-shrink: 0;
 }
-.ke-prof-modal-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
-.ke-prof-org-name { margin: 2px 0 0; font-size: 13px; color: #64748b; }
+.ke-prof-modal-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--kiwi-text); }
+.ke-prof-org-name { margin: 2px 0 0; font-size: 13px; color: var(--kiwi-text-muted); }
 .ke-prof-close {
-    background: #f1f5f9; border: none; border-radius: 8px;
-    padding: 4px; cursor: pointer; color: #64748b;
+    background: var(--kiwi-cream-deep); border: 1px solid var(--kiwi-border); border-radius: var(--kiwi-radius-sm);
+    padding: 4px; cursor: pointer; color: var(--kiwi-text-muted);
+    transition: background .15s var(--kiwi-ease), color .15s var(--kiwi-ease);
 }
-.ke-prof-close:hover { background: #e2e8f0; color: #0f172a; }
+.ke-prof-close:hover { background: var(--kiwi-green-soft); color: var(--kiwi-text); border-color: var(--kiwi-green-line); }
 .ke-prof-modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
 .ke-prof-modal-footer {
     display: flex; justify-content: flex-end; gap: 8px;
     padding: 14px 20px;
-    border-top: 1px solid #f1f5f9;
-    background: #f8fafc;
+    border-top: 1px solid var(--kiwi-border);
+    background: var(--kiwi-cream-deep);
     flex-shrink: 0;
 }
 .ke-prof-field { margin-bottom: 18px; }
 .ke-prof-field:last-child { margin-bottom: 0; }
 .ke-prof-label {
-    display: block; font-size: 12px; font-weight: 600; color: #475569;
+    display: block; font-size: 12px; font-weight: 600; color: var(--kiwi-text-muted);
     text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;
 }
-.ke-prof-help { margin: 0 0 8px; font-size: 12.5px; color: #64748b; }
+.ke-prof-help { margin: 0 0 8px; font-size: 12.5px; color: var(--kiwi-text-muted); }
 .ke-prof-field input[type="text"] {
     width: 100%; padding: 9px 12px;
-    border: 1px solid #e2e8f0; border-radius: 8px;
+    background: var(--kiwi-glass-bg-input);
+    border: 1px solid var(--kiwi-glass-border); border-radius: var(--kiwi-radius-sm);
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge);
     font-size: 14px;
+    transition: border-color .15s var(--kiwi-ease), box-shadow .15s var(--kiwi-ease);
 }
 .ke-prof-field input[type="text"]:focus {
-    outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+    outline: none; border-color: var(--kiwi-green);
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow);
 }
 
 .ke-prof-hero-uploader {
-    border: 2px dashed #e2e8f0;
-    border-radius: 10px;
+    border: 2px dashed var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-md);
     padding: 16px;
-    background: #f8fafc;
+    background: var(--kiwi-cream-deep);
     text-align: center;
 }
 .ke-prof-hero-preview {
     width: 100%;
     aspect-ratio: 16 / 6;
-    background: #fff;
-    border-radius: 8px;
+    background: var(--kiwi-glass-bg);
+    border-radius: var(--kiwi-radius-sm);
     background-size: cover;
     background-position: center;
     margin-bottom: 10px;
-    border: 1px solid #f1f5f9;
+    border: 1px solid var(--kiwi-border);
 }
 .ke-prof-hero-preview.is-empty {
-    background-image: linear-gradient(135deg,#f1f5f9 25%,transparent 25%,transparent 50%,#f1f5f9 50%,#f1f5f9 75%,transparent 75%,transparent);
+    background-image: linear-gradient(135deg, var(--kiwi-cream-deep) 25%, transparent 25%, transparent 50%, var(--kiwi-cream-deep) 50%, var(--kiwi-cream-deep) 75%, transparent 75%, transparent);
     background-size: 12px 12px;
-    background-color: #fafafa;
+    background-color: var(--kiwi-cream);
     display: flex; align-items: center; justify-content: center;
-    color: #94a3b8; font-size: 13px;
+    color: var(--kiwi-text-muted); font-size: 13px;
 }
 .ke-prof-hero-actions { display: flex; gap: 8px; justify-content: center; }
 
@@ -710,11 +750,11 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-prof-gallery-item {
     position: relative;
     aspect-ratio: 1 / 1;
-    border-radius: 8px;
+    border-radius: var(--kiwi-radius-sm);
     overflow: hidden;
-    background: #f1f5f9;
+    background: var(--kiwi-cream-deep);
     cursor: pointer;
-    transition: transform .12s ease;
+    transition: transform .12s var(--kiwi-ease);
 }
 .ke-prof-gallery-item:hover { transform: scale(1.02); }
 .ke-prof-gallery-item img {
@@ -723,11 +763,11 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-prof-gallery-item::after {
     content: '✕';
     position: absolute; inset: 0;
-    background: rgba(15,23,42,.6);
-    color: #fff;
+    background: var(--kiwi-overlay-deeper);
+    color: var(--kiwi-white-ink);
     display: flex; align-items: center; justify-content: center;
     opacity: 0;
-    transition: opacity .12s ease;
+    transition: opacity .12s var(--kiwi-ease);
     font-size: 22px;
     font-weight: 700;
 }
@@ -735,64 +775,76 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-prof-gallery-empty {
     grid-column: 1 / -1;
     text-align: center;
-    color: #94a3b8;
+    color: var(--kiwi-text-muted);
     font-size: 13px;
     padding: 24px 0;
-    border: 1px dashed #e2e8f0;
-    border-radius: 8px;
+    border: 1px dashed var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-sm);
 }
 
 /* ── Template manager panel ── */
 .ke-tpl-overlay {
     position: fixed; inset: 0;
-    background: rgba(15,23,42,.45);
+    background: var(--kiwi-shadow-7);
     z-index: 99998;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 .ke-tpl-panel {
     position: fixed; top: 32px; right: 0; bottom: 0;
     width: 560px; max-width: 96vw;
-    background: #fff;
+    background: var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-left: 1px solid var(--kiwi-shadow-4);
     z-index: 99999;
     display: flex; flex-direction: column;
-    box-shadow: -8px 0 40px rgba(15,23,42,.18);
-    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        -12px 0 48px var(--kiwi-legacy-knob-shadow-15),
+        -4px 0 16px var(--kiwi-shadow-5);
+    transition: transform .3s var(--kiwi-ease);
 }
 .ke-tpl-panel.open { transform: translateX(0) !important; }
 
 .ke-tpl-panel-header {
     display: flex; justify-content: space-between; align-items: flex-start;
     padding: 22px 24px 18px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--kiwi-border);
     flex-shrink: 0;
 }
-.ke-tpl-panel-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 2px; }
-.ke-tpl-panel-org   { font-size: 13px; color: #64748b; margin: 0; }
+.ke-tpl-panel-title { font-size: 18px; font-weight: 800; color: var(--kiwi-text); margin: 0 0 2px; }
+.ke-tpl-panel-org   { font-size: 13px; color: var(--kiwi-text-muted); margin: 0; }
 .ke-tpl-panel-close {
-    background: #f1f5f9; border: none; border-radius: 8px;
-    padding: 6px; cursor: pointer; color: #64748b;
-    transition: background .15s;
+    background: var(--kiwi-cream-deep); border: 1px solid var(--kiwi-border); border-radius: var(--kiwi-radius-sm);
+    padding: 6px; cursor: pointer; color: var(--kiwi-text-muted);
+    transition: background .15s var(--kiwi-ease), color .15s var(--kiwi-ease);
 }
-.ke-tpl-panel-close:hover { background: #e2e8f0; color: #0f172a; }
+.ke-tpl-panel-close:hover { background: var(--kiwi-green-soft); color: var(--kiwi-text); border-color: var(--kiwi-green-line); }
 
 .ke-tpl-panel-body   { flex: 1; overflow-y: auto; padding: 20px 24px; }
 
-/* List view */
+/* List view — token-driven glass card with hairline ring on hover. */
 .ke-tpl-card {
-    border: 1.5px solid #e2e8f0; border-radius: 14px;
+    border: 1px solid var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-lg);
+    background: var(--kiwi-glass-bg);
     margin-bottom: 12px; overflow: hidden;
-    transition: box-shadow .2s;
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge);
+    transition: box-shadow .2s var(--kiwi-ease), border-color .2s var(--kiwi-ease);
 }
-.ke-tpl-card:hover { box-shadow: 0 4px 16px rgba(15,23,42,.08); }
+.ke-tpl-card:hover {
+    border-color: var(--kiwi-green-line);
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge), 0 8px 24px var(--kiwi-shadow-4);
+}
 
 .ke-tpl-card-header {
     display: flex; justify-content: space-between; align-items: center;
     padding: 14px 16px;
 }
 .ke-tpl-card-left  { display: flex; flex-direction: column; gap: 2px; }
-.ke-tpl-card-name  { font-size: 15px; font-weight: 700; color: #0f172a; }
-.ke-tpl-card-meta  { font-size: 12px; color: #94a3b8; }
+.ke-tpl-card-name  { font-size: 15px; font-weight: 700; color: var(--kiwi-text); }
+.ke-tpl-card-meta  { font-size: 12px; color: var(--kiwi-text-muted); }
 .ke-tpl-card-right { display: flex; gap: 6px; }
 
 .ke-tpl-card-tickets {
@@ -801,25 +853,31 @@ if ( ! is_wp_error( $organizers ) ) {
 }
 .ke-tpl-ticket-chip {
     display: inline-flex; align-items: center; gap: 5px;
-    padding: 4px 10px; border-radius: 100px;
+    padding: 4px 10px; border-radius: var(--kiwi-radius-pill);
     font-size: 11px; font-weight: 600;
-    background: #f8fafc; border: 1px solid #e2e8f0; color: #475569;
+    background: var(--kiwi-cream-deep);
+    border: 1px solid var(--kiwi-border);
+    color: var(--kiwi-text-muted);
 }
 
 .ke-tpl-empty {
     text-align: center; padding: 48px 16px;
-    color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 14px;
+    color: var(--kiwi-text-muted);
+    border: 2px dashed var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-lg);
+    background: var(--kiwi-cream-deep);
 }
 .ke-tpl-empty span { font-size: 32px; display: block; margin-bottom: 8px; }
 .ke-tpl-empty p    { font-size: 14px; margin: 0; }
 
 .ke-tpl-list-footer { padding-top: 16px; }
 
+/* Count badge — Kiwi green with dark text. White-on-lime fails WCAG AA. */
 .ke-tpl-count-badge {
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 18px; height: 18px; padding: 0 5px;
-    background: #6366f1; color: #fff;
-    border-radius: 100px; font-size: 10px; font-weight: 700;
+    background: var(--kiwi-green); color: var(--kiwi-text);
+    border-radius: var(--kiwi-radius-pill); font-size: 10px; font-weight: 700;
     margin-left: 4px;
 }
 
@@ -827,31 +885,36 @@ if ( ! is_wp_error( $organizers ) ) {
 .ke-tpl-editor-nav {
     display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
 }
-.ke-tpl-editor-nav h3 { font-size: 16px; font-weight: 700; margin: 0; color: #0f172a; }
+.ke-tpl-editor-nav h3 { font-size: 16px; font-weight: 700; margin: 0; color: var(--kiwi-text); }
 
 .ke-tpl-tickets-header {
     display: flex; justify-content: space-between; align-items: center;
     margin: 20px 0 10px;
 }
-.ke-tpl-tickets-empty { font-size: 13px; color: #94a3b8; padding: 12px 0; }
+.ke-tpl-tickets-empty { font-size: 13px; color: var(--kiwi-text-muted); padding: 12px 0; }
 
 .ke-tpl-editor-footer {
     display: flex; justify-content: flex-end; gap: 10px;
     padding-top: 20px; margin-top: 8px;
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid var(--kiwi-border);
     position: sticky; bottom: 0;
-    background: #fff; padding-bottom: 4px;
+    background: var(--kiwi-surface);
+    padding-bottom: 4px;
 }
 
 /* Simplified ticket cards inside template editor */
 .ke-tpl-tkt-card {
-    border: 1.5px solid #e2e8f0; border-radius: 12px;
+    border: 1px solid var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-glass-bg);
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge);
     margin-bottom: 10px; overflow: hidden;
 }
 .ke-tpl-tkt-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 14px; background: #f8fafc;
-    border-bottom: 1.5px solid #e2e8f0;
+    padding: 10px 14px;
+    background: var(--kiwi-cream-deep);
+    border-bottom: 1px solid var(--kiwi-border);
 }
 .ke-tpl-tkt-header-left { display: flex; align-items: center; gap: 8px; }
 .ke-tpl-tkt-body  { padding: 14px; }

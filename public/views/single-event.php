@@ -111,6 +111,14 @@ $allowed_iframe = array(
 
 <div class="ke-event-page ke-event-page-breakout">
 
+    <?php
+    // Promoter attribution badge — event-scoped: only renders when this
+    // specific event has an attributed promoter for the visitor.
+    if ( class_exists( 'KE_Promoter_Visible' ) ) {
+        echo KE_Promoter_Visible::badge_html( $event_id ); // already-escaped, includes scoped CSS
+    }
+    ?>
+
     <!-- ═══════════════ HERO ═══════════════ -->
     <div class="ke-hero"<?php if ( $thumbnail ) echo ' style="--hero-image: url(' . esc_url( $thumbnail ) . ')"'; ?>>
 
@@ -331,7 +339,12 @@ $allowed_iframe = array(
                     <?php foreach ( $types as $type ) :
                         $is_unlimited   = ( $type->capacity_type ?? 'limited' ) === 'unlimited';
                         $remaining      = $is_unlimited ? 9999 : max( 0, $type->quantity_total - $type->quantity_sold );
-                        $is_sold_out    = ! $is_unlimited && $remaining <= 0;
+                        // Treat a passed sale_end cutoff as sold-out so the
+                        // existing visual state + disabled handling already in
+                        // this template covers cutoff-closed types without
+                        // adding a parallel UI path.
+                        $is_sales_closed = KE_Ticket_Types::is_sales_closed( $type );
+                        $is_sold_out    = ( ! $is_unlimited && $remaining <= 0 ) || $is_sales_closed;
                         $is_free        = floatval( $type->price ) == 0;
                         $show_remaining = ( $type->show_remaining ?? 'yes' ) === 'yes';
                     ?>

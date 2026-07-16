@@ -7,15 +7,18 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  * All queries are scoped to a single ke_organizer term so a token issued for
  * one organizer can never read another's numbers.
  *
- * Net revenue model
- *   revenue per (event, ticket type) = sold_count × max(0, price − service_fee)
- *   event totals and headline totals roll up from there.
+ * Net revenue model (2026-05 organizer-dashboard alignment)
+ *   net_per_ticket = wp_ke_ticket_types.price (the BASE price). Service fees
+ *   are added ON TOP of base_price at checkout (KE_WooCommerce::apply_service_fee)
+ *   — they're paid by the customer, not deducted from the organizer's take —
+ *   so we do NOT subtract the fee again here. Free tickets contribute 0.
  *
- * The order's stored total_amount is never used as the source of truth for
- * revenue, because it includes the service fee that the customer paid on top
- * — which is not the organizer's revenue. Instead we rebuild revenue from the
- * ticket type's price (in wp_ke_ticket_types) minus the per-ticket fee from
- * the event's assigned ke_service_fees config. Free tickets contribute 0.
+ * Sold-count source
+ *   For lifetime breakdowns (range='all', no date window) we read
+ *   wp_ke_ticket_types.quantity_sold so the organizer dashboard matches the
+ *   admin events-list view (declared source of truth: admin/views/events-list.php).
+ *   For date-windowed totals (headline cards, daily chart) we COUNT() rows in
+ *   wp_ke_tickets — the counter column has no per-day granularity.
  */
 class KE_Organizer_Stats {
 
@@ -68,7 +71,13 @@ class KE_Organizer_Stats {
 
     /**
      * Net revenue contribution for a single ticket of this (event, type).
-     * = max(0, price - per-ticket fee). Free tickets always return 0.
+     * = wp_ke_ticket_types.price (the BASE price; service fees are added on
+     * top at checkout, paid by the customer, not deducted from this).
+     * Free tickets always return 0.
+     *
+     * $event_id and $fees_cache are unused since 2026-05 (fee no longer enters
+     * the calculation) but the signature is kept for callers — net_per_ticket
+     * is a public method and the daily_series path passes all four args.
      */
     public static function net_per_ticket( $event_id, $ticket_type_id, $fees_cache = null, $types_cache = null ) {
         if ( is_array( $types_cache ) && isset( $types_cache[ (int) $ticket_type_id ] ) ) {
@@ -81,8 +90,7 @@ class KE_Organizer_Stats {
             ) );
         }
         if ( $price <= 0.0 ) return 0.0;
-        $fee = self::fee_per_ticket( $event_id, $ticket_type_id, $fees_cache, $types_cache );
-        return max( 0.0, round( $price - $fee, 2 ) );
+        return round( $price, 2 );
     }
 
     /**
@@ -98,13 +106,23 @@ class KE_Organizer_Stats {
     }
 
     /**
-     * Sold counts per (event_id, ticket_type_id) within the window for these
-     * events. Returns one row per (event, type) with the live ticket-type
-     * name + price plus a snapshot fallback name for archived/deleted types.
+     * Sold counts per (event_id, ticket_type_id) for these events.
      *
-     * Single-table query on wp_ke_tickets — no join through wp_ke_orders, so
-     * the predicate uses the (event_id, status, created_at) composite index
-     * we add in the activator.
+     * Two source modes, picked by whether a date window is supplied:
+     *
+     *   No window (lifetime / range='all') → read wp_ke_ticket_types.quantity_sold
+     *     directly. This is the same source admin/views/events-list.php uses
+     *     for its "Sold" metric, so per-event lifetime totals match exactly.
+     *     Filters out is_archived rows to match the admin predicate, and
+     *     skips rows with quantity_sold = 0 so the breakdown doesn't list
+     *     ticket types that never sold.
+     *
+     *   With window → COUNT() rows in wp_ke_tickets in the given window.
+     *     The counter column has no per-day granularity, so this is the
+     *     only path that supports headline_stats() / daily_series() ranges.
+     *
+     * Return shape is identical for both modes so annotate_row() works
+     * unchanged: event_id, ticket_type_id, sold, snapshot_name, live_name, price.
      */
     public static function sold_by_type( array $event_ids, $start_sql = null, $end_sql = null ) {
         if ( empty( $event_ids ) ) return array();
@@ -112,6 +130,47 @@ class KE_Organizer_Stats {
 
         $event_ids    = array_map( 'intval', $event_ids );
         $placeholders = implode( ',', array_fill( 0, count( $event_ids ), '%d' ) );
+
+        // Lifetime mode — mirror the admin events-list query so the two
+        // dashboards return identical sold counts.
+        if ( ! $start_sql && ! $end_sql ) {
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT event_id,
+                        id AS ticket_type_id,
+                        quantity_sold AS sold,
+                        NULL AS snapshot_name,
+                        name AS live_name,
+                        price AS price
+                 FROM {$wpdb->prefix}ke_ticket_types
+                 WHERE event_id IN ($placeholders)
+                   AND (is_archived IS NULL OR is_archived = 0)
+                   AND quantity_sold > 0",
+                $event_ids
+            ) );
+
+            // Merge per-(event,type) courtesy counts so net-revenue and
+            // breakdown rows can exclude courtesy from paid totals.
+            $courtesy = $wpdb->get_results( $wpdb->prepare(
+                "SELECT event_id, ticket_type_id, COUNT(*) AS c
+                   FROM {$wpdb->prefix}ke_tickets
+                  WHERE event_id IN ($placeholders)
+                    AND status != 'cancelled'
+                    AND is_courtesy = 1
+               GROUP BY event_id, ticket_type_id",
+                $event_ids
+            ) );
+            $cmap = array();
+            foreach ( $courtesy as $cr ) {
+                $cmap[ (int) $cr->event_id . ':' . (int) $cr->ticket_type_id ] = (int) $cr->c;
+            }
+            foreach ( $rows as $r ) {
+                $key = (int) $r->event_id . ':' . (int) $r->ticket_type_id;
+                $r->courtesy_count = isset( $cmap[ $key ] ) ? (int) $cmap[ $key ] : 0;
+            }
+            return $rows;
+        }
+
+        // Date-windowed mode — fall back to counting actual ticket rows.
         $where  = "WHERE t.event_id IN ($placeholders) AND t.status != 'cancelled'";
         $params = $event_ids;
         if ( $start_sql ) { $where .= ' AND t.created_at >= %s'; $params[] = $start_sql; }
@@ -121,6 +180,7 @@ class KE_Organizer_Stats {
             "SELECT t.event_id,
                     t.ticket_type_id,
                     COUNT(*) AS sold,
+                    SUM(CASE WHEN t.is_courtesy = 1 THEN 1 ELSE 0 END) AS courtesy_count,
                     MAX(t.ticket_type_snapshot) AS snapshot_name,
                     MAX(tt.name)  AS live_name,
                     MAX(tt.price) AS price
@@ -137,20 +197,30 @@ class KE_Organizer_Stats {
      * sharing the fees+types caches so we don't round-trip the DB per row.
      */
     private static function annotate_row( $row, $fees_cache, $types_cache ) {
-        $event_id = (int) $row->event_id;
-        $type_id  = (int) $row->ticket_type_id;
-        $sold     = (int) $row->sold;
-        $price    = (float) ( $row->price ?? 0 );
-        $is_free  = ( $price <= 0 );
+        $event_id       = (int) $row->event_id;
+        $type_id        = (int) $row->ticket_type_id;
+        $sold           = (int) $row->sold;
+        $courtesy_count = (int) ( $row->courtesy_count ?? 0 );
+        $paid_sold      = max( 0, $sold - $courtesy_count );
+        $price          = (float) ( $row->price ?? 0 );
+        $is_free        = ( $price <= 0 );
+        // Net per ticket = base price. Service fees are added on top at checkout
+        // (KE_WooCommerce::apply_service_fee) and paid by the customer, so we do
+        // NOT subtract them from the organizer's net. Fee is still surfaced in
+        // the returned array for breakdown displays that want to show it.
+        // Courtesy tickets contribute $0 to net even when the type is paid —
+        // they occupy a seat (counted in $sold) but the admin gifted them.
         $fee      = self::fee_per_ticket( $event_id, $type_id, $fees_cache, $types_cache );
-        $net_per  = $is_free ? 0.0 : max( 0.0, $price - $fee );
-        $revenue  = round( $net_per * $sold, 2 );
+        $net_per  = $is_free ? 0.0 : $price;
+        $revenue  = round( $net_per * $paid_sold, 2 );
         $name     = $row->live_name ?: ( $row->snapshot_name ?: __( 'Unknown', 'kiwi-events' ) );
         return array(
             'event_id'       => $event_id,
             'ticket_type_id' => $type_id,
             'name'           => (string) $name,
             'sold'           => $sold,
+            'courtesy_count' => $courtesy_count,
+            'paid_sold'      => $paid_sold,
             'price'          => $price,
             'fee_per_ticket' => $fee,
             'net_per_ticket' => $net_per,
@@ -177,7 +247,7 @@ class KE_Organizer_Stats {
      * Returns:
      *   tickets_sold       — count of paid+free tickets in window
      *   tickets_sold_trend — % vs previous equal-length window (null for 'all')
-     *   net_revenue        — sum of sold × (price − fee) across all events
+     *   net_revenue        — sum of sold × base_price across paid tickets
      *   free_tickets       — count of tickets where price == 0
      *   check_in_rate      — % of non-cancelled tickets with status=used
      */
@@ -208,13 +278,15 @@ class KE_Organizer_Stats {
         $rows = self::sold_by_type( $event_ids, $win['start'], $win['end'] );
         list( $fees_cache, $types_cache ) = self::build_caches( $rows );
 
-        $tickets_sold = 0;
-        $paid_tickets = 0;
-        $free_tickets = 0;
-        $net_revenue  = 0.0;
+        $tickets_sold    = 0;
+        $paid_tickets    = 0;
+        $free_tickets    = 0;
+        $courtesy_total  = 0;
+        $net_revenue     = 0.0;
         foreach ( $rows as $r ) {
             $a = self::annotate_row( $r, $fees_cache, $types_cache );
-            $tickets_sold += $a['sold'];
+            $tickets_sold   += $a['sold'];
+            $courtesy_total += $a['courtesy_count'];
             if ( $a['is_free'] ) { $free_tickets += $a['sold']; }
             else                 { $paid_tickets += $a['sold']; $net_revenue += $a['revenue']; }
         }
@@ -265,6 +337,7 @@ class KE_Organizer_Stats {
             'net_revenue'         => $net_revenue,
             'paid_tickets'        => $paid_tickets,
             'free_tickets'        => $free_tickets,
+            'courtesy_tickets'    => $courtesy_total,
             'free_only'           => $free_only,
             'check_in_rate'       => $checkin_rate,
             'check_in_total'      => $checkin_total,
@@ -279,7 +352,7 @@ class KE_Organizer_Stats {
      * Returns: [ ['date' => 'Y-m-d', 'tickets' => int, 'net_revenue' => float], ... ]
      *
      * Daily revenue uses the same model as headline/breakdown:
-     *   sum over (event, type) of qty_on_day × max(0, price − fee)
+     *   sum over (event, type) of qty_on_day × base_price
      */
     public static function daily_series( $organizer_id, $range = '30' ) {
         $event_ids = self::get_event_ids_for_organizer( $organizer_id );
@@ -355,7 +428,7 @@ class KE_Organizer_Stats {
 
     /**
      * Per-ticket-type breakdown for a single event in the given window.
-     * Revenue = sold × max(0, price − fee). Free tickets always 0.
+     * Revenue = sold × base_price. Free tickets always 0.
      */
     public static function ticket_type_breakdown( $event_id, $range = 'all' ) {
         $event_id = (int) $event_id;
@@ -374,6 +447,7 @@ class KE_Organizer_Stats {
                 'ticket_type_id' => $a['ticket_type_id'],
                 'name'           => $a['name'],
                 'sold'           => $a['sold'],
+                'courtesy_count' => $a['courtesy_count'],
                 'revenue'        => $a['revenue'],
                 'is_free'        => $a['is_free'],
             );
@@ -404,14 +478,16 @@ class KE_Organizer_Stats {
             $a   = self::annotate_row( $r, $fees_cache, $types_cache );
             $eid = $a['event_id'];
             if ( ! isset( $by_event[ $eid ] ) ) {
-                $by_event[ $eid ] = array( 'sold' => 0, 'net' => 0.0, 'types' => array() );
+                $by_event[ $eid ] = array( 'sold' => 0, 'courtesy' => 0, 'net' => 0.0, 'types' => array() );
             }
-            $by_event[ $eid ]['sold'] += $a['sold'];
-            $by_event[ $eid ]['net']  += $a['revenue'];
+            $by_event[ $eid ]['sold']     += $a['sold'];
+            $by_event[ $eid ]['courtesy'] += $a['courtesy_count'];
+            $by_event[ $eid ]['net']      += $a['revenue'];
             $by_event[ $eid ]['types'][] = array(
                 'ticket_type_id' => $a['ticket_type_id'],
                 'name'           => $a['name'],
                 'sold'           => $a['sold'],
+                'courtesy_count' => $a['courtesy_count'],
                 'revenue'        => $a['revenue'],
                 'is_free'        => $a['is_free'],
             );
@@ -422,7 +498,7 @@ class KE_Organizer_Stats {
             $post = get_post( $event_id );
             if ( ! $post || $post->post_type !== 'ke_event' ) continue;
 
-            $bucket = $by_event[ $event_id ] ?? array( 'sold' => 0, 'net' => 0.0, 'types' => array() );
+            $bucket = $by_event[ $event_id ] ?? array( 'sold' => 0, 'courtesy' => 0, 'net' => 0.0, 'types' => array() );
             $types  = $bucket['types'];
             usort( $types, function ( $a, $b ) { return $b['sold'] <=> $a['sold']; } );
 
@@ -437,15 +513,16 @@ class KE_Organizer_Stats {
             ) );
 
             $out[] = array(
-                'id'             => (int) $event_id,
-                'title'          => $post->post_title,
-                'date'           => (string) get_post_meta( $event_id, '_ke_event_date_start', true ),
-                'tickets_sold'   => (int) $bucket['sold'],
-                'net_revenue'    => round( (float) $bucket['net'], 2 ),
-                'check_in_rate'  => $checkin_total > 0 ? round( ( $checkin_used / $checkin_total ) * 100, 1 ) : 0.0,
-                'check_in_total' => $checkin_total,
-                'check_in_used'  => $checkin_used,
-                'ticket_types'   => $types,
+                'id'               => (int) $event_id,
+                'title'            => $post->post_title,
+                'date'             => (string) get_post_meta( $event_id, '_ke_event_date_start', true ),
+                'tickets_sold'     => (int) $bucket['sold'],
+                'courtesy_tickets' => (int) $bucket['courtesy'],
+                'net_revenue'      => round( (float) $bucket['net'], 2 ),
+                'check_in_rate'    => $checkin_total > 0 ? round( ( $checkin_used / $checkin_total ) * 100, 1 ) : 0.0,
+                'check_in_total'   => $checkin_total,
+                'check_in_used'    => $checkin_used,
+                'ticket_types'     => $types,
             );
         }
 

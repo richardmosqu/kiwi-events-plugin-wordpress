@@ -27,10 +27,11 @@
     font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
     font-size: 11px;
     letter-spacing: 0.3px;
-    background: rgba(241, 245, 249, 0.8);
+    background: var(--kiwi-cream-deep);
     padding: 4px 8px;
-    border-radius: var(--ke-radius-xs);
-    color: #475569;
+    border-radius: var(--kiwi-radius-sm);
+    border: 1px solid var(--kiwi-border);
+    color: var(--kiwi-text-muted);
     font-weight: 600;
 }
 
@@ -38,12 +39,12 @@
 .ke-type-pill {
     display: inline-block;
     padding: 4px 10px;
-    border-radius: var(--ke-radius-sm);
-    background: rgba(132, 204, 22, 0.12);
-    color: #3f6212;
+    border-radius: var(--kiwi-radius-pill);
+    background: var(--kiwi-green-tint);
+    color: var(--kiwi-green-text);
     font-size: 12px;
     font-weight: 600;
-    border: 1px solid rgba(132, 204, 22, 0.25);
+    border: 1px solid var(--kiwi-green-line);
     max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -54,6 +55,18 @@
     color: var(--ke-text-3);
     font-size: 14px;
 }
+/* Courtesy variant — Apple system orange, on-brand alternative to amber. */
+.ke-type-pill--courtesy {
+    background: var(--kiwi-orange-fill-alt);
+    color: var(--kiwi-orange-text);
+    border-color: var(--kiwi-orange-edge);
+    margin-left: 6px;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+.ke-radio-row { display: flex; gap: 18px; flex-wrap: wrap; }
+.ke-radio-row label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 
 /* ── Inline status dropdown ──────────────────────────────────────── */
 .ke-status-cell {
@@ -62,25 +75,29 @@
     align-items: center;
 }
 .ke-status-select {
+    /* Inline select — solid surface. No backdrop-filter on form fields. */
     appearance: none;
     -webkit-appearance: none;
-    background: #fff;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: var(--ke-radius-sm);
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-sm);
     padding: 6px 28px 6px 26px;
     font-size: 12px;
     font-weight: 600;
     color: var(--ke-text-1);
     cursor: pointer;
     transition: var(--ke-transition);
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 20 20' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='5 8 10 13 15 8'/%3e%3c/svg%3e");
+    box-shadow: 0 0 0 1px var(--kiwi-glass-border-edge);
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 20 20' fill='none' stroke='%236e6e73' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='5 8 10 13 15 8'/%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 8px center;
 }
 .ke-status-select:focus {
     outline: none;
-    border-color: var(--ke-lime-dark);
-    box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.18);
+    border-color: var(--kiwi-green);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 0 0 3px var(--kiwi-green-glow);
 }
 /* Colored dot before the selected label */
 .ke-status-select::before { content: ''; }
@@ -92,22 +109,26 @@
     width: 8px; height: 8px;
     border-radius: 50%;
     transform: translateY(-50%);
-    background: #94a3b8;
+    background: var(--kiwi-legacy-status-dot);
     pointer-events: none;
     z-index: 1;
 }
-.ke-status-cell:has(.ke-status-valid)::before     { background: #22c55e; }
-.ke-status-cell:has(.ke-status-used)::before      { background: #3b82f6; }
-.ke-status-cell:has(.ke-status-cancelled)::before { background: #ef4444; }
-.ke-status-valid     { color: #166534; }
-.ke-status-used      { color: #1e40af; }
-.ke-status-cancelled { color: #991b1b; }
+/* Attendee status dots → Kiwi system.
+   valid     → Kiwi green (active/positive)
+   used      → Apple system blue (informational, ticket already redeemed)
+   cancelled → Apple system red (destructive/inactive) */
+.ke-status-cell:has(.ke-status-valid)::before     { background: var(--kiwi-green); }
+.ke-status-cell:has(.ke-status-used)::before      { background: var(--kiwi-blue); }
+.ke-status-cell:has(.ke-status-cancelled)::before { background: var(--kiwi-red); }
+.ke-status-valid     { color: var(--kiwi-green-text); }
+.ke-status-used      { color: var(--kiwi-legacy-status-blue); }
+.ke-status-cancelled { color: var(--kiwi-red-text-alt); }
 
 /* Saving spinner — shows while a dropdown request is in flight */
 .ke-status-spinner {
     margin-left: 6px;
     width: 12px; height: 12px;
-    border: 2px solid rgba(148, 163, 184, 0.3);
+    border: 2px solid var(--kiwi-legacy-slate400-ring);
     border-top-color: var(--ke-lime-dark);
     border-radius: 50%;
     opacity: 0;
@@ -133,18 +154,20 @@
     transition: var(--ke-transition);
 }
 .ke-icon-btn:hover {
-    background: rgba(241, 245, 249, 0.9);
+    background: var(--kiwi-cream-deep);
     color: var(--ke-text-1);
-    border-color: rgba(148, 163, 184, 0.25);
+    border-color: var(--kiwi-border);
 }
 .ke-icon-btn-danger:hover {
-    background: rgba(254, 226, 226, 0.9);
-    color: #991b1b;
-    border-color: rgba(254, 202, 202, 0.6);
+    background: var(--kiwi-red-fill);
+    color: var(--kiwi-red-text);
+    border-color: var(--kiwi-red-edge-soft);
 }
 
 /* ── Bulk actions bar ────────────────────────────────────────────── */
 .ke-bulk-bar {
+    /* Sticky bulk-action bar — solid surface. Lives inside the attendees
+       table card; no backdrop-filter on inline toolbars. */
     position: sticky;
     top: 32px;
     z-index: 10;
@@ -154,10 +177,8 @@
     gap: 16px;
     margin: 0 0 16px 0;
     padding: 10px 16px;
-    background: var(--ke-glass-bg);
-    backdrop-filter: var(--ke-glass-blur);
-    -webkit-backdrop-filter: var(--ke-glass-blur);
-    border: 1px solid var(--ke-glass-border);
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
     border-radius: var(--ke-radius-sm);
     box-shadow: var(--ke-glass-shadow);
     animation: ke-bulk-in 0.18s ease-out;
@@ -174,39 +195,13 @@
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Modal ───────────────────────────────────────────────────────── */
-.ke-modal {
-    position: fixed; inset: 0;
-    z-index: 10000;
-    display: flex;
-    align-items: center; justify-content: center;
-    padding: 20px;
-}
-.ke-modal[hidden] { display: none; }
-.ke-modal-backdrop {
-    position: absolute; inset: 0;
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    animation: ke-fade-in 0.18s ease-out;
-}
-.ke-modal-dialog {
-    position: relative;
-    width: 100%;
-    max-width: 720px;
-    max-height: calc(100vh - 40px);
-    overflow: auto;
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
-    animation: ke-modal-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.ke-modal-dialog-sm { max-width: 480px; }
+/* ── Modal ───────────────────────────────────────────────────────────
+   All `.ke-modal`, `.ke-modal-backdrop`, `.ke-modal-dialog`,
+   `.ke-modal-dialog-sm` rules removed in favor of the canonical
+   "MINIMAL MODAL CSS" block at the bottom of ke-admin-tokens.css.
+   Helper selectors that don't conflict with positioning/visibility
+   (.ke-modal-close, .ke-modal-qr, .ke-modal-details) remain below. */
 @keyframes ke-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes ke-modal-in {
-    from { opacity: 0; transform: translateY(12px) scale(0.98); }
-    to   { opacity: 1; transform: translateY(0)    scale(1); }
-}
 .ke-modal-close {
     position: absolute;
     top: 12px; right: 12px;
@@ -220,22 +215,15 @@
     cursor: pointer;
     transition: var(--ke-transition);
 }
-.ke-modal-close:hover { background: rgba(241, 245, 249, 0.9); color: var(--ke-text-1); }
-
-.ke-modal-body {
-    padding: 32px 28px 16px;
-    display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 24px;
-    align-items: start;
-}
-.ke-modal-dialog-sm .ke-modal-body { grid-template-columns: 1fr; padding: 32px 28px 8px; }
+.ke-modal-close:hover { background: var(--kiwi-cream-deep); color: var(--ke-text-1); }
 
 .ke-modal-qr {
     padding: 12px;
-    background: #fff;
-    border: 1px solid rgba(226, 232, 240, 0.9);
-    border-radius: var(--ke-radius-sm);
+    /* QR codes need a high-contrast solid white background to scan reliably,
+       so this one stays opaque even inside the glass modal. */
+    background: var(--kiwi-white);
+    border: 1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-md);
     aspect-ratio: 1 / 1;
     display: flex;
     align-items: center; justify-content: center;
@@ -245,18 +233,9 @@
 
 .ke-detail-list { display: grid; gap: 10px; margin: 0; }
 .ke-detail-list > div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
-.ke-detail-list dt { color: var(--ke-text-3); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; margin: 0; }
+.ke-detail-list dt { color: var(--ke-text-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; margin: 0; }
 .ke-detail-list dd { color: var(--ke-text-1); font-size: 13px; margin: 0; word-break: break-word; }
-.ke-detail-list code { font-size: 11px; background: rgba(241, 245, 249, 0.8); padding: 2px 6px; border-radius: 4px; color: #475569; }
-
-.ke-modal-footer {
-    padding: 16px 28px 24px;
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    border-top: 1px solid rgba(226, 232, 240, 0.6);
-    margin-top: 12px;
-}
+.ke-detail-list code { font-size: 11px; background: var(--kiwi-cream-deep); padding: 2px 6px; border-radius: var(--kiwi-radius-sm); color: var(--kiwi-text-muted); border: 1px solid var(--kiwi-border); }
 
 /* ── Form fields inside modals ───────────────────────────────────── */
 .ke-form-field { margin: 14px 0; }
@@ -272,26 +251,31 @@
 .ke-form-field input {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid rgba(148, 163, 184, 0.4);
-    border-radius: var(--ke-radius-sm);
+    border: 1px solid var(--kiwi-glass-border);
+    border-radius: var(--kiwi-radius-md);
     font-size: 14px;
     font-family: inherit;
     color: var(--ke-text-1);
-    background: #fff;
+    background: var(--kiwi-glass-bg-input);
     transition: var(--ke-transition);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 2px var(--kiwi-shadow-1) inset;
 }
 .ke-form-field input:focus {
     outline: none;
-    border-color: var(--ke-lime-dark);
-    box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.18);
+    border-color: var(--kiwi-green);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 0 0 3px var(--kiwi-green-glow);
 }
 .ke-form-error {
     margin-top: 8px;
     padding: 10px 12px;
-    background: rgba(254, 226, 226, 0.6);
-    border: 1px solid rgba(254, 202, 202, 0.8);
-    border-radius: var(--ke-radius-xs);
-    color: #991b1b;
+    background: var(--kiwi-red-fill);
+    border: 1px solid var(--kiwi-red-edge-soft);
+    border-radius: var(--kiwi-radius-sm);
+    color: var(--kiwi-red-text);
     font-size: 13px;
 }
 
@@ -306,20 +290,38 @@
     gap: 8px;
     pointer-events: none;
 }
+/* Glass toast — was dark navy. Default toast reads neutral (light glass +
+   dark text); success/error variants tint the glass without ever going
+   fully opaque. The status text leans on Apple-system color contrast
+   (kiwi-green-text / dark Apple red) so it stays readable. */
 .ke-toast {
+    /* Solid floating notification — no backdrop-filter (kept on .ke-toast in
+       tokens too). Toasts overlap content; stacking blur smears text. */
     pointer-events: auto;
     min-width: 220px;
     padding: 12px 16px;
-    background: #0f172a;
-    color: #fff;
-    border-radius: var(--ke-radius-sm);
+    background: var(--kiwi-surface);
+    color: var(--kiwi-text);
+    border: 1px solid var(--kiwi-shadow-4);
+    border-radius: var(--kiwi-radius-md);
     font-size: 13px;
-    font-weight: 500;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
-    animation: ke-toast-in 0.22s ease-out;
+    font-weight: 600;
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 12px 24px var(--kiwi-shadow-6),
+        0 4px 8px var(--kiwi-shadow-4);
+    animation: ke-toast-in 0.22s var(--kiwi-ease);
 }
-.ke-toast-success { background: #166534; }
-.ke-toast-error   { background: #991b1b; }
+.ke-toast-success {
+    background: var(--kiwi-green-tint);
+    border-color: var(--kiwi-green-line);
+    color: var(--kiwi-green-text);
+}
+.ke-toast-error {
+    background: var(--kiwi-red-fill-alt);
+    border-color: var(--kiwi-red-edge);
+    color: var(--kiwi-red-text);
+}
 .ke-toast.is-leaving { animation: ke-toast-out 0.2s ease-in forwards; }
 @keyframes ke-toast-in {
     from { opacity: 0; transform: translateY(10px); }
@@ -343,7 +345,6 @@ tr.ke-row-removed {
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 900px) {
     .ke-attendees-card { overflow-x: auto; }
-    .ke-modal-body { grid-template-columns: 1fr; }
     .ke-modal-qr { max-width: 240px; margin: 0 auto; }
     .ke-detail-list > div { grid-template-columns: 1fr; gap: 2px; }
     .ke-detail-list dt { font-size: 11px; }
@@ -352,6 +353,4 @@ tr.ke-row-removed {
 @media (max-width: 600px) {
     .ke-bulk-bar { flex-direction: column; align-items: flex-start; }
     .ke-bulk-actions { width: 100%; }
-    .ke-modal { padding: 12px; }
-    .ke-modal-footer { flex-wrap: wrap; }
 }

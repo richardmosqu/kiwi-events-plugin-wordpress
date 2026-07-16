@@ -45,10 +45,14 @@ class KE_Ticket_Types {
      */
     public function get_available( $event_id ) {
         global $wpdb;
+        // status = 'active' hides ticket types deactivated via the event
+        // builder's per-row toggle. Inactive rows are kept in the DB so
+        // historical tickets in wp_ke_tickets keep their FK reference.
         $results = $wpdb->get_results( $wpdb->prepare(
             "SELECT * FROM {$this->table_name}
              WHERE event_id = %d
                AND (is_archived IS NULL OR is_archived = 0)
+               AND status = 'active'
              ORDER BY price ASC, id ASC",
             $event_id
         ) );
@@ -111,6 +115,16 @@ class KE_Ticket_Types {
             $insert_format[]              = '%s';
         }
 
+        // sale_end is nullable. Only include when a real value was supplied so
+        // the column defaults to NULL otherwise.
+        if ( array_key_exists( 'sale_end', $data ) ) {
+            $sanitized = self::sanitize_sale_end( $data['sale_end'] );
+            if ( $sanitized !== null ) {
+                $insert_data['sale_end'] = $sanitized;
+                $insert_format[]         = '%s';
+            }
+        }
+
         $result = $wpdb->insert( $this->table_name, $insert_data, $insert_format );
 
         if ( $result === false ) {
@@ -160,6 +174,19 @@ class KE_Ticket_Types {
             }
         }
 
+        // sale_end is handled outside the $allowed loop so we can explicitly
+        // pass SQL NULL when the admin clears the field. array_key_exists
+        // (not isset) is required because null is a meaningful "clear it" value
+        // here, and isset() returns false for null.
+        if ( array_key_exists( 'sale_end', $data ) ) {
+            $sanitized = self::sanitize_sale_end( $data['sale_end'] );
+            // wpdb interprets a literal null in the data array as SQL NULL
+            // regardless of the corresponding format-array entry, so this
+            // safely clears the column when the admin empties the input.
+            $update['sale_end'] = $sanitized;
+            $format[]           = '%s';
+        }
+
         if ( empty( $update ) ) {
             return new WP_Error( 'no_data', 'No fields to update.' );
         }
@@ -173,6 +200,73 @@ class KE_Ticket_Types {
         );
 
         return $result !== false;
+    }
+
+    /**
+     * Normalize a sale_end input into the DB's "Y-m-d H:i:s" wall-clock
+     * format, interpreted in the site timezone. Accepts both the HTML
+     * datetime-local format ("Y-m-d\TH:i" or "Y-m-d\TH:i:s") and the MySQL
+     * datetime format. Returns null for empty / unparseable input so the
+     * caller can write SQL NULL.
+     *
+     * Matches the wall-clock-string convention used by _ke_event_date_end
+     * (post meta on the event), so comparisons across the two surfaces stay
+     * consistent.
+     */
+    public static function sanitize_sale_end( $value ) {
+        if ( $value === null ) return null;
+        $value = trim( (string) $value );
+        if ( $value === '' ) return null;
+
+        $value = str_replace( 'T', ' ', $value );
+        if ( ! preg_match( '/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(:\d{2})?$/', $value ) ) {
+            return null;
+        }
+        if ( strlen( $value ) === 16 ) {
+            $value .= ':00';
+        }
+        return $value;
+    }
+
+    /**
+     * Format a stored sale_end (MySQL "Y-m-d H:i:s") for an HTML
+     * <input type="datetime-local">. Returns empty string on null/empty/bad
+     * input. Browser inputs only care about minutes — strip seconds.
+     */
+    public static function format_sale_end_for_input( $raw ) {
+        $raw = trim( (string) ( $raw ?? '' ) );
+        if ( $raw === '' || strpos( $raw, '0000-00-00' ) === 0 ) return '';
+        $raw = str_replace( 'T', ' ', $raw );
+        if ( ! preg_match( '/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/', $raw, $m ) ) return '';
+        return $m[1] . 'T' . $m[2];
+    }
+
+    /**
+     * True when the ticket type's sale_end has already passed in the site
+     * timezone. Mirrors KE_Shortcodes::event_is_expired's contract:
+     *   - empty / 0000-00-00… / unparseable → treated as no cutoff (false)
+     *   - cutoff > now → false (sales still open)
+     *   - cutoff <= now → true (sales closed)
+     *
+     * Accepts either the raw datetime string or a ticket-type row object
+     * (so callers don't have to dig the column out first).
+     */
+    public static function is_sales_closed( $ticket_type_or_raw ) {
+        $raw = is_object( $ticket_type_or_raw )
+            ? ( $ticket_type_or_raw->sale_end ?? '' )
+            : (string) $ticket_type_or_raw;
+        $raw = trim( (string) $raw );
+        if ( $raw === '' || strpos( $raw, '0000-00-00' ) === 0 ) return false;
+        $tz = wp_timezone();
+        try {
+            $end = new DateTimeImmutable( str_replace( 'T', ' ', $raw ), $tz );
+        } catch ( Exception $e ) {
+            return false;
+        }
+        $now = function_exists( 'current_datetime' )
+            ? current_datetime()
+            : new DateTimeImmutable( 'now', $tz );
+        return $end <= $now;
     }
 
     /**

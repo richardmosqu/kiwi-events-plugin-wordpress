@@ -32,6 +32,18 @@
     margin: 0;
 }
 
+/* The LAST card snaps by its END edge. Every other card snaps to START, but
+   because multiple cards are visible at once the last card's start position
+   sits beyond maxScroll (scrollWidth - clientWidth) and is unreachable under
+   `scroll-snap-type: x mandatory` — so a manual scroll/swipe would snap back
+   to the previous card and the final card stayed cut off. Snapping the last
+   card to END makes maxScroll a valid snap point, so manual scroll, the arrow
+   (clamped to max) and the last dot all settle with the last card fully
+   visible. */
+.ke-carousel-card:last-child {
+    scroll-snap-align: end;
+}
+
 .ke-carousel-link {
     position: relative;
     display: block;

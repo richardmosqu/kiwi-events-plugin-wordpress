@@ -155,18 +155,56 @@ class KE_Public {
 
         $limit = max( 1, min( 30, intval( $atts['limit'] ) ) );
 
+        // NOTE: posts_per_page is intentionally -1 (unbounded), NOT $limit.
+        // Ordering is by start date ASC, and expired events are removed in PHP
+        // AFTER the query. If we limited in SQL first, an oldest-first window
+        // would fill with past events and future ones would sort out of range
+        // and never appear — the exact bug this fixes. The display $limit is
+        // applied in PHP below, once expired events are gone.
         $args = array(
             'post_type'      => 'ke_event',
             'post_status'    => 'publish',
-            'posts_per_page' => $limit,
+            'posts_per_page' => -1,
             'orderby'        => 'meta_value',
             'meta_key'       => '_ke_event_date_start',
             'order'          => 'ASC',
+            'no_found_rows'  => true,
             'meta_query'     => array(
+                'relation' => 'AND',
+                // Status is opt-OUT, not opt-in: show an event UNLESS its
+                // status explicitly hides it. Events with no status meta
+                // (legacy / other creation paths) are visible by default, so a
+                // missing value can never silently drop a real event. Only
+                // 'cancelled' and 'draft' are hidden; 'active', 'postponed' and
+                // 'sold_out' still display (a sold-out or postponed event is
+                // still a real event buyers should see, with its status shown).
                 array(
-                    'key'     => '_ke_event_status',
-                    'value'   => 'active',
-                    'compare' => '=',
+                    'relation' => 'OR',
+                    array(
+                        'key'     => '_ke_event_status',
+                        'compare' => 'NOT EXISTS',
+                    ),
+                    array(
+                        'key'     => '_ke_event_status',
+                        'value'   => array( 'cancelled', 'draft' ),
+                        'compare' => 'NOT IN',
+                    ),
+                ),
+                // Honour the per-event "Show in main shortcode" toggle. Events
+                // with no meta (legacy / pre-toggle) default to visible, so the
+                // toggle is opt-out: only an explicit '0' hides the event from
+                // [kiwi_events]. Category-specific shortcodes ignore this.
+                array(
+                    'relation' => 'OR',
+                    array(
+                        'key'     => '_ke_event_show_in_main_shortcode',
+                        'compare' => 'NOT EXISTS',
+                    ),
+                    array(
+                        'key'     => '_ke_event_show_in_main_shortcode',
+                        'value'   => '0',
+                        'compare' => '!=',
+                    ),
                 ),
             ),
         );
@@ -196,7 +234,25 @@ class KE_Public {
             $args['tax_query'] = $tax_queries;
         }
 
-        $query  = new WP_Query( $args );
+        $query = new WP_Query( $args );
+
+        // Hide events whose end datetime has passed. Logic lives in
+        // KE_Shortcodes so every public listing shares the same rule — and it
+        // robustly handles every stored date format (ISO 'T', legacy space,
+        // date-only) with fail-open parsing, which a SQL meta_query DATETIME/
+        // CHAR compare could not do across those mixed formats.
+        if ( class_exists( 'KE_Shortcodes' ) ) {
+            $query->posts = KE_Shortcodes::filter_expired_posts( $query->posts );
+        }
+
+        // Apply the display limit ONLY now — after expired events are gone —
+        // so the visible set is the N soonest-upcoming events. Limiting before
+        // this point is what excluded recently-published (future) events.
+        if ( count( $query->posts ) > $limit ) {
+            $query->posts = array_slice( $query->posts, 0, $limit );
+        }
+        $query->post_count = count( $query->posts );
+
         $layout = $atts['layout'] === 'grid' ? 'grid' : 'carousel';
 
         ob_start();

@@ -20,9 +20,15 @@ class KE_Admin_Attendees {
         $event_id       = isset( $_GET['event_id'] ) ? absint( $_GET['event_id'] ) : 0;
         $status_filter  = isset( $_GET['status'] ) ? sanitize_text_field( $_GET['status'] ) : '';
         $type_filter    = isset( $_GET['ticket_type_id'] ) ? absint( $_GET['ticket_type_id'] ) : 0;
+        $attendee_type  = isset( $_GET['attendee_type'] ) ? sanitize_text_field( $_GET['attendee_type'] ) : '';
         $search         = isset( $_GET['s'] ) ? sanitize_text_field( $_GET['s'] ) : '';
         $page_num       = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
         $per_page       = 25;
+
+        // Resolve courtesy filter from the tri-state UI value.
+        $is_courtesy = null;
+        if ( $attendee_type === 'real' )     $is_courtesy = 0;
+        if ( $attendee_type === 'courtesy' ) $is_courtesy = 1;
 
         // Get events for filter dropdown
         $events = get_posts( array(
@@ -44,6 +50,7 @@ class KE_Admin_Attendees {
             $args = array(
                 'status'         => $status_filter,
                 'ticket_type_id' => $type_filter,
+                'is_courtesy'    => $is_courtesy,
                 'search'         => $search,
                 'limit'          => $per_page,
                 'offset'         => ( $page_num - 1 ) * $per_page,
@@ -71,10 +78,16 @@ class KE_Admin_Attendees {
             wp_die( 'Please select an event first.' );
         }
 
+        $attendee_type = isset( $_GET['attendee_type'] ) ? sanitize_text_field( $_GET['attendee_type'] ) : '';
+        $is_courtesy   = null;
+        if ( $attendee_type === 'real' )     $is_courtesy = 0;
+        if ( $attendee_type === 'courtesy' ) $is_courtesy = 1;
+
         $tickets_handler = new KE_Tickets();
         $attendees = $tickets_handler->get_attendees( $event_id, array(
             'status'         => isset( $_GET['status'] ) ? sanitize_text_field( $_GET['status'] ) : '',
             'ticket_type_id' => isset( $_GET['ticket_type_id'] ) ? absint( $_GET['ticket_type_id'] ) : 0,
+            'is_courtesy'    => $is_courtesy,
             'search'         => isset( $_GET['s'] ) ? sanitize_text_field( $_GET['s'] ) : '',
             'limit'          => 99999,
             'offset'         => 0,
@@ -100,7 +113,7 @@ class KE_Admin_Attendees {
         // UTF-8 BOM for Excel
         fprintf( $output, chr(0xEF) . chr(0xBB) . chr(0xBF) );
 
-        $header = array( '#', 'Name', 'Email', 'Ticket Type', 'Ticket Code',
+        $header = array( '#', 'Name', 'Email', 'Ticket Type', 'Attendee Type', 'Ticket Code',
             'Status', 'Checked In At', 'Price', 'Created At' );
         foreach ( $xf_columns as $xf ) {
             $header[] = (string) $xf['label'];
@@ -113,6 +126,7 @@ class KE_Admin_Attendees {
                 $a->attendee_name,
                 $a->attendee_email,
                 $a->ticket_type_name,
+                ! empty( $a->is_courtesy ) ? 'Courtesy' : 'Real',
                 $a->ticket_code,
                 ucfirst( $a->status ),
                 $a->checked_in_at ?: '—',

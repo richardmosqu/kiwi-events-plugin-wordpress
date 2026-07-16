@@ -1,5 +1,10 @@
 /**
  * KiwiEvents — Admin Dashboard Charts (Chart.js)
+ *
+ * Chart.js doesn't subscribe to CSS variable changes, so colors are read
+ * ONCE at render time via getComputedStyle(html). When the user flips the
+ * admin color mode, a full reload is needed to repaint the charts with the
+ * new palette — accepted limitation, documented in dark-mode sprint notes.
  */
 (function($) {
     'use strict';
@@ -8,9 +13,39 @@
     let ticketsChart = null;
     let typeChart = null;
 
-    // Chart.js global defaults
+    /**
+     * Read a --kiwi-* token off <html> at call time, falling back to a
+     * hard-coded literal when the var is missing (e.g. unit-test contexts
+     * or pages where the tokens stylesheet didn't load).
+     */
+    function keVar(name, fallback) {
+        try {
+            var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+            return (v && v.trim()) || fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
+    var KE_CHART_COLORS = {
+        text:         keVar('--kiwi-text',           '#1a1a1a'),
+        textMuted:    keVar('--kiwi-text-muted',     '#6b7280'),
+        textDarker:   keVar('--kiwi-text-darker',    '#000000'),
+        border:       keVar('--kiwi-border',         '#e5e7eb'),
+        surface:      keVar('--kiwi-surface',        '#ffffff'),
+        // Tooltips stay dark slate in BOTH modes (Apple-style inverted
+        // tooltip). Using --kiwi-surface here would flip them to white in
+        // light mode, which is a visual regression from the pre-dark-mode
+        // chart styling.
+        tooltipBg:    '#1f2937',
+        tooltipText:  '#f9fafb',
+        tooltipBody:  '#e5e7eb',
+        gridLine:     keVar('--kiwi-border',         '#f3f4f6'),
+    };
+
+    // Chart.js global defaults — driven by tokens so dark mode reads correctly.
     Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    Chart.defaults.color = '#6b7280';
+    Chart.defaults.color = KE_CHART_COLORS.textMuted;
     Chart.defaults.plugins.legend.display = false;
 
     /**
@@ -89,7 +124,7 @@
                         fill: true,
                         tension: 0.4,
                         pointBackgroundColor: '#84cc16',
-                        pointBorderColor: '#fff',
+                        pointBorderColor: KE_CHART_COLORS.surface,
                         pointBorderWidth: 2,
                         pointRadius: 4,
                         pointHoverRadius: 6,
@@ -114,11 +149,10 @@
                 plugins: {
                     legend: { display: true, position: 'top', align: 'end' },
                     tooltip: {
-                        backgroundColor: '#1f2937',
-                        titleColor: '#fff',
-                        bodyColor: '#e5e7eb',
-                        borderColor: '#374151',
-                        borderWidth: 1,
+                        backgroundColor: KE_CHART_COLORS.tooltipBg,
+                        titleColor: KE_CHART_COLORS.tooltipText,
+                        bodyColor: KE_CHART_COLORS.tooltipBody,
+                        borderWidth: 0,
                         cornerRadius: 8,
                         padding: 12,
                     }
@@ -126,12 +160,13 @@
                 scales: {
                     x: {
                         grid: { display: false },
-                        ticks: { maxTicksLimit: 10 }
+                        ticks: { maxTicksLimit: 10, color: KE_CHART_COLORS.textMuted }
                     },
                     y: {
                         beginAtZero: true,
-                        grid: { color: '#f3f4f6' },
+                        grid: { color: KE_CHART_COLORS.gridLine },
                         ticks: {
+                            color: KE_CHART_COLORS.textMuted,
                             callback: function(val) { return '$' + val; }
                         }
                     },
@@ -141,6 +176,7 @@
                         grid: { display: false },
                         ticks: {
                             stepSize: 1,
+                            color: KE_CHART_COLORS.textMuted,
                             callback: function(val) { return val + ' tix'; }
                         }
                     }
@@ -186,7 +222,10 @@
                 indexAxis: 'y',
                 plugins: {
                     tooltip: {
-                        backgroundColor: '#181826',
+                        backgroundColor: KE_CHART_COLORS.tooltipBg,
+                        titleColor: KE_CHART_COLORS.tooltipText,
+                        bodyColor: KE_CHART_COLORS.tooltipBody,
+                        borderWidth: 0,
                         cornerRadius: 8,
                         padding: 12,
                     }
@@ -194,13 +233,14 @@
                 scales: {
                     x: {
                         beginAtZero: true,
-                        grid: { color: '#f3f4f6' },
-                        ticks: { stepSize: 1 }
+                        grid: { color: KE_CHART_COLORS.gridLine },
+                        ticks: { stepSize: 1, color: KE_CHART_COLORS.textMuted }
                     },
                     y: {
                         grid: { display: false },
                         ticks: {
-                            font: { weight: 600 }
+                            font: { weight: 600 },
+                            color: KE_CHART_COLORS.text
                         }
                     }
                 }
@@ -234,7 +274,7 @@
                     backgroundColor: colors.slice(0, values.length),
                     borderWidth: 0,
                     hoverBorderWidth: 3,
-                    hoverBorderColor: '#fff',
+                    hoverBorderColor: KE_CHART_COLORS.surface,
                 }]
             },
             options: {
@@ -249,11 +289,15 @@
                             usePointStyle: true,
                             pointStyle: 'circle',
                             padding: 16,
-                            font: { size: 12 }
+                            font: { size: 12 },
+                            color: KE_CHART_COLORS.text
                         }
                     },
                     tooltip: {
-                        backgroundColor: '#181826',
+                        backgroundColor: KE_CHART_COLORS.tooltipBg,
+                        titleColor: KE_CHART_COLORS.tooltipText,
+                        bodyColor: KE_CHART_COLORS.tooltipBody,
+                        borderWidth: 0,
                         cornerRadius: 8,
                         padding: 12,
                     }

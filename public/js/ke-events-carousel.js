@@ -52,17 +52,32 @@
         }
 
         function nextCard() {
-            var s = step();
-            var max = track.scrollWidth - track.clientWidth - 2;
-            var target = track.scrollLeft + s;
-            if (target > max) target = 0; // infinite wrap
-            track.scrollTo({ left: target, behavior: 'smooth' });
+            var s   = step();
+            var max = track.scrollWidth - track.clientWidth;
+            // Already at the end → wrap to the start (keeps the infinite /
+            // autoplay loop). Otherwise advance one card, but CLAMP to max so
+            // the final step — which is shorter than a full card when the cards
+            // don't divide evenly into the viewport — still lands exactly at
+            // the end and fully reveals the last card. The old code did
+            // `if (target > max) target = 0`, which wrapped to the start on
+            // that final partial step, so the last card was never reachable.
+            if (track.scrollLeft >= max - 2) {
+                track.scrollTo({ left: 0, behavior: 'smooth' });
+                return;
+            }
+            track.scrollTo({ left: Math.min(track.scrollLeft + s, max), behavior: 'smooth' });
         }
         function prevCard() {
-            var s = step();
-            var target = track.scrollLeft - s;
-            if (target < 0) target = track.scrollWidth - track.clientWidth;
-            track.scrollTo({ left: target, behavior: 'smooth' });
+            var s   = step();
+            var max = track.scrollWidth - track.clientWidth;
+            // Already at the start → wrap to the end. Otherwise step back one
+            // card, clamped to 0 so the left arrow always lands on the first
+            // card rather than overshooting into a wrap.
+            if (track.scrollLeft <= 2) {
+                track.scrollTo({ left: max, behavior: 'smooth' });
+                return;
+            }
+            track.scrollTo({ left: Math.max(track.scrollLeft - s, 0), behavior: 'smooth' });
         }
 
         // ── Dots ──

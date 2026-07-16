@@ -1,25 +1,29 @@
 <?php if ( ! defined( 'ABSPATH' ) ) exit; ?>
 <div class="wrap ke-wrap">
 
-    <!-- ── Header ── -->
-    <div class="ke-dashboard-header">
-        <div class="ke-page-header-left">
-            <h1>KiwiEvents</h1>
-            <p>Your event performance at a glance</p>
-        </div>
-        <div class="ke-header-actions">
-            <select id="ke-event-filter" class="ke-select">
-                <option value="0">All Events</option>
-                <?php foreach ( $events as $event ) : ?>
-                    <option value="<?php echo esc_attr( $event->ID ); ?>"><?php echo esc_html( $event->post_title ); ?></option>
-                <?php endforeach; ?>
-            </select>
-            <a href="<?php echo admin_url('admin.php?page=ke-event-builder'); ?>" class="ke-btn ke-btn-primary">+ New Event</a>
+    <!-- ── Page header (title + event filter + new-event CTA, wrapped on white) ── -->
+    <div class="ke-section-card ke-section-card--compact">
+        <div class="ke-dashboard-header">
+            <div class="ke-page-header-left">
+                <h1>KiwiEvents</h1>
+                <p>Your event performance at a glance</p>
+            </div>
+            <div class="ke-header-actions">
+                <select id="ke-event-filter" class="ke-select">
+                    <option value="0">All Events</option>
+                    <?php foreach ( $events as $event ) : ?>
+                        <option value="<?php echo esc_attr( $event->ID ); ?>"><?php echo esc_html( $event->post_title ); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <a href="<?php echo admin_url('admin.php?page=ke-event-builder'); ?>" class="ke-btn ke-btn-primary">+ New Event</a>
+            </div>
         </div>
     </div>
 
-    <!-- ── KPI Cards ── -->
-    <div class="ke-kpi-grid">
+    <!-- ── KPI row (the 4 metrics wrap in ONE section card; the inner mini-cards
+         keep their colored icon treatment to differentiate the metric) ── -->
+    <div class="ke-section-card">
+        <div class="ke-kpi-grid">
         <div class="ke-kpi-card ke-kpi-revenue">
             <div class="ke-kpi-icon">💰</div>
             <div class="ke-kpi-content">
@@ -48,30 +52,29 @@
                 <span class="ke-kpi-value" id="kpi-checkin"><?php echo $checkin_rate; ?>%</span>
             </div>
         </div>
-    </div>
-
-    <!-- ── Charts Row ── -->
-    <div class="ke-charts-grid">
-        <div class="ke-card ke-chart-card">
-            <h3>Revenue Over Time</h3>
-            <canvas id="ke-revenue-chart" height="260"></canvas>
-        </div>
-        <div class="ke-card ke-chart-card">
-            <h3>Tickets Per Event</h3>
-            <canvas id="ke-tickets-chart" height="260"></canvas>
         </div>
     </div>
 
-    <!-- ── Distribution ── -->
-    <div class="ke-charts-grid ke-charts-single">
-        <div class="ke-card ke-chart-card">
-            <h3>Ticket Type Distribution</h3>
-            <canvas id="ke-type-chart" height="200"></canvas>
-        </div>
+    <!-- ── Revenue Over Time chart — own section card ── -->
+    <div class="ke-section-card ke-chart-card">
+        <h3>Revenue Over Time</h3>
+        <canvas id="ke-revenue-chart" height="260"></canvas>
     </div>
 
-    <!-- ── Recent Orders ── -->
-    <div class="ke-card">
+    <!-- ── Tickets Per Event chart — own section card ── -->
+    <div class="ke-section-card ke-chart-card">
+        <h3>Tickets Per Event</h3>
+        <canvas id="ke-tickets-chart" height="260"></canvas>
+    </div>
+
+    <!-- ── Ticket Type Distribution chart — own section card ── -->
+    <div class="ke-section-card ke-chart-card">
+        <h3>Ticket Type Distribution</h3>
+        <canvas id="ke-type-chart" height="200"></canvas>
+    </div>
+
+    <!-- ── Recent Orders table — own section card ── -->
+    <div class="ke-section-card">
         <h3>Recent Orders</h3>
         <?php if ( empty( $recent ) ) : ?>
             <div class="ke-empty-state">

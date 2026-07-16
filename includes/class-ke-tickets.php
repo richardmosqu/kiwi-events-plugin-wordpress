@@ -75,6 +75,12 @@ class KE_Tickets {
                 }
             }
 
+            // Courtesy tickets occupy capacity (counted in quantity_sold) but
+            // contribute $0 to organizer net revenue. Flag is per-attendee so
+            // a single admin "Add attendee" call can mix real + courtesy if
+            // needed, even though the UI currently picks one mode at a time.
+            $is_courtesy_row = ! empty( $attendee['is_courtesy'] ) ? 1 : 0;
+
             $insert_row = array(
                 'ticket_code'          => $ticket_code,
                 'order_id'             => absint( $order_id ),
@@ -85,9 +91,10 @@ class KE_Tickets {
                 'attendee_email'       => sanitize_email( $attendee_email ),
                 'attendee_number'      => $attendee_number,
                 'status'               => 'valid',
+                'is_courtesy'          => $is_courtesy_row,
                 'qr_code_path'         => $qr_path,
             );
-            $insert_format = array( '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%d', '%s', '%s' );
+            $insert_format = array( '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%d', '%s', '%d', '%s' );
 
             if ( $cf_data !== null ) {
                 $insert_row['custom_fields_data'] = $cf_data;
@@ -110,6 +117,21 @@ class KE_Tickets {
         // Increment sold count on ticket type
         $ticket_types = new KE_Ticket_Types();
         $ticket_types->increment_sold( $ticket_type_id, $quantity );
+
+        // Real-time sales beacon — single transient bump that the organizer
+        // dashboard polls (cheap, transient-only read, no DB on the GET).
+        // Covers BOTH free tickets (called from REST checkout) and paid
+        // tickets (called from KE_WooCommerce::on_payment_complete) because
+        // both flows reach this method.
+        $org_term_ids = wp_get_post_terms( $event_id, 'ke_organizer', array( 'fields' => 'ids' ) );
+        if ( ! is_wp_error( $org_term_ids ) ) {
+            foreach ( $org_term_ids as $org_term_id ) {
+                $org_term_id = (int) $org_term_id;
+                if ( $org_term_id > 0 ) {
+                    set_transient( 'ke_last_sale_' . $org_term_id, time(), DAY_IN_SECONDS );
+                }
+            }
+        }
 
         return $ticket_ids;
     }
@@ -179,6 +201,7 @@ class KE_Tickets {
             'status'         => '',
             'ticket_type_id' => 0,
             'search'         => '',
+            'is_courtesy'    => null, // null = no filter; '0'/'1' = filter
             'limit'          => 50,
             'offset'         => 0,
             'orderby'        => 'attendee_number',
@@ -197,6 +220,11 @@ class KE_Tickets {
         if ( $args['ticket_type_id'] ) {
             $where .= " AND t.ticket_type_id = %d";
             $params[] = $args['ticket_type_id'];
+        }
+
+        if ( $args['is_courtesy'] !== null && $args['is_courtesy'] !== '' ) {
+            $where   .= " AND t.is_courtesy = %d";
+            $params[] = (int) ( $args['is_courtesy'] ? 1 : 0 );
         }
 
         if ( ! empty( $args['search'] ) ) {
@@ -249,6 +277,11 @@ class KE_Tickets {
         if ( ! empty( $args['ticket_type_id'] ) ) {
             $where .= " AND ticket_type_id = %d";
             $params[] = $args['ticket_type_id'];
+        }
+
+        if ( isset( $args['is_courtesy'] ) && $args['is_courtesy'] !== null && $args['is_courtesy'] !== '' ) {
+            $where   .= " AND is_courtesy = %d";
+            $params[] = (int) ( $args['is_courtesy'] ? 1 : 0 );
         }
 
         if ( ! empty( $args['search'] ) ) {

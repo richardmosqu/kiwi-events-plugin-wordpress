@@ -170,7 +170,9 @@ $admin_email = get_option( 'admin_email' );
                             </div>
                         </header>
                         <div class="ke-org-chart-wrap">
-                            <canvas id="keOrgChart" height="280"></canvas>
+                            <div class="kep-chart-wrapper">
+                                <canvas id="keOrgChart"></canvas>
+                            </div>
                         </div>
                     </div>
                 </section>

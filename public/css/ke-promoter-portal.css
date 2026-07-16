@@ -1,0 +1,722 @@
+/* ─────────────────────────────────────────────────────────────
+ *  Kiwi Events — Promoter portal
+ *  Scoped under .ke-promo-body / .ke-promo-dash so site styles
+ *  don't leak in. Mobile-first.
+ * ───────────────────────────────────────────────────────────── */
+
+.ke-promo-body {
+    margin: 0;
+    background: #f8fafc;
+    color: #0f172a;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+.ke-promo-body * { box-sizing: border-box; }
+
+/* ================================================================
+ * SPECIFICITY GUARD — Override WordPress.com globals
+ *
+ * WP.com on campuslifepa.com injects globals like:
+ *   [type=button], [type=submit], button {
+ *       background-color: transparent;
+ *       border: 1px solid #c36;
+ *       color: #c36;
+ *       ...
+ *   }
+ * The bare `.ke-promo-btn` selectors below are (0,1,0) and lose the
+ * cascade against WP.com's (0,0,1) on undeclared props (border/color),
+ * producing a magenta-bordered button. Scoping under `.ke-promo-body`
+ * achieves (0,1,1) without !important, winning gap-fill.
+ *
+ * IMPORTANT: this reset only sets safe defaults. The intentional
+ * `.ke-promo-btn--primary` / `--secondary` / `--ghost` rules below
+ * are parent-scoped to (0,2,0) so they layer cleanly on top.
+ *
+ * WP.com ALSO injects rose-tinted variants on :focus / :active /
+ * :hover / :focus-visible. Their `[type=button]:focus` reaches (0,2,0),
+ * which beats our base reset (0,1,1) on focused elements — so we add
+ * an explicit pseudo-state block below at (0,2,1) that re-blanks
+ * background/border/color/outline on those states. Class-scoped
+ * pseudo rings (parent-scoped, 0,3,0) still layer cleanly on top.
+ *
+ * Updated: 2026-05-27 (pseudo-state extension)
+ * ================================================================ */
+.ke-promo-body button,
+.ke-promo-body [type="button"],
+.ke-promo-body [type="submit"],
+.ke-promo-body [type="reset"],
+.ke-promo-body input,
+.ke-promo-body select,
+.ke-promo-body textarea {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    outline: none;
+}
+
+.ke-promo-body button:focus,
+.ke-promo-body button:active,
+.ke-promo-body button:focus-visible,
+.ke-promo-body button:hover,
+.ke-promo-body [type="button"]:focus,
+.ke-promo-body [type="button"]:active,
+.ke-promo-body [type="button"]:focus-visible,
+.ke-promo-body [type="button"]:hover,
+.ke-promo-body [type="submit"]:focus,
+.ke-promo-body [type="submit"]:active,
+.ke-promo-body [type="submit"]:focus-visible,
+.ke-promo-body [type="submit"]:hover,
+.ke-promo-body [type="reset"]:focus,
+.ke-promo-body [type="reset"]:active,
+.ke-promo-body [type="reset"]:focus-visible,
+.ke-promo-body [type="reset"]:hover {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    outline: none;
+    box-shadow: none;
+}
+
+.ke-promo-body input[type="text"],
+.ke-promo-body input[type="email"],
+.ke-promo-body input[type="password"],
+.ke-promo-body input[type="number"],
+.ke-promo-body input[type="tel"],
+.ke-promo-body input[type="url"],
+.ke-promo-body input[type="search"],
+.ke-promo-body textarea {
+    cursor: text;
+}
+
+.ke-promo-body select {
+    cursor: pointer;
+}
+
+/* ── Sign-in / forgot / set-password shell ───────────────── */
+
+.ke-promo-shell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 16px;
+}
+
+.ke-promo-card {
+    width: 100%;
+    max-width: 420px;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    padding: 32px 28px;
+}
+
+.ke-promo-card-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.ke-promo-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #fff;
+    font-size: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.ke-promo-card-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 4px 0 2px;
+}
+
+.ke-promo-subtitle {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+}
+
+.ke-promo-form { display: block; }
+
+.ke-promo-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    margin: 14px 0 6px;
+}
+
+.ke-promo-body .ke-promo-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    color: #0f172a;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.ke-promo-body .ke-promo-input:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.ke-promo-hint {
+    font-size: 12px;
+    color: #64748b;
+    margin: 8px 0 0;
+}
+
+.ke-promo-body .ke-promo-btn {
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    border-radius: 10px;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: transform .1s, box-shadow .15s, background .15s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ke-promo-body .ke-promo-btn--primary {
+    width: 100%;
+    margin-top: 18px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25);
+}
+
+.ke-promo-body .ke-promo-btn--primary:hover { transform: translateY(-1px); }
+
+.ke-promo-body .ke-promo-btn--secondary {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+}
+
+.ke-promo-body .ke-promo-btn--ghost {
+    background: transparent;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+.ke-promo-body .ke-promo-btn--ghost:hover { background: #f1f5f9; }
+
+/* Pseudo-state overrides — restore intentional fills/borders on the
+   states where the reset above re-blanks them (and where WP.com would
+   otherwise paint magenta). Parent-scoped to (0,3,0) so they win over
+   the (0,2,1) reset's :focus/:active/:hover rule. Outline rings use
+   :focus-visible so mouse-click :focus doesn't draw the ring. */
+.ke-promo-body .ke-promo-btn--primary:hover,
+.ke-promo-body .ke-promo-btn--primary:focus,
+.ke-promo-body .ke-promo-btn--primary:active,
+.ke-promo-body .ke-promo-btn--primary:focus-visible {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #fff;
+    border: 0;
+}
+.ke-promo-body .ke-promo-btn--primary:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.35);
+    outline-offset: 2px;
+}
+.ke-promo-body .ke-promo-btn--primary:active { transform: translateY(0); }
+
+.ke-promo-body .ke-promo-btn--secondary:hover,
+.ke-promo-body .ke-promo-btn--secondary:focus,
+.ke-promo-body .ke-promo-btn--secondary:active,
+.ke-promo-body .ke-promo-btn--secondary:focus-visible {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+}
+.ke-promo-body .ke-promo-btn--secondary:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.35);
+    outline-offset: 2px;
+}
+
+.ke-promo-body .ke-promo-btn--ghost:focus,
+.ke-promo-body .ke-promo-btn--ghost:active,
+.ke-promo-body .ke-promo-btn--ghost:focus-visible {
+    background: transparent;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+.ke-promo-body .ke-promo-btn--ghost:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.35);
+    outline-offset: 2px;
+}
+
+/* Input focus is already declared above — re-declare here to also
+   win over the reset's :focus/:active rule which would otherwise
+   strip the indigo focus border. */
+.ke-promo-body .ke-promo-input:hover,
+.ke-promo-body .ke-promo-input:active {
+    background: #fff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+}
+
+.ke-promo-footer-links {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 13px;
+}
+
+.ke-promo-footer-links a {
+    color: #6366f1;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ke-promo-footer-links a:hover { text-decoration: underline; }
+
+.ke-promo-page-foot {
+    margin-top: 22px;
+    color: #94a3b8;
+    font-size: 11px;
+    text-align: center;
+}
+
+.ke-promo-flash {
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.ke-promo-flash--success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.ke-promo-flash--error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+/* ── Dashboard ───────────────────────────────────────────── */
+
+.ke-promo-body--dash { background: #f1f5f9; }
+
+.ke-promo-dash {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 18px 48px;
+}
+
+.ke-promo-dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.ke-promo-dash-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.ke-promo-dash-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.ke-promo-dash-title h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.ke-promo-dash-title p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ke-promo-dash-title code {
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+/* KPI cards */
+.ke-promo-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.ke-promo-kpi {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.ke-promo-kpi-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.ke-promo-kpi-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Sections */
+.ke-promo-section {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.ke-promo-section h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 6px;
+}
+
+.ke-promo-section-hint {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0 0 16px;
+}
+
+.ke-promo-empty {
+    color: #64748b;
+    font-size: 13px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    text-align: center;
+}
+
+/* Tracking URL cards */
+.ke-promo-track-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+@media (min-width: 720px) {
+    .ke-promo-track-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.ke-promo-track-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 14px 12px;
+}
+
+.ke-promo-track-card--empty { text-align: center; color: #64748b; font-size: 13px; }
+.ke-promo-track-card--empty p { margin: 4px 0; }
+
+.ke-promo-track-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ke-promo-track-rate {
+    font-size: 11px;
+    font-weight: 600;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.ke-promo-track-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.ke-promo-track-input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #fff;
+    min-width: 0;
+}
+
+.ke-promo-track-hint {
+    font-size: 11px;
+    color: #64748b;
+    margin: 8px 0 0;
+}
+
+/* Commissions table */
+.ke-promo-table-wrap {
+    overflow-x: auto;
+    margin: 0 -20px;
+    padding: 0 20px;
+}
+
+.ke-promo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ke-promo-table thead th {
+    background: #f8fafc;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.ke-promo-table tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+}
+
+.ke-promo-table tbody tr:last-child td { border-bottom: 0; }
+
+.ke-promo-table-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.ke-promo-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.ke-promo-pill--earned         { background: #dcfce7; color: #166534; }
+.ke-promo-pill--paid           { background: #dbeafe; color: #1e40af; }
+.ke-promo-pill--refunded_keep  { background: #fef3c7; color: #92400e; }
+.ke-promo-pill--voided         { background: #fee2e2; color: #991b1b; }
+
+.ke-promo-dash-footer {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 11px;
+    margin-top: 24px;
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    .ke-promo-dash-header { padding: 14px; }
+    .ke-promo-dash-title h1 { font-size: 16px; }
+    .ke-promo-section { padding: 16px 14px; }
+    .ke-promo-section h2 { font-size: 15px; }
+    .ke-promo-kpi-value { font-size: 20px; }
+}
+
+/* ====================================================================
+   Inline login modal (rendered by promoter-portal-login.php)
+   The page paints a soft, blurred portal shell in the background and
+   floats the login form in a centered .ke-modal-dialog. Class names
+   mirror the admin .ke-modal pattern from ke-admin-tokens.css so the
+   look stays consistent across the plugin.
+   ==================================================================== */
+
+.ke-promo-body--login {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #fefdf4 0%, #f4f8f0 100%);
+    margin: 0;
+    overflow: hidden;
+}
+.ke-promo-shell--blurred {
+    filter: blur(6px);
+    opacity: 0.6;
+    pointer-events: none;
+    user-select: none;
+}
+.ke-promo-card--ghost { box-shadow: none; }
+
+.ke-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.ke-modal[hidden] { display: none; }
+.ke-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1;
+}
+.ke-modal-dialog,
+.ke-modal-dialog-sm {
+    position: relative;
+    z-index: 2;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    padding: 28px 28px 24px;
+    max-width: 420px;
+    width: 100%;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    color: #1d1d1f;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+.ke-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: transparent;
+    border: 0;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    color: #94a3b8;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+.ke-modal-close:hover { color: #1d1d1f; background: rgba(0, 0, 0, 0.04); }
+.ke-modal-title {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #111827;
+}
+.ke-modal-subtitle {
+    margin: 0 0 18px;
+    font-size: 14px;
+    color: #6b7280;
+}
+.ke-modal-dialog label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin-top: 14px;
+    margin-bottom: 6px;
+}
+.ke-modal-dialog input[type="email"],
+.ke-modal-dialog input[type="password"],
+.ke-modal-dialog input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #ffffff;
+    color: #1d1d1f;
+}
+.ke-modal-dialog input:focus {
+    outline: none;
+    border-color: #65a30d;
+    box-shadow: 0 0 0 3px rgba(101, 163, 13, 0.15);
+}
+.ke-modal-error {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    font-size: 13px;
+}
+.ke-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+}
+.ke-promo-body .ke-modal-footer .ke-promo-btn {
+    flex: 0 0 auto;
+}
+.ke-promo-body .ke-modal-footer .ke-promo-btn--ghost {
+    background: transparent;
+    color: #475569;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    text-decoration: none;
+}
+.ke-promo-body .ke-modal-footer .ke-promo-btn--ghost:hover { background: rgba(0, 0, 0, 0.04); }
+
+@media (max-width: 480px) {
+    .ke-modal-dialog { padding: 22px 20px; }
+    .ke-modal-title { font-size: 18px; }
+}

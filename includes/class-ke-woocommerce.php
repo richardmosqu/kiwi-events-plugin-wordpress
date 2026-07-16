@@ -26,6 +26,12 @@ class KE_WooCommerce {
         // Cart validation — enforce ticket limits
         add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validate_add_to_cart' ), 10, 5 );
 
+        // Second-pass guard: if a ticket type's sale_end cutoff passes while
+        // the buyer is sitting on the checkout page, block the order before
+        // payment is taken. WooCommerce calls this on cart render and at the
+        // start of checkout submission, so a stale cart can't sneak through.
+        add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_cutoffs' ) );
+
         // Display ticket info in cart/checkout
         add_filter( 'woocommerce_get_item_data', array( $this, 'display_cart_item_data' ), 10, 2 );
 
@@ -44,6 +50,61 @@ class KE_WooCommerce {
         // so they survive redirect-gateway flows (Yappy, PayPal) even if the
         // cart is cleared before the order is marked paid.
         add_action( 'woocommerce_checkout_create_order', array( $this, 'persist_fee_on_order' ), 10, 2 );
+
+        // URL-only promoter attribution: parse the checkout request's referrer
+        // for ?promo= at order-processed time and freeze the slug onto the
+        // order. on_payment_complete() reads this meta to drive commissions.
+        add_action( 'woocommerce_checkout_order_processed', array( $this, 'capture_promoter_from_referrer' ), 10, 3 );
+    }
+
+    /**
+     * Capture the promoter slug from HTTP_REFERER at order-processed time and
+     * freeze it onto the order's `_ke_promoter_slug` meta. URL-only model:
+     *   - Referrer absent / no ?promo= → no attribution (orphan order)
+     *   - Slug present but promoter inactive → no attribution
+     *   - Slug present but promoter not assigned to this event → no attribution
+     *
+     * Limitation accepted by the user: HTTP_REFERER can be empty when the
+     * browser strips it (HTTPS→HTTP, strict referrer-policy, some payment-
+     * gateway redirects). In those cases commissions are lost — there is no
+     * cookie/session fallback. Run the badge as a smoke test: if the badge
+     * isn't visible at the moment of "Place Order", the commission won't fire.
+     */
+    public function capture_promoter_from_referrer( $order_id, $posted_data, $order ) {
+        if ( ! $order instanceof WC_Order ) {
+            $order = wc_get_order( $order_id );
+            if ( ! $order ) return;
+        }
+
+        if ( ! class_exists( 'KE_Promoter_Attribution' ) ) return;
+
+        // Event id is needed for the assignment check. Pull from the first
+        // KE line item — multi-event carts are rare and the visitor's URL
+        // (the referrer) corresponds to one event at a time.
+        $event_id = 0;
+        foreach ( $order->get_items() as $item ) {
+            $eid = (int) $item->get_meta( '_ke_event_id' );
+            if ( $eid > 0 ) { $event_id = $eid; break; }
+        }
+        if ( $event_id <= 0 ) return;
+
+        $referrer = isset( $_SERVER['HTTP_REFERER'] ) ? (string) wp_unslash( $_SERVER['HTTP_REFERER'] ) : '';
+        $promoter = KE_Promoter_Attribution::resolve_from_referrer( $referrer, $event_id );
+
+        if ( defined( 'KE_PROMOTER_DEBUG' ) && KE_PROMOTER_DEBUG ) {
+            error_log( sprintf(
+                '[KE-PROMO] order_processed: wc_order=%d event=%d referrer=%s → %s',
+                (int) $order_id, $event_id,
+                $referrer !== '' ? $referrer : '(empty)',
+                $promoter ? ('slug=' . (string) $promoter->slug) : 'no-attribution'
+            ) );
+        }
+
+        if ( ! $promoter ) return;
+
+        $order->update_meta_data( '_ke_promoter_slug',  (string) $promoter->slug );
+        $order->update_meta_data( '_ke_promoter_source', 'url' );
+        $order->save();
     }
 
     /**
@@ -92,6 +153,15 @@ class KE_WooCommerce {
             return new WP_Error( 'sold_out', 'Not enough tickets available.' );
         }
 
+        // Per-ticket-type sales cutoff. Independent of stock — a ticket type
+        // with capacity left but a past sale_end is still closed.
+        if ( KE_Ticket_Types::is_sales_closed( $ticket_type ) ) {
+            return new WP_Error(
+                'sales_closed',
+                sprintf( __( 'Las ventas para %s ya cerraron.', 'kiwi-events' ), $ticket_type->name )
+            );
+        }
+
         // Guard 4: Get or create the WC product for this ticket type
         $product_id = $this->get_or_create_product( $ticket_type, $event_id );
 
@@ -116,6 +186,12 @@ class KE_WooCommerce {
         if ( is_array( $attendees ) && ! empty( $attendees ) ) {
             $cart_item_data['ke_attendees'] = $attendees;
         }
+
+        // Promoter attribution is determined later at order-processed time by
+        // parsing the HTTP_REFERER of the order submit (URL-only model). We do
+        // NOT capture it at cart-add — the add_to_cart REST call typically
+        // doesn't carry ?promo= in its own URL, and we have nowhere
+        // legitimate to read it from. See on_payment_complete().
 
         $cart_item_key = WC()->cart->add_to_cart( $product_id, $quantity, 0, array(), $cart_item_data );
 
@@ -205,7 +281,56 @@ class KE_WooCommerce {
             return false;
         }
 
+        // Sales cutoff guard. The custom add_to_cart() above already checks
+        // this for normal REST flows, but WC's filter also runs for raw
+        // wc_get_product() add-to-cart paths (block editor cart, blocks
+        // checkout) which bypass the custom handler.
+        if ( ! empty( $cart_item_data['ke_ticket_type_id'] ) ) {
+            $tt = ( new KE_Ticket_Types() )->get( (int) $cart_item_data['ke_ticket_type_id'] );
+            if ( $tt && KE_Ticket_Types::is_sales_closed( $tt ) ) {
+                wc_add_notice(
+                    sprintf( __( 'Las ventas para %s ya cerraron.', 'kiwi-events' ), $tt->name ),
+                    'error'
+                );
+                return false;
+            }
+        }
+
         return $passed;
+    }
+
+    /**
+     * Re-validate every KE line in the cart against its sale_end cutoff.
+     * Bound to `woocommerce_check_cart_items`, which fires on cart render and
+     * at the start of checkout submission — so a cart that was valid at
+     * add-time but went stale while the buyer lingered on checkout gets
+     * blocked before payment is collected. Adding an error notice is
+     * sufficient; WooCommerce halts the checkout when any error notice is
+     * present on the queue.
+     */
+    public function validate_cart_cutoffs() {
+        if ( ! function_exists( 'WC' ) || ! WC() || ! WC()->cart ) {
+            return;
+        }
+
+        $tt_handler = null;
+        $seen       = array();
+        foreach ( WC()->cart->get_cart() as $cart_item ) {
+            $tt_id = isset( $cart_item['ke_ticket_type_id'] ) ? (int) $cart_item['ke_ticket_type_id'] : 0;
+            if ( $tt_id <= 0 || isset( $seen[ $tt_id ] ) ) continue;
+            $seen[ $tt_id ] = true;
+
+            if ( $tt_handler === null ) {
+                $tt_handler = new KE_Ticket_Types();
+            }
+            $tt = $tt_handler->get( $tt_id );
+            if ( $tt && KE_Ticket_Types::is_sales_closed( $tt ) ) {
+                wc_add_notice(
+                    sprintf( __( 'Las ventas para %s ya cerraron.', 'kiwi-events' ), $tt->name ),
+                    'error'
+                );
+            }
+        }
     }
 
     /**
@@ -258,6 +383,11 @@ class KE_WooCommerce {
         if ( ! empty( $values['ke_attendees'] ) && is_array( $values['ke_attendees'] ) ) {
             $item->add_meta_data( '_ke_attendees', wp_json_encode( $values['ke_attendees'] ), true );
         }
+        // URL-only attribution model: the promoter slug is resolved at order-
+        // processed time from HTTP_REFERER, not captured at cart-add. The slug
+        // (if any) is written to the WC order meta `_ke_promoter_slug` by
+        // on_payment_complete() and is the immutable post-purchase source of
+        // truth for thank-you/email/admin renderings.
     }
 
     /**
@@ -364,6 +494,43 @@ class KE_WooCommerce {
             if ( is_wp_error( $ticket_ids ) ) {
                 error_log( 'KiwiEvents: ticket generation failed — ' . $ticket_ids->get_error_message() );
                 continue;
+            }
+
+            // Promoter attribution (paid flow). The slug — if any — was
+            // captured from the checkout request's HTTP_REFERER by
+            // capture_promoter_from_referrer() and stored on the ORDER meta
+            // (not the item meta). Read it here to drive commissions.
+            $promo_slug   = (string) $order->get_meta( '_ke_promoter_slug' );
+            $promo_source = (string) $order->get_meta( '_ke_promoter_source' );
+            if ( defined( 'KE_PROMOTER_DEBUG' ) && KE_PROMOTER_DEBUG ) {
+                error_log( sprintf(
+                    '[KE-PROMO] on_payment_complete: ke_order=%d wc_order=%d slug=%s source=%s',
+                    (int) $order_result['order_id'], (int) $order_id,
+                    $promo_slug !== '' ? $promo_slug : '(none)',
+                    $promo_source !== '' ? $promo_source : '(unknown)'
+                ) );
+            }
+            if ( $promo_slug !== '' && class_exists( 'KE_Promoter_Commissions' ) ) {
+                // Use the live ticket type's base price (price WITHOUT
+                // service fee or tax) per spec.
+                if ( ! class_exists( 'KE_Ticket_Types' ) ) {
+                    require_once KE_PLUGIN_DIR . 'includes/class-ke-ticket-types.php';
+                }
+                $tt_handler = new KE_Ticket_Types();
+                $tt         = $tt_handler->get( absint( $ticket_type_id ) );
+                $base_price = $tt ? floatval( $tt->price ) : 0.0;
+
+                KE_Promoter_Commissions::generate_for_order( array(
+                    'event_id'           => absint( $event_id ),
+                    'order_id'           => (int) $order_result['order_id'],
+                    'wc_order_id'        => (int) $order_id,
+                    'ticket_ids'         => $ticket_ids,
+                    'ticket_base_price'  => $base_price,
+                    'promoter_slug'      => $promo_slug,
+                    'buyer_name'         => $buyer_name,
+                    'buyer_email'        => $buyer_email,
+                    'attribution_method' => $promo_source !== '' ? $promo_source : 'url',
+                ) );
             }
 
             // Send confirmation email (non-fatal)
@@ -590,6 +757,12 @@ class KE_WooCommerce {
 
             // Update order status
             $orders_handler->update_status( $ke_order->id, 'refunded' );
+        }
+
+        // Apply the configured refund policy to any commissions attached to
+        // this WC order. Default = 'keep' (organizer still owes the promoter).
+        if ( class_exists( 'KE_Promoter_Commissions' ) ) {
+            KE_Promoter_Commissions::apply_refund_to_wc_order( $wc_order_id );
         }
     }
 }

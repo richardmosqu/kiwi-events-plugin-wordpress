@@ -1,0 +1,216 @@
+/**
+ * [kiwi_organizers] catalog — horizontally-scrollable organizer cards.
+ *
+ * Mobile-first. Card widths scale up at the 768px and 1024px breakpoints so
+ * roughly 1.5 / 3 / 5 cards fit at phone / tablet / desktop respectively,
+ * with the rest reachable via native horizontal scroll + CSS scroll-snap.
+ *
+ * Defensive against WordPress.com's global anchor/button styling: every
+ * card declares background-color, border, color, and outline on its base
+ * state AND on :hover/:focus/:focus-visible/:active, so WP.com cannot
+ * "gap-fill" any property the plugin left unset. Same pattern used by
+ * ke-promoter-portal.css and ke-organizer-dashboard.css.
+ *
+ * Tokens consumed: --kep-accent-1, --kep-accent-2, --kep-accent-rgb.
+ * They're injected into :root by KE_Public::inject_color_vars(). Fallbacks
+ * keep the catalog usable on pages where the token injection didn't run.
+ */
+
+.ke-organizers-wrap {
+    width: 100%;
+    margin: 24px 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    box-sizing: border-box;
+}
+
+.ke-organizers-wrap *,
+.ke-organizers-wrap *::before,
+.ke-organizers-wrap *::after {
+    box-sizing: border-box;
+}
+
+.ke-organizers-catalog {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(15, 23, 42, 0.2) transparent;
+    padding: 12px 16px 16px;
+    margin: 0;
+}
+
+.ke-organizers-catalog::-webkit-scrollbar {
+    height: 6px;
+}
+.ke-organizers-catalog::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.2);
+    border-radius: 6px;
+}
+.ke-organizers-catalog::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ─── Card (mobile base) ──────────────────────────────────────────── */
+
+.ke-organizers-wrap .ke-organizer-card {
+    /* Layout */
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    width: 178px;
+    padding: 16px 12px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    /* Defensive reset — beats WordPress.com global anchor styling */
+    background-color: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 14px;
+    color: inherit;
+    text-decoration: none;
+    outline: none;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ke-organizers-wrap .ke-organizer-card:hover,
+.ke-organizers-wrap .ke-organizer-card:focus,
+.ke-organizers-wrap .ke-organizer-card:active {
+    background-color: #ffffff;
+    color: inherit;
+    border-color: rgba(var(--kep-accent-rgb, 99, 102, 241), 0.35);
+    text-decoration: none;
+    outline: none;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+    transform: translateY(-2px);
+}
+
+.ke-organizers-wrap .ke-organizer-card:focus-visible {
+    outline: 2px solid rgba(var(--kep-accent-rgb, 99, 102, 241), 0.6);
+    outline-offset: 2px;
+}
+
+/* ─── Logo / initials ─────────────────────────────────────────────── */
+
+.ke-organizer-card-logo {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--kep-accent-1, #6366f1), var(--kep-accent-2, #818cf8));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    color: #ffffff;
+}
+
+.ke-organizer-card-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 50%;
+}
+
+.ke-organizer-card-initials {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    color: #ffffff;
+    font-family: inherit;
+}
+
+/* ─── Text ────────────────────────────────────────────────────────── */
+
+.ke-organizer-card-name {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #0f172a;
+    text-align: center;
+    /* Two-line clamp; ellipsis on overflow */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+    width: 100%;
+}
+
+.ke-organizer-card-count {
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+
+/* ─── Tablet (≥768px) ─────────────────────────────────────────────── */
+
+@media (min-width: 768px) {
+    .ke-organizers-catalog {
+        gap: 14px;
+        padding: 14px 18px 18px;
+    }
+
+    .ke-organizers-wrap .ke-organizer-card {
+        width: 210px;
+        padding: 18px 14px 16px;
+    }
+
+    .ke-organizer-card-logo {
+        width: 92px;
+        height: 92px;
+    }
+
+    .ke-organizer-card-initials {
+        font-size: 28px;
+    }
+
+    .ke-organizer-card-name {
+        font-size: 16px;
+    }
+
+    .ke-organizer-card-count {
+        font-size: 13px;
+    }
+}
+
+/* ─── Desktop (≥1024px) ───────────────────────────────────────────── */
+
+@media (min-width: 1024px) {
+    .ke-organizers-catalog {
+        gap: 16px;
+        padding: 16px 20px 20px;
+    }
+
+    .ke-organizers-wrap .ke-organizer-card {
+        width: 224px;
+        padding: 22px 16px 18px;
+    }
+
+    .ke-organizer-card-logo {
+        width: 104px;
+        height: 104px;
+    }
+
+    .ke-organizer-card-initials {
+        font-size: 32px;
+    }
+
+    .ke-organizer-card-name {
+        font-size: 17px;
+    }
+
+    .ke-organizer-card-count {
+        font-size: 13px;
+    }
+}

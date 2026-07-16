@@ -38,8 +38,14 @@ class KE_Admin {
 
         $event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
         if ( $event_id ) {
+            // Toggle between the canonical statuses. Deactivating sets 'draft'
+            // (not the old non-canonical 'paused'): 'draft' is in the plugin's
+            // canonical status vocabulary AND in the shortcode's hide set, so a
+            // deactivated event actually disappears from public listings, which
+            // is the point of the toggle. 'paused' was in neither list, so a
+            // "deactivated" event kept showing.
             $current_status = get_post_meta( $event_id, '_ke_event_status', true ) ?: 'active';
-            $new_status = ( $current_status === 'active' ) ? 'paused' : 'active';
+            $new_status = ( $current_status === 'active' ) ? 'draft' : 'active';
             update_post_meta( $event_id, '_ke_event_status', $new_status );
         }
 
@@ -316,6 +322,11 @@ class KE_Admin {
      * Register admin menu pages
      */
     public function register_menu() {
+        // Custom kiwi-slice silhouette icon. Base64-encoded SVG so WP applies
+        // its admin-color tint via CSS mask (single-color shape required).
+        $kiwi_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="black"><path d="M10 1.5C5.3 1.5 1.5 5.3 1.5 10s3.8 8.5 8.5 8.5 8.5-3.8 8.5-8.5S14.7 1.5 10 1.5zm0 1.5c3.9 0 7 3.1 7 7s-3.1 7-7 7-7-3.1-7-7 3.1-7 7-7z"/><ellipse cx="10" cy="10" rx="0.75" ry="0.75"/><ellipse cx="10" cy="5.2" rx="0.35" ry="0.6"/><ellipse cx="10" cy="14.8" rx="0.35" ry="0.6"/><ellipse cx="5.2" cy="10" rx="0.6" ry="0.35"/><ellipse cx="14.8" cy="10" rx="0.6" ry="0.35"/><circle cx="6.6" cy="6.6" r="0.45"/><circle cx="13.4" cy="6.6" r="0.45"/><circle cx="6.6" cy="13.4" r="0.45"/><circle cx="13.4" cy="13.4" r="0.45"/></svg>';
+        $kiwi_icon = 'data:image/svg+xml;base64,' . base64_encode( $kiwi_svg );
+
         // Main menu
         add_menu_page(
             'KiwiEvents',
@@ -323,7 +334,7 @@ class KE_Admin {
             'manage_kiwi_events',
             'kiwi-events',
             array( $this, 'render_dashboard_page' ),
-            'dashicons-calendar-alt',
+            $kiwi_icon,
             26
         );
 
@@ -384,6 +395,16 @@ class KE_Admin {
             'manage_kiwi_events',
             'ke-organizers',
             array( $this, 'render_organizers_page' )
+        );
+
+        // Promoters
+        add_submenu_page(
+            'kiwi-events',
+            'Promoters',
+            'Promoters',
+            'manage_kiwi_events',
+            'ke-promoters',
+            array( $this, 'render_promoters_page' )
         );
 
         // Attendees
@@ -466,23 +487,45 @@ class KE_Admin {
             'kiwievents_page_ke-event-builder', // event builder was missing entirely
             'kiwievents_page_ke-categories',
             'kiwievents_page_ke-organizers',
+            'kiwievents_page_ke-promoters',
             'kiwievents_page_ke-settings',
+        );
+
+        $is_ke_taxonomy = isset( $_GET['taxonomy'] ) && in_array(
+            $_GET['taxonomy'],
+            array( 'ke_event_category', 'ke_event_tag', 'ke_organizer' ),
+            true
         );
 
         $is_ke_page = in_array( $hook, $plugin_pages )
                       || ( isset( $_GET['post_type'] ) && $_GET['post_type'] === 'ke_event' )
-                      || ( get_post_type() === 'ke_event' );
+                      || ( get_post_type() === 'ke_event' )
+                      || $is_ke_taxonomy;
 
         if ( ! $is_ke_page ) {
             return;
         }
 
+        // Kiwi brand design tokens — must load BEFORE every other KE admin
+        // stylesheet so they can reference --kiwi-* custom properties.
+        $ke_tokens_ver = defined( 'KE_TOKENS_ASSETS_VER' ) ? KE_TOKENS_ASSETS_VER : KE_VERSION;
+        wp_enqueue_style(
+            'ke-admin-tokens',
+            KE_PLUGIN_URL . 'admin/css/ke-admin-tokens.css',
+            array(),
+            $ke_tokens_ver
+        );
+
+        // Dedicated cache-bust for general admin stylesheets so the Kiwi-brand
+        // rollout can churn CSS without bumping the whole plugin version.
+        $ke_admin_css_ver = defined( 'KE_ADMIN_CSS_VER' ) ? KE_ADMIN_CSS_VER : KE_VERSION;
+
         // Admin CSS
         wp_enqueue_style(
             'ke-admin-css',
             KE_PLUGIN_URL . 'admin/css/ke-admin.css',
-            array(),
-            KE_VERSION
+            array( 'ke-admin-tokens' ),
+            $ke_admin_css_ver
         );
 
         // Dashboard-specific assets
@@ -500,7 +543,7 @@ class KE_Admin {
                 'ke-admin-dashboard',
                 KE_PLUGIN_URL . 'admin/js/ke-admin-dashboard.js',
                 array( 'jquery', 'chartjs' ),
-                KE_VERSION,
+                KE_ADMIN_JS_VER,
                 true
             );
 
@@ -531,7 +574,7 @@ class KE_Admin {
                 'ke-attendees-css',
                 KE_PLUGIN_URL . 'admin/css/ke-attendees.css',
                 array( 'ke-admin-css' ),
-                KE_VERSION
+                $ke_admin_css_ver
             );
             wp_enqueue_script(
                 'ke-attendees-js',
@@ -554,13 +597,13 @@ class KE_Admin {
                 'ke-attendees-css',
                 KE_PLUGIN_URL . 'admin/css/ke-attendees.css',
                 array( 'ke-admin-css' ),
-                KE_VERSION
+                $ke_admin_css_ver
             );
             wp_enqueue_style(
                 'ke-admin-reservations-css',
                 KE_PLUGIN_URL . 'admin/css/ke-admin-reservations.css',
                 array( 'ke-attendees-css' ),
-                KE_VERSION
+                $ke_admin_css_ver
             );
             wp_enqueue_script(
                 'ke-admin-reservations-js',
@@ -667,6 +710,15 @@ class KE_Admin {
     public function render_organizers_page() {
         wp_enqueue_media();
         require_once KE_PLUGIN_DIR . 'admin/views/organizers-list.php';
+    }
+
+    /**
+     * Render the Promoters page. The module owns its own routing
+     * (list vs edit form) based on the `action` query param.
+     */
+    public function render_promoters_page() {
+        $module = new KE_Admin_Promoters();
+        $module->render();
     }
 
     /**

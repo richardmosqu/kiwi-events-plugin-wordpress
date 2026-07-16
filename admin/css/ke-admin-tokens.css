@@ -1,0 +1,1578 @@
+/*
+ * KiwiEvents — Admin design tokens (immersive Liquid Glass)
+ * -----------------------------------------------------------------------------
+ * Apple-style frosted glass identity for the PLUGIN ADMIN only. Every card,
+ * input, and section is a glass surface floating on the cream page.
+ *
+ * Loaded by class-ke-admin.php::enqueue_assets() BEFORE every other KE admin
+ * stylesheet so subsequent rules can reference --kiwi-* tokens.
+ *
+ * IMPORTANT: This file MUST NOT be enqueued on the public frontend. Event
+ * pages, checkout, calendar shortcodes, ticket emails, and the promoter
+ * portal continue to use the per-site accent color the organizer configures
+ * in plugin settings. The Kiwi green here is the *product* brand, not the
+ * customer brand.
+ *
+ * ─── CSS Token Audit (Sprint D, KE_ADMIN_CSS_VER 0.12.0) ──────────────────
+ *   Goal: every color used by admin CSS resolves through a `--kiwi-*` token.
+ *   Visual parity in light mode is byte-for-byte identical to 0.11.0; the
+ *   only mechanical change is that hard-coded hex / rgba values were lifted
+ *   into this :root block. Files audited:
+ *       admin/css/ke-admin-tokens.css         (this file)
+ *       admin/css/ke-admin.css
+ *       admin/css/ke-admin-reservations.css
+ *       admin/css/ke-attendees.css
+ *       admin/css/ke-event-builder.css
+ *       admin/views/event-builder.php         (delete-confirm modal + inline style="")
+ *       admin/views/events-list.php           (toast + delete/duplicate inline <style>)
+ *       admin/views/settings.php              (tab nav + scanner-pwd warning panel)
+ *       admin/views/organizers-list.php       (scanner pwd / public profile / logo button)
+ *       admin/views/promoters-list.php        (orphan row tint)
+ *       admin/views/promoter-form.php         (status pills + member-row JS hover)
+ *       admin/views/promoter-import.php       (KPI tiles + error report)
+ *       admin/views/promoter-lists.php        (membership conditional row tint)
+ *       admin/views/promoter-stats.php        (KPI cards + status-mix pills)
+ *       admin/views/promoter-commissions.php  (status + method pill PHP maps)
+ *       admin/views/promoter-emails.php       (transactional email cards)
+ *       admin/views/promoter-active-events.php (events table)
+ *       admin/views/event-promoters-dashboard.php (PHP $method_styles + JS METHOD_STYLES)
+ *       admin/js/ke-event-builder.js          (template-picker + promoter-row HTML strings)
+ *   New token groups added below this comment:
+ *       • RGB triplets — single source of truth per channel; consumers
+ *         build alpha via `rgba(var(--kiwi-*-rgb), 0.XX)`. Dark mode (next
+ *         sprint) only needs to redefine the triplets to invert shadows/
+ *         highlights/glows without touching alpha math.
+ *       • Inner-highlight whites — the signature "lit glass" top edge.
+ *       • Shadow / overlay alphas — common drop-shadow + modal-dim values.
+ *       • Status tint alphas — green/red/orange fill+edge pairs for badges.
+ *       • Hover surface tints — neutral darken-on-white for icon buttons.
+ *       • Legacy slate / amber / indigo / emerald — preserved verbatim for
+ *         the event-builder design that predates the Kiwi rebrand. These
+ *         are flagged with `--kiwi-legacy-*` so the next refactor sprint
+ *         can find and remap them.
+ *       • WordPress core grays — for the slug editor + shortcode-copy
+ *         widget that embed native wp-admin chrome.
+ *   Tokens added during this audit (0.11.0 → 0.12.0):
+ *       --kiwi-text-darker             near-black for active tab text (settings.php)
+ *       --kiwi-overlay-mid             logo hover scrim (organizers-list)
+ *       --kiwi-overlay-deeper          gallery delete scrim (event-builder)
+ *       --kiwi-overlay-deepest         logo loading scrim (organizers-list)
+ *       --kiwi-inner-highlight-fainter top-edge highlight at 0.20 (events-list)
+ *       --kiwi-red-darker-alt          events-list .ke-btn-danger:hover
+ *       --kiwi-red-edge-strong         events-list toast-error border (0.34)
+ *       --kiwi-red-edge-focus          organizer card-delete focus ring (0.35)
+ *       --kiwi-legacy-red-error-bg     true Tailwind red-50 (#fef2f2) — note that
+ *                                      --kiwi-legacy-red-50 is actually red-100;
+ *                                      see comment on that token below
+ *       --kiwi-legacy-slate-divider    cool slate-blue between testi-mod rows
+ *       --kiwi-text-rgb                channel triplet for --kiwi-text (#1d1d1f)
+ *       --kiwi-text-spinner-ring       savebar spinner ring at 0.30
+ *       --kiwi-legacy-indigo-500       template-picker "Apply →" link (JS)
+ *       --kiwi-legacy-green-pill-bg    promoter-row active status pill (JS)
+ *       --kiwi-legacy-yellow-pill-bg   promoter-row pending status pill bg (JS)
+ *       --kiwi-legacy-yellow-pill-text promoter-row pending status pill text (JS)
+ *       --kiwi-legacy-orange-50        warning panel bg (settings + import KPI)
+ *       --kiwi-legacy-orange-200       warning panel border + orange pill edge
+ *       --kiwi-legacy-orange-800       warning heading + orange pill text
+ *       --kiwi-legacy-orange-900       warning list text + orange pill anchor
+ *       --kiwi-legacy-stone-50         event-builder terms editor surface
+ *       --kiwi-legacy-stone-200        event-builder terms editor border
+ *       --kiwi-legacy-indigo-50        promoter-lists conditional member-row tint
+ *       --kiwi-legacy-violet-100       commissions method pill bg (cash)
+ *       --kiwi-legacy-violet-800       commissions method pill text (cash)
+ *       --kiwi-legacy-pink-100         commissions method pill bg (other)
+ *       --kiwi-legacy-pink-800         commissions method pill text (other)
+ *       --kiwi-legacy-teal-700         commissions method pill text (transfer)
+ *       --kiwi-legacy-blue-800         commissions method pill text (bank)
+ *       --kiwi-legacy-blue-deep        promoter-emails primary link
+ *       --kiwi-legacy-zinc-500         settings $subtitle DB-default reference
+ *       --kiwi-blue-fill-faint         commissions method pill bg (transfer/bank)
+ *
+ *   Inline style="" attribute pass (admin/views/promoter-*.php +
+ *   admin/views/event-builder.php + admin/views/settings.php warning panel)
+ *   uses the tokens above plus the previously-defined --kiwi-legacy-* scale
+ *   (slate / amber / emerald / red / yellow). No new visual rules were added;
+ *   every PHP/JS literal that resolved to a Tailwind value now references the
+ *   matching --kiwi-legacy-* token so dark mode can remap one location.
+ *
+ *   Intentional exceptions (NOT tokenized — documented here):
+ *       • admin/views/settings.php lines 17–18 — $accent / $subtitle PHP
+ *         defaults. These are organizer-configurable values stored in
+ *         wp_options as raw hex strings; they are DB seed values, not CSS
+ *         literals. Dark mode is plugin-admin only and does not touch
+ *         organizer-set frontend accent colors.
+ *       • admin/views/settings.php lines 768+ — defensive `var(--token, #hex)`
+ *         fallback patterns inside the page's <style> block. The hex is
+ *         only used if the token is missing; it is the safety net, not the
+ *         active color.
+ *
+ *   Out of scope for this audit (documented for the next sprint):
+ *       • admin/js/ke-admin-dashboard.js — Chart.js config consumes color
+ *         strings as JS data values inside a <canvas>, not CSS. The runtime
+ *         cannot resolve `var(--kiwi-*)` there. Dark mode will need a small
+ *         init helper that reads `getComputedStyle(documentElement)` for
+ *         the brand tokens and feeds them into the Chart.defaults.
+ *       • admin/js/ke-event-builder.js celebratePublish() — confetti.js
+ *         particle palette (5 hex strings) painted to a canvas by the
+ *         third-party library. Same constraint as Chart.js. Dark mode can
+ *         drive these from getComputedStyle() if a palette refresh is
+ *         desired; not required for parity.
+ *       • Pre-existing references to undefined tokens left intact for
+ *         byte-for-byte parity: `--kiwi-glass-shadow` (ke-event-builder.css
+ *         persistent-savebar inner shadow) and `--kiwi-green-dark`
+ *         (events-list.php). Both currently resolve to "no shadow" / empty
+ *         and that is the production state we preserved.
+ *   See "NEW TOKENS" section below the original Brand block.
+ */
+
+/* ─── Brand tokens ─────────────────────────────────────────────────────── */
+:root {
+    /* RGB channel triplets. The bare `R, G, B` form lets every alpha-tinted
+       shadow / highlight / glow reference a single source per channel:
+           rgba(var(--kiwi-shadow-rgb), 0.06)
+       Dark mode redefines only these triplets — alpha math is preserved. */
+    --kiwi-shadow-rgb:     0, 0, 0;
+    --kiwi-highlight-rgb:  255, 255, 255;
+    --kiwi-green-rgb:      187, 219, 35;
+    --kiwi-red-rgb:        255, 59, 48;
+    --kiwi-orange-rgb:     255, 149, 0;
+    --kiwi-blue-rgb:       0, 122, 255;
+
+    /* Kiwi brand accent */
+    --kiwi-green:          #bbdb23;
+    --kiwi-green-darker:   #a8c41f;
+    --kiwi-green-tint:     rgba(var(--kiwi-green-rgb), 0.12);
+    --kiwi-green-soft:     rgba(var(--kiwi-green-rgb), 0.06);
+    --kiwi-green-glow:     rgba(var(--kiwi-green-rgb), 0.25);
+    --kiwi-green-line:     rgba(var(--kiwi-green-rgb), 0.30);
+    /* Darkened variant only used for badge TEXT on tinted-green backgrounds
+       (e.g. .is-active) so contrast stays AA. Don't use as a fill. */
+    --kiwi-green-text:     #6b8000;
+    /* Ink for text-on-lime-green button. Stays dark in both modes — lime is
+       the same green in dark mode (only desaturated), so we need a dark text
+       color regardless. Don't tokenize to --kiwi-text in dark or the button
+       label becomes light-on-lime (poor contrast). */
+    --kiwi-green-ink:      #1a1a1a;
+    /* Primary-button shadows. In light, keep the green-tinted halo because
+       it reads as brand glow against the warm cream canvas. In dark, the
+       same green-tinted shadow becomes a glaring halo, so we override to
+       a neutral black-alpha shadow in the dark block. */
+    --kiwi-btn-primary-shadow:       var(--kiwi-green-line);
+    --kiwi-btn-primary-shadow-hover: var(--kiwi-green-glow-strong);
+
+    /* Warm cream surfaces */
+    --kiwi-cream:          #f8f5ed;
+    --kiwi-cream-deep:     #f0ebdf;
+    --kiwi-white:          #ffffff;
+
+    /* Page background — drives the radial gradient on .wrap.ke-admin-wrap.
+       Aliased to --kiwi-cream so every admin page shares the same warm base. */
+    --kiwi-bg:             var(--kiwi-cream);
+
+    /* Solid surfaces. Cards/inputs/modals/dropdowns/toasts share
+       --kiwi-surface; --kiwi-surface-muted is the slightly-recessed
+       variant used for segmented controls, tab strips, etc. */
+    --kiwi-surface:        #ffffff;
+    --kiwi-surface-muted:  #f3f3f3;
+    --kiwi-surface-sunken: #e8e6df;
+
+    /* Apple-style text scale */
+    --kiwi-text:           #1d1d1f;
+    --kiwi-text-darker:    #1a1a1a;   /* near-black for active tab text */
+    --kiwi-text-muted:     #6e6e73;
+    --kiwi-text-faint:     #aeaeb2;
+
+    /* Borders */
+    --kiwi-border:         rgba(var(--kiwi-shadow-rgb), 0.08);
+    --kiwi-border-strong:  rgba(var(--kiwi-shadow-rgb), 0.15);
+    /* Hairline = the 1-px ring around floating surfaces. Lighter than
+       --kiwi-border because it competes with the inner-glow highlight. */
+    --kiwi-border-hairline: rgba(var(--kiwi-shadow-rgb), 0.06);
+    /* The dark dropdown-arrow color baked into the modal <select> SVG. */
+    --kiwi-select-arrow:   #666666;
+
+    /* System status colors (Apple palette) */
+    --kiwi-red:            #ff3b30;
+    --kiwi-red-darker:     #e0271d;
+    --kiwi-red-darker-alt: #e0322a;   /* events-list .ke-btn-danger:hover (slightly different from -darker) */
+    --kiwi-orange:         #ff9500;
+    --kiwi-blue:           #007aff;
+    /* Badge text colors — dark variants chosen for AA contrast on the
+       light tinted backgrounds (--kiwi-orange / --kiwi-red at low alpha). */
+    --kiwi-orange-text:    #b86b00;
+    --kiwi-orange-text-deep: #8a5a00;   /* declined-status pill text */
+    --kiwi-red-text:       #c00000;
+    --kiwi-red-text-alt:   #c4271c;     /* persistent-savebar error / cancelled status */
+    --kiwi-red-text-darker: #b91c1c;    /* slug-cancel hover / hex-input invalid */
+
+    /* ─── Inner-highlight whites (Apple "lit glass" top edge) ───────────
+       Used inside box-shadow stacks. The card-mount shadow already bakes
+       0.90 into --kiwi-shadow-card; these are exposed for the button /
+       stat-strip / event-card stacks that build their own multi-stop
+       shadow. */
+    --kiwi-inner-highlight-fainter:  rgba(var(--kiwi-highlight-rgb), 0.20);
+    --kiwi-inner-highlight-faint:    rgba(var(--kiwi-highlight-rgb), 0.30);
+    --kiwi-inner-highlight-soft:     rgba(var(--kiwi-highlight-rgb), 0.40);
+    --kiwi-inner-highlight-medium:   rgba(var(--kiwi-highlight-rgb), 0.50);
+    --kiwi-inner-highlight:          rgba(var(--kiwi-highlight-rgb), 0.60);
+    --kiwi-inner-highlight-strong:   rgba(var(--kiwi-highlight-rgb), 0.90);
+    --kiwi-inner-highlight-stronger: rgba(var(--kiwi-highlight-rgb), 0.95);
+
+    /* ─── Drop-shadow alphas ────────────────────────────────────────────
+       Standalone black-alpha values pulled out of multi-stop shadow stacks.
+       Numeric suffix = approximate "weight" of the stop (1 = lightest). */
+    --kiwi-shadow-1:       rgba(var(--kiwi-shadow-rgb), 0.02);
+    --kiwi-shadow-2:       rgba(var(--kiwi-shadow-rgb), 0.04);
+    --kiwi-shadow-3:       rgba(var(--kiwi-shadow-rgb), 0.05);
+    --kiwi-shadow-4:       rgba(var(--kiwi-shadow-rgb), 0.06);
+    --kiwi-shadow-5:       rgba(var(--kiwi-shadow-rgb), 0.08);
+    --kiwi-shadow-6:       rgba(var(--kiwi-shadow-rgb), 0.12);
+    --kiwi-shadow-7:       rgba(var(--kiwi-shadow-rgb), 0.30);
+
+    /* Modal-backdrop dim — solid black at 50%. */
+    --kiwi-overlay-dim:    rgba(var(--kiwi-shadow-rgb), 0.50);
+
+    /* Black overlays for image-hover scrims (organizer logo / gallery delete). */
+    --kiwi-overlay-mid:    rgba(var(--kiwi-shadow-rgb), 0.45);  /* logo hover overlay */
+    --kiwi-overlay-deeper: rgba(var(--kiwi-shadow-rgb), 0.55);  /* gallery delete overlay */
+    --kiwi-overlay-deepest:rgba(var(--kiwi-shadow-rgb), 0.60);  /* logo loading overlay */
+    /* Heavier modal-dialog shadow used by the canonical modal block. */
+    --kiwi-shadow-modal:   rgba(var(--kiwi-shadow-rgb), 0.30);
+
+    /* Hover-tint on neutral surfaces (action button / toggle pill hover). */
+    --kiwi-surface-hover-tint: rgba(var(--kiwi-shadow-rgb), 0.03);
+    --kiwi-border-hover-tint:  rgba(var(--kiwi-shadow-rgb), 0.12);
+
+    /* ─── Status tint alphas ────────────────────────────────────────────
+       Fill / edge pairs for status pills + badges. The base hue lives in
+       the channel triplet (--kiwi-{green,orange,red}-rgb), so dark mode
+       can shift hue + alpha together. */
+    --kiwi-green-fill-soft:    rgba(var(--kiwi-green-rgb), 0.08);  /* template card hover */
+    --kiwi-green-fill:         rgba(var(--kiwi-green-rgb), 0.18);  /* badge.is-active bg */
+    --kiwi-green-edge:         rgba(var(--kiwi-green-rgb), 0.40);  /* badge.is-active border */
+    --kiwi-green-glow-soft:    rgba(var(--kiwi-green-rgb), 0.20);  /* modal-input focus ring */
+    --kiwi-green-glow-strong:  rgba(var(--kiwi-green-rgb), 0.35);  /* button hover ring */
+    --kiwi-green-glow-pulse:   rgba(var(--kiwi-green-rgb), 0.55);  /* save-indicator pulse start */
+    --kiwi-green-shadow-faint: rgba(var(--kiwi-green-rgb), 0.10);  /* template card hover shadow */
+    --kiwi-green-shadow-soft:  rgba(var(--kiwi-green-rgb), 0.12);  /* template selected shadow */
+
+    --kiwi-orange-fill:        rgba(var(--kiwi-orange-rgb), 0.18); /* badge.is-pending bg */
+    --kiwi-orange-fill-alt:    rgba(var(--kiwi-orange-rgb), 0.16); /* resv-status-pending bg */
+    --kiwi-orange-fill-faint:  rgba(var(--kiwi-orange-rgb), 0.10); /* resv-status-declined bg */
+    --kiwi-orange-edge:        rgba(var(--kiwi-orange-rgb), 0.40); /* badge.is-pending border */
+    --kiwi-orange-edge-soft:   rgba(var(--kiwi-orange-rgb), 0.36); /* resv-status-pending border */
+    --kiwi-orange-edge-medium: rgba(var(--kiwi-orange-rgb), 0.30); /* badge-pending border */
+    --kiwi-orange-edge-mid:    rgba(var(--kiwi-orange-rgb), 0.28); /* kpi-events icon border */
+    --kiwi-orange-edge-faint:  rgba(var(--kiwi-orange-rgb), 0.26); /* resv-status-declined border */
+    --kiwi-orange-kpi-mid:     rgba(var(--kiwi-orange-rgb), 0.08); /* kpi-events gradient stop */
+
+    --kiwi-red-fill-soft:      rgba(var(--kiwi-red-rgb), 0.08);    /* destructive dropdown hover */
+    --kiwi-red-fill:           rgba(var(--kiwi-red-rgb), 0.10);    /* form-error bg / msg-error */
+    --kiwi-red-fill-medium:    rgba(var(--kiwi-red-rgb), 0.14);    /* resv-status cancelled bg */
+    --kiwi-red-fill-alt:       rgba(var(--kiwi-red-rgb), 0.16);    /* toast-error bg */
+    --kiwi-red-fill-strong:    rgba(var(--kiwi-red-rgb), 0.18);    /* badge.is-error bg */
+    --kiwi-red-edge:           rgba(var(--kiwi-red-rgb), 0.40);    /* badge.is-error border */
+    --kiwi-red-edge-focus:     rgba(var(--kiwi-red-rgb), 0.35);    /* organizer card-delete focus ring */
+    --kiwi-red-edge-strong:    rgba(var(--kiwi-red-rgb), 0.34);    /* events-list toast-error border */
+    --kiwi-red-edge-medium:    rgba(var(--kiwi-red-rgb), 0.32);    /* resv cancelled border */
+    --kiwi-red-edge-soft:      rgba(var(--kiwi-red-rgb), 0.30);    /* form-error border / icon-btn-danger */
+    --kiwi-red-edge-mid:       rgba(var(--kiwi-red-rgb), 0.28);    /* badge-cancelled border */
+    --kiwi-red-edge-faint:     rgba(var(--kiwi-red-rgb), 0.25);    /* danger button ring / action-btn-danger */
+    --kiwi-red-glow:           rgba(var(--kiwi-red-rgb), 0.12);    /* savebar error ring */
+    --kiwi-red-glow-darker:    rgba(var(--kiwi-red-rgb), 0.22);    /* savebar error pulse */
+    --kiwi-red-glow-shadow:    rgba(var(--kiwi-red-rgb), 0.4);     /* logo-remove drop shadow */
+
+    --kiwi-blue-fill:          rgba(var(--kiwi-blue-rgb), 0.18);   /* kpi-tickets gradient stop */
+    --kiwi-blue-fill-soft:     rgba(var(--kiwi-blue-rgb), 0.08);   /* kpi-tickets gradient stop */
+    --kiwi-blue-edge:          rgba(var(--kiwi-blue-rgb), 0.25);   /* kpi-tickets icon border */
+
+    /* Subtle green tints for the page-canvas radials. */
+    --kiwi-green-canvas-top:    rgba(var(--kiwi-green-rgb), 0.04);
+    --kiwi-green-canvas-bottom: rgba(var(--kiwi-green-rgb), 0.03);
+
+    /* Text-muted gray at decorative alpha (table-cell loading rows). */
+    --kiwi-text-muted-rgb:     110, 110, 115;
+    --kiwi-text-muted-tint:    rgba(var(--kiwi-text-muted-rgb), 0.18);
+
+    /* ─── Legacy slate / Tailwind palette ───────────────────────────────
+       Preserved verbatim for the original event-builder design that
+       predates the Kiwi rebrand. Light-mode parity is exact. Future
+       refactor sprints can remap these to the semantic Kiwi tokens above
+       (e.g. --kiwi-legacy-text-muted → --kiwi-text-muted) once each
+       call-site is reviewed for visual impact. */
+    --kiwi-legacy-page-bg:        #f8fafc;  /* slate-50  — collapsible / template / dropzone bg */
+    --kiwi-legacy-row-bg:         #f1f5f9;  /* slate-100 — template thumb / inactive step / tpl-picker-format */
+    --kiwi-legacy-row-bg-alt:     #e2e8f0;  /* slate-200 — savebar idle dot / tab borders */
+    --kiwi-legacy-row-bg-strong:  #cbd5e1;  /* slate-300 — pulse dot / dashed border */
+    --kiwi-legacy-text-faint:     #94a3b8;  /* slate-400 — caret / placeholder */
+    --kiwi-legacy-text-muted:     #64748b;  /* slate-500 — labels */
+    --kiwi-legacy-text-mid:       #475569;  /* slate-600 — body */
+    --kiwi-legacy-text-strong:    #334155;  /* slate-700 — subheads */
+    --kiwi-legacy-text-deep:      #1e293b;  /* slate-800 — titles */
+    --kiwi-legacy-text-darkest:   #0f172a;  /* slate-900 — heading / dark fills */
+    --kiwi-legacy-text-body:      #374151;  /* gray-700 — toggle label / collapsible body */
+    --kiwi-legacy-text-locked:    #999999;
+    --kiwi-legacy-text-locked-label: #aaaaaa;
+    --kiwi-legacy-locked-edge:    rgba(var(--kiwi-shadow-rgb), 0.15);
+    --kiwi-legacy-accent-text:    #0f1f00;  /* tab text on green-tinted active */
+
+    /* Legacy red (Tailwind red-50/200/500/600/700/800).
+       NOTE: --kiwi-legacy-red-50 maps to Tailwind red-100 (#fee2e2), not the
+       true Tailwind red-50 (#fef2f2). The naming predates the audit; the
+       true red-50 is exposed separately as --kiwi-legacy-red-error-bg. */
+    --kiwi-legacy-red-50:         #fee2e2;
+    --kiwi-legacy-red-error-bg:   #fef2f2;  /* confirm-modal error message bg */
+    --kiwi-legacy-red-200:        #fecaca;
+    --kiwi-legacy-red-500:        #ef4444;
+    --kiwi-legacy-red-600:        #dc2626;
+    --kiwi-legacy-red-700:        #b91c1c;
+    --kiwi-legacy-red-800:        #991b1b;
+    --kiwi-legacy-red-rgb:        239, 68, 68;
+    --kiwi-legacy-red-fill:       rgba(var(--kiwi-legacy-red-rgb), 0.08);
+    --kiwi-legacy-red-fill-medium:rgba(var(--kiwi-legacy-red-rgb), 0.14);
+    --kiwi-legacy-red-edge:       rgba(var(--kiwi-legacy-red-rgb), 0.22);
+    --kiwi-legacy-red-shadow:     rgba(var(--kiwi-legacy-red-rgb), 0.4);
+
+    /* Legacy slate-900 alpha shadows (event-builder elevated cards). */
+    --kiwi-legacy-slate-rgb:      15, 23, 42;
+    --kiwi-legacy-slate-shadow-1: rgba(var(--kiwi-legacy-slate-rgb), 0.04);
+    --kiwi-legacy-slate-shadow-2: rgba(var(--kiwi-legacy-slate-rgb), 0.06);
+    --kiwi-legacy-slate-shadow-3: rgba(var(--kiwi-legacy-slate-rgb), 0.07);
+    --kiwi-legacy-slate-shadow-4: rgba(var(--kiwi-legacy-slate-rgb), 0.08);
+    --kiwi-legacy-slate-shadow-5: rgba(var(--kiwi-legacy-slate-rgb), 0.25);
+    --kiwi-legacy-slate-overlay-mild: rgba(var(--kiwi-legacy-slate-rgb), 0.30);
+    --kiwi-legacy-slate-overlay-deep: rgba(var(--kiwi-legacy-slate-rgb), 0.55);
+    --kiwi-legacy-slate-glass:    rgba(var(--kiwi-legacy-slate-rgb), 0.88);
+
+    /* Legacy slate-400 (#94a3b8) at the spinner/pulse alphas. */
+    --kiwi-legacy-slate400-rgb:   148, 163, 184;
+    --kiwi-legacy-slate400-fill:  rgba(var(--kiwi-legacy-slate400-rgb), 0.12);
+    --kiwi-legacy-slate400-ring:  rgba(var(--kiwi-legacy-slate400-rgb), 0.30);
+    --kiwi-legacy-slate400-ring-0: rgba(var(--kiwi-legacy-slate400-rgb), 0);
+
+    /* Legacy slate-200 (#e2e8f0) and -300 (#cbd5e1) at translucent alphas. */
+    --kiwi-legacy-slate200-rgb:   226, 232, 240;
+    --kiwi-legacy-slate200-fill-strong: rgba(var(--kiwi-legacy-slate200-rgb), 0.90);
+    --kiwi-legacy-slate200-fill-medium: rgba(var(--kiwi-legacy-slate200-rgb), 0.80);
+    --kiwi-legacy-slate200-edge:        rgba(var(--kiwi-legacy-slate200-rgb), 0.70);
+    --kiwi-legacy-slate200-edge-soft:   rgba(var(--kiwi-legacy-slate200-rgb), 0.60);
+    --kiwi-legacy-slate200-edge-faint:  rgba(var(--kiwi-legacy-slate200-rgb), 0.50);
+
+    --kiwi-legacy-slate300-rgb:   203, 213, 225;
+    --kiwi-legacy-slate300-edge:        rgba(var(--kiwi-legacy-slate300-rgb), 0.80);
+    --kiwi-legacy-slate300-edge-soft:   rgba(var(--kiwi-legacy-slate300-rgb), 0.70);
+    --kiwi-legacy-slate300-edge-faint:  rgba(var(--kiwi-legacy-slate300-rgb), 0.60);
+
+    /* Legacy slate-50/100 fills used as glass backgrounds in event-builder. */
+    --kiwi-legacy-slate50-rgb:    248, 250, 252;
+    --kiwi-legacy-slate50-fill:        rgba(var(--kiwi-legacy-slate50-rgb), 0.70);
+    --kiwi-legacy-slate50-fill-soft:   rgba(var(--kiwi-legacy-slate50-rgb), 0.60);
+    --kiwi-legacy-slate50-fill-faint:  rgba(var(--kiwi-legacy-slate50-rgb), 0.50);
+
+    --kiwi-legacy-slate100-rgb:   241, 245, 249;
+    --kiwi-legacy-slate100-fill:        rgba(var(--kiwi-legacy-slate100-rgb), 0.70);
+
+    /* Legacy emerald-50 alphas (success surface in event-builder). */
+    --kiwi-legacy-emerald-bg-soft:   rgba(240, 253, 244, 0.60);
+    --kiwi-legacy-emerald-bg:        rgba(240, 253, 244, 0.70);
+    --kiwi-legacy-emerald-500:       #10b981;
+    --kiwi-legacy-emerald-700:       #047857;
+    --kiwi-legacy-emerald-800:       #166534;
+    --kiwi-legacy-emerald-fill:      rgba(16, 185, 129, 0.14);
+    --kiwi-legacy-lime-edge:         rgba(163, 230, 53, 0.40);
+
+    /* Legacy savebar text greens (saved indicator). */
+    --kiwi-legacy-savebar-saved:     #4a5a0e;
+
+    /* Legacy white at strong alpha (focus-state ke-tpl-format-key bg). */
+    --kiwi-legacy-white-strong:      rgba(var(--kiwi-highlight-rgb), 0.80);
+    --kiwi-legacy-white-soft:        rgba(var(--kiwi-highlight-rgb), 0.58);
+
+    /* Legacy amber (event-builder format pills + pin). */
+    --kiwi-legacy-amber-50:          #fef3c7;
+    --kiwi-legacy-amber-200:         #fde68a;
+    --kiwi-legacy-amber-300:         #fcd34d;
+    --kiwi-legacy-amber-500:         #f59e0b;
+    --kiwi-legacy-amber-700:         #b45309;
+    --kiwi-legacy-amber-800:         #92400e;
+    --kiwi-legacy-amber-900:         #78350f;
+
+    /* Legacy indigo (event-builder section-card variants). */
+    --kiwi-legacy-indigo-100:        #e0e7ff;
+    --kiwi-legacy-indigo-200:        #c7d2fe;
+    --kiwi-legacy-indigo-500:        #6366f1;  /* template-picker "Apply →" link */
+    --kiwi-legacy-indigo-700:        #4338ca;
+    --kiwi-legacy-indigo-bg:         #fafbff;
+    --kiwi-legacy-indigo-mix:        #cffafe;
+
+    /* Legacy promoter-row status pills (Tailwind green/yellow 100 + 800
+       pair, rendered inline by ke-event-builder.js renderPromoterRows). */
+    --kiwi-legacy-green-pill-bg:     #dcfce7;  /* active status pill bg  (Tailwind green-100)  */
+    --kiwi-legacy-yellow-pill-bg:    #fef9c3;  /* pending status pill bg (Tailwind yellow-100) */
+    --kiwi-legacy-yellow-pill-text:  #854d0e;  /* pending status pill fg (Tailwind yellow-800) */
+
+    /* Legacy Tailwind palette extensions — used by promoter admin views
+       (commissions, stats, lists, emails, imports) and the event-builder
+       inline panels. Names follow Tailwind's <hue>-<weight> convention. */
+    --kiwi-legacy-orange-50:         #fff7ed;  /* warning panel bg            */
+    --kiwi-legacy-orange-200:        #fed7aa;  /* warning panel border        */
+    --kiwi-legacy-orange-800:        #9a3412;  /* warning panel heading text  */
+    --kiwi-legacy-orange-900:        #7c2d12;  /* warning panel list text     */
+    --kiwi-legacy-stone-50:          #fafaf9;  /* commission tier card bg     */
+    --kiwi-legacy-stone-200:         #e7e5e4;  /* commission tier card border */
+    --kiwi-legacy-indigo-50:         #eef2ff;  /* indigo status pill bg       */
+    --kiwi-legacy-violet-100:        #ede9fe;  /* violet status pill bg       */
+    --kiwi-legacy-violet-800:        #5b21b6;  /* violet status pill text     */
+    --kiwi-legacy-pink-100:          #fce7f3;  /* pink status pill bg         */
+    --kiwi-legacy-pink-800:          #9d174d;  /* pink status pill text       */
+    --kiwi-legacy-teal-700:          #0f766e;  /* rate label highlight        */
+    --kiwi-legacy-blue-800:          #1e40af;  /* queued status pill text     */
+    --kiwi-legacy-blue-deep:         #0040a0;  /* promoter slug link          */
+    --kiwi-legacy-zinc-500:          #71717a;  /* default subtitle accent fallback (settings PHP) */
+    --kiwi-blue-fill-faint:          rgba(var(--kiwi-blue-rgb), 0.12);  /* queued pill bg */
+    --kiwi-legacy-pink-bg:           #fdf4ff;
+    --kiwi-legacy-purple-mix:        #f3e8ff;
+
+    /* Legacy "VIP" / format gold + cyan pop accents (resv-mode-format chips). */
+    --kiwi-legacy-gold:              #d4af37;
+    --kiwi-legacy-cyan-edge:         #22d3ee;
+    --kiwi-legacy-cyan-edge-mid:     rgba(34, 211, 238, 0.40);
+    --kiwi-legacy-cyan-text:         #67e8f9;
+    --kiwi-legacy-dark-1:            #1f2937;
+    --kiwi-legacy-dark-2:            #111827;
+
+    /* Legacy save-indicator background tints. */
+    --kiwi-legacy-blue-pending-bg:   #dbeafe;
+    --kiwi-legacy-blue-pending-text: #1e3a8a;
+
+    /* Legacy ke-toast color variants. */
+    --kiwi-legacy-toast-success:     #166534;
+    --kiwi-legacy-toast-error:       #991b1b;
+
+    /* Legacy gradient overlay (event-card thumb fade). */
+    --kiwi-legacy-thumb-fade:        rgba(var(--kiwi-shadow-rgb), 0.22);
+
+    /* Legacy "knob" / control shadows (toggle switch). */
+    --kiwi-legacy-knob-shadow:       rgba(var(--kiwi-shadow-rgb), 0.12);
+    --kiwi-legacy-knob-shadow-strong: rgba(var(--kiwi-shadow-rgb), 0.20);
+    --kiwi-legacy-knob-shadow-15:    rgba(var(--kiwi-shadow-rgb), 0.15);
+
+    /* ─── WordPress core grays ──────────────────────────────────────────
+       For native wp-admin chrome (slug editor / per-category shortcode
+       copy widget) embedded inside KE pages — these match WP's own
+       palette so the controls don't visually clash. */
+    --kiwi-wp-text:            #1d2327;
+    --kiwi-wp-text-muted:      #50575e;
+    --kiwi-wp-text-faint:      #646970;
+    --kiwi-wp-border:          #c3c4c7;
+    --kiwi-wp-border-strong:   #8c8f94;
+    --kiwi-wp-border-soft:     #dcdcde;
+    --kiwi-wp-surface-hover:   #f0f0f1;
+    --kiwi-wp-link:            #2271b1;
+
+    /* Legacy gray-200 chrome (image-picker frames in event-builder). */
+    --kiwi-legacy-gray200:     #e5e7eb;
+
+    /* Legacy slate-blue divider between testimonial-moderation rows
+       (slightly cooler than gray-200, sits between slate-100 and slate-200). */
+    --kiwi-legacy-slate-divider: #eef2f7;
+
+    /* --kiwi-text (#1d1d1f) in channel-triplet form so the savebar spinner
+       ring (rgba(29,29,31,.30)) can resolve through a token. */
+    --kiwi-text-rgb:           29, 29, 31;
+    --kiwi-text-spinner-ring:  rgba(var(--kiwi-text-rgb), 0.30);
+
+    /* Legacy status-cell dots and inline status text colors. */
+    --kiwi-legacy-status-dot:  #94a3b8;
+    --kiwi-legacy-status-blue: #0b58b8;
+
+    /* White at 1.0 (used inside button/text-shadow contexts where the
+       Kiwi-surface variable's semantic meaning is wrong — this is "ink"
+       not a surface). */
+    --kiwi-white-ink:          #ffffff;
+
+    /* ── Glass — universal application ──
+       bg          = primary card translucency
+       bg-strong   = modals / dropdowns / floating layers
+       bg-input    = form inputs (more opaque for legibility on long text)
+       border      = the visible light "rim" on top of glass
+       border-edge = subtle DARK outer hairline so glass cards stay defined
+                     against the cream page — without it, Apple-style glass
+                     disappears on light backgrounds. Applied as a 1px
+                     box-shadow ring (NOT a real border) so the radius stays
+                     pristine. The dual light-inner + dark-outer rim is the
+                     trick that makes real Liquid Glass pop.
+       border-strong = modals (rim shows more on elevated layers)
+       blur        = standard backdrop-filter
+       blur-strong = modals (more separation from page) */
+    --kiwi-glass-bg:           rgba(var(--kiwi-highlight-rgb), 0.82);
+    --kiwi-glass-bg-strong:    rgba(var(--kiwi-highlight-rgb), 0.92);
+    --kiwi-glass-bg-input:     rgba(var(--kiwi-highlight-rgb), 0.88);
+    --kiwi-glass-border:       rgba(var(--kiwi-highlight-rgb), 0.90);
+    --kiwi-glass-border-edge:  var(--kiwi-shadow-4);
+    --kiwi-glass-border-strong: rgba(var(--kiwi-highlight-rgb), 0.95);
+    --kiwi-glass-blur:         saturate(180%) blur(32px);
+    --kiwi-glass-blur-strong:  saturate(180%) blur(44px);
+
+    /* Layered-shadow system. The inset top-edge highlight is the SIGNATURE
+       Apple-glass detail — it makes the top of every card read as "light
+       reflecting off a glass surface". Never ship a card without it.
+       The 0 0 0 1px hairline-ring slot doubles as the dark outer border
+       that gives glass definition against cream (see --kiwi-glass-border-edge). */
+    --kiwi-shadow-card:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 0 var(--kiwi-inner-highlight-strong) inset,
+        0 12px 32px var(--kiwi-shadow-4),
+        0 4px 8px var(--kiwi-shadow-2);
+    --kiwi-shadow-elevated:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 0 var(--kiwi-inner-highlight-stronger) inset,
+        0 24px 56px var(--kiwi-shadow-6),
+        0 8px 16px var(--kiwi-shadow-5);
+    --kiwi-shadow-pressed:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 2px 4px var(--kiwi-shadow-2);
+
+    /* Border-radius scale */
+    --kiwi-radius-sm:    12px;   /* small buttons, badges */
+    --kiwi-radius-md:    16px;   /* inputs, small cards */
+    --kiwi-radius-lg:    20px;   /* primary cards */
+    --kiwi-radius-xl:    24px;   /* modals, large containers */
+    --kiwi-radius-pill:  999px;  /* pill buttons, tab strips */
+
+    /* Apple easing (smooth deceleration) */
+    --kiwi-ease:         cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Page background ────────────────────────────────────────────────────
+   Cream with two extremely subtle Kiwi-tinted radial gradients so the
+   glass has *something* to refract against. Saturation is intentionally
+   low — this must NOT read as a colored background. */
+.wrap.ke-admin-wrap,
+.ke-admin-page,
+.ke-builder-wrap {
+    background:
+        radial-gradient(ellipse at top left,
+            var(--kiwi-green-canvas-top) 0%, transparent 50%),
+        radial-gradient(ellipse at bottom right,
+            var(--kiwi-green-canvas-bottom) 0%, transparent 50%),
+        var(--kiwi-bg);
+    min-height: calc(100vh - 32px);
+}
+
+/* Body text defaults inside KE wrappers (don't leak into WP core pages). */
+.ke-admin-page,
+.wrap.ke-admin-wrap,
+.ke-builder-wrap {
+    color: var(--kiwi-text);
+}
+.ke-text-muted { color: var(--kiwi-text-muted); }
+.ke-text-faint { color: var(--kiwi-text-faint); }
+
+/* ─── Universal glass card ──────────────────────────────────────────────
+   Drop-in container class. Use directly on view templates that don't yet
+   have their own component CSS. Component CSS (e.g. wizard, event list)
+   should use the same tokens so we keep one source of truth. */
+.ke-glass-card {
+    /* Solid container surface. No backdrop-filter on page-level cards —
+       reserved for true overlays. */
+    background:        var(--kiwi-surface);
+    border:            1px solid var(--kiwi-glass-border);
+    border-radius:     var(--kiwi-radius-lg);
+    box-shadow:        var(--kiwi-shadow-card);
+    padding:           24px;
+}
+.ke-glass-card--lg { padding: 32px 36px; }
+.ke-glass-card--sm { padding: 16px; border-radius: var(--kiwi-radius-md); }
+
+/* ─── Section card (solid white) ────────────────────────────────────────
+   Standard page-section wrapper. Every logical section on every admin
+   page (page header, filters, stats strip, data table, chart panel)
+   should sit inside a `.ke-section-card`. Glass treatment is reserved
+   for modals/drawers/toasts; sections use solid white on cream so
+   tables and forms have a clean defined surface.
+
+   Mirrors the rhythm of the Edit Event page: header card → step card →
+   form card, each clearly contained, separated by cream gaps. */
+.ke-section-card {
+    background: var(--kiwi-surface);
+    border-radius: 20px;
+    border: 1px solid var(--kiwi-border-hairline);
+    box-shadow: var(--kiwi-shadow-card);
+    padding: 28px 32px;
+    margin-bottom: 24px;
+}
+.ke-section-card h2,
+.ke-section-card h3,
+.ke-section-card .ke-section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--kiwi-text);
+    margin: 0 0 8px 0;
+}
+.ke-section-card .ke-section-subtitle {
+    font-size: 14px;
+    color: var(--kiwi-text-muted);
+    margin: 0 0 24px 0;
+}
+/* Compact variant for tight page headers / counters. */
+.ke-section-card--compact { padding: 18px 24px; }
+/* Flush variant when the card wraps a full-bleed table or chart; let the
+   child component own its internal padding so we don't double up. */
+.ke-section-card--flush { padding: 0; overflow: hidden; }
+
+/* When the legacy header bars (builder/page/dashboard) are wrapped inside
+   a .ke-section-card, neutralize their own card chrome and margins so we
+   don't get a card-within-a-card visual. The outer .ke-section-card
+   provides the surface; the inner element only contributes layout. */
+.ke-section-card .ke-builder-header,
+.ke-section-card .ke-page-header,
+.ke-section-card .ke-dashboard-header {
+    margin:                  0;
+    padding:                 0;
+    background:              transparent;
+    border:                  0;
+    border-radius:           0;
+    box-shadow:              none;
+    backdrop-filter:         none;
+    -webkit-backdrop-filter: none;
+}
+
+/* Breathing room between stacked glass cards so each reads as its own
+   floating surface. Grids and flex containers should set their own gap,
+   but for plain block stacks this gives the right rhythm. */
+.ke-glass-card + .ke-glass-card,
+.ke-section-card + .ke-section-card { margin-top: 24px; }
+
+/* Opaque fallback when backdrop-filter isn't available. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .ke-glass-card,
+    .ke-glass-card--lg,
+    .ke-glass-card--sm { background: var(--kiwi-surface); }
+}
+
+/* ─── Universal input treatment ─────────────────────────────────────────
+   Scoped to KE admin wrappers so it doesn't override WP core form fields.
+   The `.ke-input/.ke-select/.ke-textarea` class names from existing
+   templates are also covered. */
+.ke-admin-page input[type="text"],
+.ke-admin-page input[type="email"],
+.ke-admin-page input[type="number"],
+.ke-admin-page input[type="date"],
+.ke-admin-page input[type="datetime-local"],
+.ke-admin-page input[type="time"],
+.ke-admin-page input[type="url"],
+.ke-admin-page input[type="search"],
+.ke-admin-page input[type="tel"],
+.ke-admin-page input[type="password"],
+.ke-admin-page select,
+.ke-admin-page textarea,
+.ke-builder-wrap input[type="text"],
+.ke-builder-wrap input[type="email"],
+.ke-builder-wrap input[type="number"],
+.ke-builder-wrap input[type="date"],
+.ke-builder-wrap input[type="datetime-local"],
+.ke-builder-wrap input[type="time"],
+.ke-builder-wrap input[type="url"],
+.ke-builder-wrap input[type="search"],
+.ke-builder-wrap input[type="tel"],
+.ke-builder-wrap input[type="password"],
+.ke-builder-wrap select,
+.ke-builder-wrap textarea,
+.ke-admin-input {
+    /* SOLID background — never backdrop-filter on form fields. When inputs
+       are stacked inside a modal/card they blur each other recursively and
+       text becomes unreadable. */
+    background:        var(--kiwi-surface);
+    border:            1px solid var(--kiwi-border);
+    border-radius:     var(--kiwi-radius-md);
+    padding:           12px 14px;
+    color:             var(--kiwi-text);
+    font-size:         15px;
+    transition:        border-color .15s var(--kiwi-ease),
+                       background .15s var(--kiwi-ease),
+                       box-shadow .15s var(--kiwi-ease);
+    box-shadow:        0 1px 2px var(--kiwi-shadow-1) inset;
+}
+.ke-admin-page input:focus,
+.ke-admin-page select:focus,
+.ke-admin-page textarea:focus,
+.ke-builder-wrap input:focus,
+.ke-builder-wrap select:focus,
+.ke-builder-wrap textarea:focus,
+.ke-admin-input:focus {
+    outline:           none;
+    border-color:      var(--kiwi-green);
+    background:        var(--kiwi-surface);
+    box-shadow:
+        0 0 0 3px var(--kiwi-green-glow),
+        0 1px 2px var(--kiwi-shadow-1) inset;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────────── */
+.ke-btn,
+.ke-btn-primary,
+.ke-btn-secondary,
+.ke-btn-danger {
+    display:           inline-flex;
+    align-items:       center;
+    justify-content:   center;
+    gap:               6px;
+    padding:           12px 24px;
+    border-radius:     var(--kiwi-radius-md);
+    font-weight:       600;
+    font-size:         15px;
+    line-height:       1.2;
+    border:            1px solid transparent;
+    cursor:            pointer;
+    text-decoration:   none;
+    transition:        background .15s var(--kiwi-ease),
+                       border-color .15s var(--kiwi-ease),
+                       color .15s var(--kiwi-ease),
+                       box-shadow .15s var(--kiwi-ease),
+                       transform .12s var(--kiwi-ease);
+}
+.ke-btn-primary {
+    background:        var(--kiwi-green);
+    color:             var(--kiwi-green-ink);   /* dark text on lime — WCAG-safe in both modes */
+    border-color:      var(--kiwi-green);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 4px 12px var(--kiwi-btn-primary-shadow),
+        0 1px 3px var(--kiwi-shadow-4);
+}
+.ke-btn-primary:hover {
+    background:        var(--kiwi-green-darker);
+    border-color:      var(--kiwi-green-darker);
+    color:             var(--kiwi-green-ink);
+    transform:         translateY(-1px);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-medium) inset,
+        0 6px 16px var(--kiwi-btn-primary-shadow-hover),
+        0 2px 4px var(--kiwi-shadow-5);
+}
+.ke-btn-primary:active {
+    transform:         translateY(0) scale(0.98);
+    box-shadow:        var(--kiwi-shadow-pressed);
+}
+.ke-btn-secondary {
+    /* Solid surface — never backdrop-filter on buttons. Buttons live inside
+       modals and cards where they would blur their stacking neighbors. */
+    background:        var(--kiwi-surface);
+    color:             var(--kiwi-text);
+    border-color:      var(--kiwi-border);
+    box-shadow:        var(--kiwi-shadow-card);
+}
+.ke-btn-secondary:hover {
+    background:        var(--kiwi-surface);
+    transform:         translateY(-1px);
+}
+.ke-btn-secondary:active {
+    transform:         translateY(0) scale(0.98);
+}
+.ke-btn-danger {
+    background:        var(--kiwi-red);
+    color:             var(--kiwi-white-ink);
+    border-color:      var(--kiwi-red);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-faint) inset,
+        0 4px 12px var(--kiwi-red-edge-faint);
+}
+.ke-btn-danger:hover {
+    background:        var(--kiwi-red-darker);
+    border-color:      var(--kiwi-red-darker);
+    transform:         translateY(-1px);
+}
+.ke-btn-danger:active {
+    transform:         translateY(0) scale(0.98);
+}
+
+/* ─── Focus rings ──────────────────────────────────────────────────────
+   Scoped to KE wrappers — leave WP core focus styles intact. */
+.ke-admin-page :focus-visible,
+.wrap.ke-admin-wrap :focus-visible,
+.ke-builder-wrap :focus-visible,
+.ke-modal :focus-visible,
+.ke-toast :focus-visible,
+.ke-dropdown-menu :focus-visible {
+    outline:           2px solid var(--kiwi-green);
+    outline-offset:    2px;
+    transition:        outline-offset .15s var(--kiwi-ease);
+}
+
+/* ─── Modal ─────────────────────────────────────────────────────────
+   Removed. See "MINIMAL MODAL CSS — DO NOT OVERRIDE" block at the
+   bottom of this file. All modal-related styling lives there now. */
+
+/* ─── Toast ───────────────────────────────────────────────────────── */
+.ke-toast {
+    background:        var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter:   none;
+    border:            1px solid var(--kiwi-border-hairline);
+    border-radius:     var(--kiwi-radius-md);
+    padding:           12px 20px;
+    box-shadow:        var(--kiwi-shadow-elevated);
+    color:             var(--kiwi-text);
+}
+
+/* ─── Dropdown ─────────────────────────────────────────────────────── */
+.ke-dropdown-menu {
+    background:        var(--kiwi-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter:   none;
+    border:            1px solid var(--kiwi-border-hairline);
+    border-radius:     var(--kiwi-radius-md);
+    box-shadow:        var(--kiwi-shadow-elevated);
+    padding:           6px;
+    min-width:         180px;
+}
+.ke-dropdown-menu .ke-dropdown-item {
+    display:           block;
+    padding:           8px 12px;
+    border-radius:     8px;
+    color:             var(--kiwi-text);
+    text-decoration:   none;
+    font-size:         13px;
+    transition:        background .12s var(--kiwi-ease);
+}
+.ke-dropdown-menu .ke-dropdown-item:hover {
+    background:        var(--kiwi-green-soft);
+}
+.ke-dropdown-menu .ke-dropdown-item.is-destructive { color: var(--kiwi-red); }
+.ke-dropdown-menu .ke-dropdown-item.is-destructive:hover {
+    background:        var(--kiwi-red-fill-soft);
+}
+
+/* ─── Tabs (pill) ──────────────────────────────────────────────────── */
+.ke-tabs {
+    /* Solid pill nav — sits inside content cards. No backdrop-filter. */
+    display:           inline-flex;
+    background:        var(--kiwi-cream-deep);
+    border:            1px solid var(--kiwi-border);
+    border-radius:     var(--kiwi-radius-pill);
+    padding:           4px;
+    box-shadow:        var(--kiwi-shadow-card);
+}
+.ke-tab {
+    padding:           8px 18px;
+    border-radius:     var(--kiwi-radius-pill);
+    color:             var(--kiwi-text-muted);
+    font-weight:       600;
+    font-size:         13px;
+    text-decoration:   none;
+    cursor:            pointer;
+    border:            none;
+    background:        transparent;
+    transition:        background .15s var(--kiwi-ease),
+                       color .15s var(--kiwi-ease);
+}
+.ke-tab:hover { color: var(--kiwi-text); }
+.ke-tab.is-active {
+    background:        var(--kiwi-glass-bg-strong);
+    color:             var(--kiwi-text);
+    box-shadow:        0 1px 3px var(--kiwi-shadow-4);
+}
+
+/* ─── Status badges ─────────────────────────────────────────────────
+   Tinted glass with the status color. The text colors are darkened
+   variants chosen for AA contrast on top of the tinted backgrounds.
+   Kiwi-green is never the text color here — only the fill. */
+.ke-badge {
+    /* Solid tinted backgrounds (set by variant rules below). No backdrop-filter:
+       badges live alongside other content and stacking blurs would compound. */
+    display:           inline-flex;
+    align-items:       center;
+    gap:               4px;
+    padding:           4px 12px;
+    border-radius:     var(--kiwi-radius-pill);
+    font-size:         12px;
+    font-weight:       600;
+    line-height:       1.4;
+}
+.ke-badge.is-active,
+.ke-badge-active {
+    background:        var(--kiwi-green-fill);
+    color:             var(--kiwi-green-text);
+    border:            1px solid var(--kiwi-green-edge);
+}
+.ke-badge.is-pending,
+.ke-badge-pending {
+    background:        var(--kiwi-orange-fill);
+    color:             var(--kiwi-orange-text);
+    border:            1px solid var(--kiwi-orange-edge);
+}
+.ke-badge.is-error,
+.ke-badge.is-orphaned,
+.ke-badge-error,
+.ke-badge-orphaned {
+    background:        var(--kiwi-red-fill-strong);
+    color:             var(--kiwi-red-text);
+    border:            1px solid var(--kiwi-red-edge);
+}
+.ke-badge.is-neutral,
+.ke-badge-neutral {
+    background:        var(--kiwi-cream-deep);
+    color:             var(--kiwi-text-muted);
+    border:            1px solid var(--kiwi-border);
+}
+
+/* ─── Sticky admin header ──────────────────────────────────────────── */
+.ke-admin-header {
+    transition:        background .2s var(--kiwi-ease),
+                       box-shadow .2s var(--kiwi-ease),
+                       border-color .2s var(--kiwi-ease),
+                       -webkit-backdrop-filter .2s var(--kiwi-ease),
+                       backdrop-filter .2s var(--kiwi-ease);
+}
+.ke-admin-header.is-sticky {
+    position:          sticky;
+    top:               32px;
+    z-index:           100;
+    background:        var(--kiwi-glass-bg);
+    -webkit-backdrop-filter: var(--kiwi-glass-blur);
+    backdrop-filter:   var(--kiwi-glass-blur);
+    border-bottom:     1px solid var(--kiwi-glass-border);
+    box-shadow:        var(--kiwi-shadow-card);
+    padding:           12px 20px;
+}
+
+/* ─── Animations ────────────────────────────────────────────────────
+   Apple easing throughout. Wrapped in prefers-reduced-motion so users
+   who want stillness get static surfaces. */
+@keyframes ke-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes ke-scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@keyframes ke-card-mount {
+    from { opacity: 0; transform: scale(0.97); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@keyframes ke-toast-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .ke-glass-card,
+    .ke-glass-card--lg,
+    .ke-glass-card--sm {
+        animation: ke-card-mount .25s var(--kiwi-ease) both;
+    }
+    /* Modal animations removed — see "MINIMAL MODAL CSS" block at the
+       bottom of this file. */
+    .ke-toast {
+        animation: ke-toast-in .25s var(--kiwi-ease) both;
+    }
+}
+
+/* ─── Mobile blur reduction ─────────────────────────────────────────
+   Backdrop-filter is the heaviest paint operation on mobile GPUs. Step
+   down blur on small viewports so scrolling stays at 60fps on iPhone /
+   mid-range Android. Desktop keeps the full immersive treatment. */
+@media (max-width: 768px) {
+    :root {
+        --kiwi-glass-blur:        saturate(160%) blur(12px);
+        --kiwi-glass-blur-strong: saturate(160%) blur(18px);
+    }
+}
+
+/* ========================================================================
+   MINIMAL MODAL CSS — DO NOT OVERRIDE
+   ------------------------------------------------------------------------
+   Canonical modal styling for KE admin. Replaces every previous rule for
+   .ke-modal, .ke-modal-backdrop, .ke-modal-dialog, .ke-modal-dialog-sm,
+   .ke-modal-body, .ke-modal-footer (formerly spread across this file and
+   ke-attendees.css). The `!important` flags exist because multiple prior
+   fix attempts were silently overridden by cached or higher-specificity
+   rules; once we confirm the modal is permanently working, the flags can
+   be reduced. Keep this block at the FILE BOTTOM so it wins the cascade
+   among rules of equal specificity.
+   ======================================================================== */
+
+.ke-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999999 !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+}
+
+.ke-modal[style*="display: none"],
+.ke-modal[hidden] {
+    display: none !important;
+}
+
+.ke-modal-backdrop {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: var(--kiwi-overlay-dim) !important;
+    z-index: 1 !important;
+    opacity: 1 !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    filter: none !important;
+}
+
+.ke-modal-dialog,
+.ke-modal-dialog-sm {
+    position: relative !important;
+    z-index: 2 !important;
+    background: var(--kiwi-surface) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 60px var(--kiwi-shadow-modal) !important;
+    padding: 32px !important;
+    max-width: 520px !important;
+    width: 100% !important;
+    max-height: calc(100vh - 80px) !important;
+    overflow-y: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+    color: var(--kiwi-text) !important;
+}
+
+.ke-modal-body {
+    background: transparent !important;
+    opacity: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.ke-modal-footer {
+    background: transparent !important;
+    opacity: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    margin-top: 20px !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 12px !important;
+}
+
+/* Inputs inside modal */
+.ke-modal-dialog input,
+.ke-modal-dialog select,
+.ke-modal-dialog textarea {
+    background: var(--kiwi-surface) !important;
+    border: 1px solid var(--kiwi-border-strong) !important;
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    width: 100% !important;
+    font-size: 14px !important;
+    color: var(--kiwi-text) !important;
+    opacity: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.ke-modal-dialog label {
+    color: var(--kiwi-text) !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    display: block !important;
+    margin-bottom: 8px !important;
+    margin-top: 16px !important;
+    opacity: 1 !important;
+    filter: none !important;
+}
+
+/* No animations */
+.ke-modal,
+.ke-modal-backdrop,
+.ke-modal-dialog,
+.ke-modal-dialog-sm {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* ── Segmented control (radio-as-pills) ─────────────────────────────
+   Used in the Add Attendee modal for the Real/Courtesy toggle. The
+   visible <input type="radio"> was rendering as empty white pills with
+   the label text sitting below — replaced with a label-wraps-radio
+   pattern where the entire pill is the click target. */
+.ke-segment-control {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: var(--kiwi-surface-muted) !important;
+    border: 1px solid var(--kiwi-border) !important;
+    border-radius: 10px !important;
+    padding: 4px !important;
+    gap: 2px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+.ke-segment {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    cursor: pointer !important;
+    margin: 0 !important;
+}
+/* Fully hide the native radio. The nuclear `.ke-modal-dialog input { … !important }`
+   block above forces every input inside the modal to render at width 100%,
+   opacity 1, with a white pill background — so without `!important` here,
+   the radio leaks through as a visible white pill on top of the segment
+   label. Triple selector ensures we beat any WP/plugin default too. */
+.ke-segment-control input[type="radio"],
+.ke-segment input[type="radio"],
+.ke-modal-dialog .ke-segment input[type="radio"] {
+    position: absolute !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    visibility: hidden !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    clip: rect(0, 0, 0, 0) !important;
+    overflow: hidden !important;
+}
+.ke-segment-label {
+    display: block !important;
+    width: 100% !important;
+    text-align: center !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: var(--kiwi-text-muted) !important;
+    border-radius: 8px !important;
+    transition: background 0.15s, color 0.15s !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    user-select: none !important;
+}
+.ke-segment input[type="radio"]:checked + .ke-segment-label {
+    background: var(--kiwi-green) !important;
+    color: var(--kiwi-text) !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 3px var(--kiwi-shadow-5) !important;
+}
+.ke-segment:hover .ke-segment-label {
+    background: var(--kiwi-surface-hover-tint);
+}
+.ke-segment input[type="radio"]:checked + .ke-segment-label:hover {
+    background: var(--kiwi-green) !important;
+}
+.ke-segment input[type="radio"]:focus-visible + .ke-segment-label {
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow-strong);
+}
+
+/* ── Modal <select> — compact dropdown with custom arrow ────────────
+   The base rule earlier in this file sets common input/select/textarea
+   styling. This selector ups specificity (element + class) so its
+   appearance + arrow + focus state win without further `!important`
+   wars. Fixes the previous "giant input with double border" look. */
+.ke-modal-dialog select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    padding: 10px 36px 10px 12px !important;
+    cursor: pointer !important;
+    background-color: var(--kiwi-surface) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    background-size: 12px !important;
+    outline: none !important;
+    line-height: 1.4 !important;
+}
+.ke-modal-dialog select:focus,
+.ke-modal-dialog select:focus-visible {
+    border-color: var(--kiwi-green) !important;
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow-soft) !important;
+    outline: none !important;
+}
+/* Strip the native focus outline from text inputs/textareas inside the
+   modal too, so nothing renders the WP-blue double ring. */
+.ke-modal-dialog input:focus,
+.ke-modal-dialog input:focus-visible,
+.ke-modal-dialog textarea:focus,
+.ke-modal-dialog textarea:focus-visible {
+    border-color: var(--kiwi-green) !important;
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow-soft) !important;
+    outline: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * DARK MODE TOKEN OVERRIDES
+ * ───────────────────────────────────────────────────────────────────────────
+ * Activated only on Kiwi Events admin pages by injecting
+ *     <html data-theme="dark">
+ * from class-ke-admin-color-mode.php (admin_head, priority 1). WordPress core
+ * pages, the public site, the promoter portal, and transactional emails are
+ * NOT affected — they never receive the attribute.
+ *
+ * Strategy: remap surface / text / border / shadow tokens to their dark
+ * equivalents. Brand RGB triplets (--kiwi-green-rgb, --kiwi-red-rgb,
+ * --kiwi-orange-rgb, --kiwi-blue-rgb) STAY the same — every status tint that
+ * derives `rgba(var(--kiwi-X-rgb), 0.NN)` automatically becomes a faint
+ * brand-tinted glow on the dark surface, which is exactly the dark-mode look.
+ * The Kiwi green ink is desaturated a hair (-darker, no glow) on buttons.
+ *
+ * NEVER add component-level overrides here (`.ke-event-card { ... }`). If
+ * something looks wrong in dark, either (a) the component still hard-codes a
+ * color and needs the audit treatment, or (b) a token's dark value below
+ * needs tuning. Never patch components individually — it defeats the system.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+:root[data-theme="dark"] {
+    /* ── Surfaces ─────────────────────────────────────────────────────────
+       Page bg / card / muted surface invert from cream → near-black. The
+       cream alias is kept consistent so --kiwi-bg (= --kiwi-cream) still
+       resolves to the same dark page bg. */
+    --kiwi-cream:          #0f0f10;
+    --kiwi-cream-deep:     #18181a;
+    --kiwi-white:          #1f1f22;            /* used as card surface in legacy spots */
+    --kiwi-bg:             #0f0f10;            /* page canvas */
+    --kiwi-surface:        #1f1f22;            /* card bg */
+    --kiwi-surface-muted:  #18181a;            /* segmented controls, tab strips */
+    --kiwi-surface-sunken: #131316;            /* deeper recess */
+
+    /* Inks: brand-button text + button-on-green stays white. */
+    --kiwi-white-ink:      #ffffff;
+
+    /* ── Text scale ───────────────────────────────────────────────────── */
+    /* Bumped each step ~one tier brighter after dark-mode legibility audit:
+         --kiwi-text         #ededed → #f4f4f5   (16.5:1 on #0f0f10 — AAA)
+         --kiwi-text-muted   #a0a0a4 → #c0c0c4   (10.2:1 on #0f0f10 — AAA)
+         --kiwi-text-faint   #6b6b6b → #8a8a8e   (6.5:1  on #0f0f10 — AA)
+       The previous values washed out page titles, KPI labels, and table
+       column headers on the dark canvas. Keep --kiwi-text-rgb in sync so
+       any rgba(var(--kiwi-text-rgb), α) consumer follows the new value. */
+    --kiwi-text:           #f4f4f5;
+    --kiwi-text-darker:    #ffffff;            /* active tab text — pop one more notch above primary */
+    --kiwi-text-muted:     #c0c0c4;
+    --kiwi-text-faint:     #8a8a8e;
+    --kiwi-text-rgb:       244, 244, 245;      /* mirrors --kiwi-text for derived alphas */
+    --kiwi-text-spinner-ring: rgba(var(--kiwi-text-rgb), 0.30);
+    --kiwi-text-muted-rgb: 192, 192, 196;
+    --kiwi-text-muted-tint:rgba(var(--kiwi-text-muted-rgb), 0.18);
+
+    /* ── Borders ──────────────────────────────────────────────────────────
+       Light mode borders are rgba(0,0,0, 0.06–0.15). On dark, the visible
+       hairline must be LIGHT-alpha to read against the dark surface. We
+       override these directly rather than flipping --kiwi-shadow-rgb so
+       drop-shadows stay black. */
+    --kiwi-border:            rgba(255, 255, 255, 0.08);
+    --kiwi-border-strong:     rgba(255, 255, 255, 0.15);
+    --kiwi-border-hairline:   rgba(255, 255, 255, 0.06);
+    --kiwi-border-hover-tint: rgba(255, 255, 255, 0.10);
+    --kiwi-surface-hover-tint:rgba(255, 255, 255, 0.04);
+    --kiwi-select-arrow:      #a0a0a4;           /* lighter chevron on dark <select> */
+
+    /* ── Drop-shadow alphas ───────────────────────────────────────────────
+       Bumped from 0.02–0.30 (light) → 0.20–0.65 (dark) so cards still read
+       as elevated against the dark canvas. --kiwi-shadow-rgb stays 0,0,0. */
+    --kiwi-shadow-1:    rgba(0, 0, 0, 0.20);
+    --kiwi-shadow-2:    rgba(0, 0, 0, 0.28);
+    --kiwi-shadow-3:    rgba(0, 0, 0, 0.32);
+    --kiwi-shadow-4:    rgba(0, 0, 0, 0.38);
+    --kiwi-shadow-5:    rgba(0, 0, 0, 0.45);
+    --kiwi-shadow-6:    rgba(0, 0, 0, 0.55);
+    --kiwi-shadow-7:    rgba(0, 0, 0, 0.65);
+    --kiwi-overlay-dim: rgba(0, 0, 0, 0.70);     /* modal backdrop */
+    --kiwi-overlay-mid:    rgba(0, 0, 0, 0.60);
+    --kiwi-overlay-deeper: rgba(0, 0, 0, 0.70);
+    --kiwi-overlay-deepest:rgba(0, 0, 0, 0.75);
+    --kiwi-shadow-modal:   rgba(0, 0, 0, 0.55);
+
+    /* ── Inner-highlight whites ───────────────────────────────────────────
+       Light "glass lit edge" on top of dark glass — kept rgb=255 but cut
+       alpha roughly in half so the rim doesn't glow harshly on dark. */
+    --kiwi-inner-highlight-fainter:  rgba(255, 255, 255, 0.06);
+    --kiwi-inner-highlight-faint:    rgba(255, 255, 255, 0.08);
+    --kiwi-inner-highlight-soft:     rgba(255, 255, 255, 0.10);
+    --kiwi-inner-highlight-medium:   rgba(255, 255, 255, 0.14);
+    --kiwi-inner-highlight:          rgba(255, 255, 255, 0.18);
+    --kiwi-inner-highlight-strong:   rgba(255, 255, 255, 0.22);
+    --kiwi-inner-highlight-stronger: rgba(255, 255, 255, 0.26);
+
+    /* ── Glass overlays (modals / dropdowns / toasts) ─────────────────── */
+    --kiwi-glass-bg:            rgba(31, 31, 34, 0.85);
+    --kiwi-glass-bg-strong:     rgba(38, 38, 42, 0.92);
+    --kiwi-glass-bg-input:      rgba(31, 31, 34, 0.88);
+    --kiwi-glass-border:        rgba(255, 255, 255, 0.12);
+    --kiwi-glass-border-strong: rgba(255, 255, 255, 0.18);
+
+    /* ── Brand green ──────────────────────────────────────────────────────
+       Desaturate ~10% to prevent neon glow on dark. The rgb triplet drives
+       every derived alpha tint, so all green badges/glows shift in lockstep. */
+    --kiwi-green:        #a8c91f;
+    --kiwi-green-darker: #94b619;
+    --kiwi-green-rgb:    168, 201, 31;
+    --kiwi-green-text:   #d5e87a;                /* light green ink for AA on green-tinted bg */
+
+    /* Primary-button shadows lose their green tint on dark — the lime
+       button against the dark canvas reads as a glaring halo otherwise.
+       Use neutral black-alpha shadows that match the rest of dark mode's
+       elevation system. --kiwi-green-ink stays #1a1a1a (inherits :root). */
+    --kiwi-btn-primary-shadow:       rgba(0, 0, 0, 0.45);
+    --kiwi-btn-primary-shadow-hover: rgba(0, 0, 0, 0.55);
+
+    /* ── System status (Apple palette, slightly desaturated for dark) ── */
+    --kiwi-red:               #ff6b62;
+    --kiwi-red-darker:        #ff5a51;
+    --kiwi-red-darker-alt:    #ff5e54;
+    --kiwi-red-rgb:           255, 107, 98;
+    --kiwi-red-text:          #ff8a82;
+    --kiwi-red-text-alt:      #ff8a82;
+    --kiwi-red-text-darker:   #ff7a72;
+    --kiwi-orange:            #ffa940;
+    --kiwi-orange-text:       #ffc580;
+    --kiwi-orange-text-deep:  #ffb866;
+    --kiwi-orange-rgb:        255, 169, 64;
+    --kiwi-blue:              #4ea8ff;
+    --kiwi-blue-rgb:          78, 168, 255;
+
+    /* ── WordPress core grays — only used by the wp-admin slug editor +
+          per-category shortcode-copy widget that we embed inside KE pages.
+          Invert them so the slug field looks at-home in dark KE chrome. */
+    --kiwi-wp-text:          #ededed;
+    --kiwi-wp-text-muted:    #a0a0a4;
+    --kiwi-wp-text-faint:    #8a8a8e;
+    --kiwi-wp-border:        rgba(255, 255, 255, 0.12);
+    --kiwi-wp-border-strong: rgba(255, 255, 255, 0.20);
+    --kiwi-wp-border-soft:   rgba(255, 255, 255, 0.08);
+    --kiwi-wp-surface-hover: rgba(255, 255, 255, 0.05);
+    --kiwi-wp-link:          #4ea8ff;
+
+    /* ── Legacy slate scale ───────────────────────────────────────────────
+       Light mode's Tailwind slate-50→900 maps to a dark inverse so every
+       event-builder + promoter admin element built on it flips together.
+       50 (lightest bg)→darkest near-bg ; 900 (darkest text)→lightest text. */
+    --kiwi-legacy-page-bg:       #1a1a1c;        /* slate-50  bg → dark recess  */
+    --kiwi-legacy-row-bg:        #232326;        /* slate-100 thumb / inactive  */
+    --kiwi-legacy-row-bg-alt:    rgba(255, 255, 255, 0.10); /* slate-200 dividers */
+    --kiwi-legacy-row-bg-strong: rgba(255, 255, 255, 0.18); /* slate-300 borders  */
+    --kiwi-legacy-text-faint:    #7a7a7e;        /* slate-400 placeholder       */
+    --kiwi-legacy-text-muted:    #a0a0a4;        /* slate-500 labels            */
+    --kiwi-legacy-text-mid:      #b8b8bc;        /* slate-600 body              */
+    --kiwi-legacy-text-strong:   #d0d0d4;        /* slate-700 subheads          */
+    --kiwi-legacy-text-deep:     #e0e0e4;        /* slate-800 titles            */
+    --kiwi-legacy-text-darkest:  #f0f0f4;        /* slate-900 headings          */
+    --kiwi-legacy-text-body:     #d8d8dc;        /* gray-700 toggle label       */
+    --kiwi-legacy-text-locked:   #6b6b6b;        /* unchanged tone, dim         */
+    --kiwi-legacy-text-locked-label: #5a5a5e;
+    --kiwi-legacy-locked-edge:   rgba(255, 255, 255, 0.15);
+    --kiwi-legacy-accent-text:   #f0ffd0;        /* text on green active tab    */
+    --kiwi-legacy-status-dot:    #6b6b6b;
+    --kiwi-legacy-status-blue:   #4ea8ff;
+
+    /* Legacy slate-rgb / slate400-rgb / slate200-rgb / slate300-rgb / slate50-rgb /
+       slate100-rgb channels. Light mode used the original Tailwind triplets to
+       build alpha-tinted fills/edges. In dark mode we flip the channel base to
+       a near-white triplet so every derived `rgba(var(--...-rgb), alpha)`
+       becomes a pale film on the dark surface instead of an invisible dark
+       smudge on dark. */
+    --kiwi-legacy-slate-rgb:    0, 0, 0;            /* slate-900 → keep dark for shadow tints */
+    --kiwi-legacy-slate400-rgb: 160, 160, 164;
+    --kiwi-legacy-slate200-rgb: 50, 50, 54;         /* tinted fills on dark surfaces */
+    --kiwi-legacy-slate300-rgb: 60, 60, 64;
+    --kiwi-legacy-slate50-rgb:  40, 40, 44;
+    --kiwi-legacy-slate100-rgb: 50, 50, 54;
+    /* The derived overlays/shadows/edges built on these rgbs need their alpha
+       bumped a notch because dark surfaces hide low-alpha overlays. Keep names
+       semantically identical to the light-mode tokens. */
+    --kiwi-legacy-slate-shadow-1: rgba(0, 0, 0, 0.25);
+    --kiwi-legacy-slate-shadow-2: rgba(0, 0, 0, 0.32);
+    --kiwi-legacy-slate-shadow-3: rgba(0, 0, 0, 0.38);
+    --kiwi-legacy-slate-shadow-4: rgba(0, 0, 0, 0.45);
+    --kiwi-legacy-slate-shadow-5: rgba(0, 0, 0, 0.55);
+    --kiwi-legacy-slate-overlay-mild: rgba(0, 0, 0, 0.45);
+    --kiwi-legacy-slate-overlay-deep: rgba(0, 0, 0, 0.70);
+    --kiwi-legacy-slate-glass:        rgba(15, 15, 16, 0.92);
+
+    /* Legacy red palette — readable on dark, slightly desaturated.       */
+    --kiwi-legacy-red-50:         rgba(255, 107, 98, 0.12);  /* tint bg */
+    --kiwi-legacy-red-error-bg:   rgba(255, 107, 98, 0.10);
+    --kiwi-legacy-red-200:        rgba(255, 107, 98, 0.30);
+    --kiwi-legacy-red-500:        #ff6b62;
+    --kiwi-legacy-red-600:        #ff5a51;
+    --kiwi-legacy-red-700:        #ff7a72;
+    --kiwi-legacy-red-800:        #ff8a82;       /* light red INK on dark */
+    --kiwi-legacy-red-rgb:        255, 107, 98;
+
+    /* Legacy emerald (success surface).                                  */
+    --kiwi-legacy-emerald-bg-soft: rgba(74, 222, 128, 0.10);
+    --kiwi-legacy-emerald-bg:      rgba(74, 222, 128, 0.14);
+    --kiwi-legacy-emerald-500:     #4ade80;
+    --kiwi-legacy-emerald-700:     #6ee7a0;
+    --kiwi-legacy-emerald-800:     #86efac;      /* light emerald INK     */
+    --kiwi-legacy-emerald-fill:    rgba(74, 222, 128, 0.18);
+    --kiwi-legacy-lime-edge:       rgba(190, 242, 100, 0.35);
+
+    /* Legacy savebar saved text — kept readable.                         */
+    --kiwi-legacy-savebar-saved:   #c5e87a;
+
+    /* Legacy white-strong/soft (focus state ke-tpl-format-key bg).        */
+    --kiwi-legacy-white-strong:    rgba(255, 255, 255, 0.10);
+    --kiwi-legacy-white-soft:      rgba(255, 255, 255, 0.06);
+
+    /* Legacy amber (event-builder format pills + pin).                   */
+    --kiwi-legacy-amber-50:        rgba(252, 211, 77, 0.12);
+    --kiwi-legacy-amber-200:       rgba(252, 211, 77, 0.30);
+    --kiwi-legacy-amber-300:       #fcd34d;
+    --kiwi-legacy-amber-500:       #fbbf24;
+    --kiwi-legacy-amber-700:       #fcd34d;
+    --kiwi-legacy-amber-800:       #fde68a;       /* light amber INK      */
+    --kiwi-legacy-amber-900:       #fef3c7;
+
+    /* Legacy indigo (event-builder section-card variants).               */
+    --kiwi-legacy-indigo-100:      rgba(129, 140, 248, 0.14);
+    --kiwi-legacy-indigo-200:      rgba(129, 140, 248, 0.28);
+    --kiwi-legacy-indigo-500:      #818cf8;       /* "Apply →" link        */
+    --kiwi-legacy-indigo-700:      #a5b4fc;
+    --kiwi-legacy-indigo-bg:       rgba(129, 140, 248, 0.08);
+    --kiwi-legacy-indigo-mix:      rgba(34, 211, 238, 0.20);
+    --kiwi-legacy-indigo-50:       rgba(129, 140, 248, 0.10);  /* member-row tint */
+
+    /* Legacy promoter-row status pills (rendered inline by JS).           */
+    --kiwi-legacy-green-pill-bg:    rgba(74, 222, 128, 0.18);
+    --kiwi-legacy-yellow-pill-bg:   rgba(251, 191, 36, 0.18);
+    --kiwi-legacy-yellow-pill-text: #fde68a;
+
+    /* Legacy orange (settings warning panel + import KPI).                */
+    --kiwi-legacy-orange-50:       rgba(255, 169, 64, 0.10);
+    --kiwi-legacy-orange-200:      rgba(255, 169, 64, 0.30);
+    --kiwi-legacy-orange-800:      #ffc580;
+    --kiwi-legacy-orange-900:      #ffd6a0;
+
+    /* Legacy stone (commission tier card).                                */
+    --kiwi-legacy-stone-50:        #232326;
+    --kiwi-legacy-stone-200:       rgba(255, 255, 255, 0.10);
+
+    /* Legacy violet (commissions method pill).                            */
+    --kiwi-legacy-violet-100:      rgba(167, 139, 250, 0.16);
+    --kiwi-legacy-violet-800:      #c4b5fd;
+
+    /* Legacy pink (commissions method pill — "other").                    */
+    --kiwi-legacy-pink-100:        rgba(244, 114, 182, 0.16);
+    --kiwi-legacy-pink-800:        #f9a8d4;
+    --kiwi-legacy-pink-bg:         rgba(244, 114, 182, 0.10);
+    --kiwi-legacy-purple-mix:      rgba(192, 132, 252, 0.16);
+
+    /* Legacy teal (rate label highlight).                                 */
+    --kiwi-legacy-teal-700:        #5eead4;
+
+    /* Legacy blue (queued pill + promoter slug link).                     */
+    --kiwi-legacy-blue-800:        #93c5fd;
+    --kiwi-legacy-blue-deep:       #60a5fa;
+    --kiwi-legacy-blue-pending-bg: rgba(96, 165, 250, 0.16);
+    --kiwi-legacy-blue-pending-text: #93c5fd;
+    --kiwi-blue-fill-faint:        rgba(78, 168, 255, 0.18);
+
+    /* Legacy zinc (settings PHP $subtitle default reference).             */
+    --kiwi-legacy-zinc-500:        #a0a0a4;
+
+    /* Legacy VIP gold + cyan pop accents.                                 */
+    --kiwi-legacy-gold:            #f7d76b;
+    --kiwi-legacy-cyan-edge:       #67e8f9;
+    --kiwi-legacy-cyan-edge-mid:   rgba(103, 232, 249, 0.40);
+    --kiwi-legacy-cyan-text:       #a5f3fc;
+    --kiwi-legacy-dark-1:          #2a2a2e;       /* was slate-800 dark fill */
+    --kiwi-legacy-dark-2:          #1a1a1c;       /* was slate-900 deeper    */
+
+    /* Legacy toast color variants.                                        */
+    --kiwi-legacy-toast-success:   #86efac;
+    --kiwi-legacy-toast-error:     #ff8a82;
+
+    /* Legacy gradient overlay (event-card thumb fade).                    */
+    --kiwi-legacy-thumb-fade:      rgba(0, 0, 0, 0.45);
+
+    /* Legacy knob shadows (toggle switch).                                */
+    --kiwi-legacy-knob-shadow:        rgba(0, 0, 0, 0.30);
+    --kiwi-legacy-knob-shadow-strong: rgba(0, 0, 0, 0.45);
+    --kiwi-legacy-knob-shadow-15:     rgba(0, 0, 0, 0.35);
+
+    /* Legacy gray-200 (image-picker frames).                              */
+    --kiwi-legacy-gray200:         rgba(255, 255, 255, 0.10);
+
+    /* Legacy slate-blue divider between testimonial-moderation rows.      */
+    --kiwi-legacy-slate-divider:   rgba(255, 255, 255, 0.06);
+
+    /* Subtle green canvas tints — keep as low-alpha brand glow.           */
+    --kiwi-green-canvas-top:    rgba(var(--kiwi-green-rgb), 0.06);
+    --kiwi-green-canvas-bottom: rgba(var(--kiwi-green-rgb), 0.04);
+}
+
+/* ─── Dark-mode page canvas shouldn't carry the cream radial — replace
+   with a near-flat dark gradient anchored on the new --kiwi-bg so the
+   subtle Kiwi tint reads as a glow, not a tint. The same selector
+   targeted by the light-mode background rule above. */
+:root[data-theme="dark"] .wrap.ke-admin-wrap,
+:root[data-theme="dark"] .ke-admin-page,
+:root[data-theme="dark"] .ke-builder-wrap {
+    background:
+        radial-gradient(ellipse at top left,
+            var(--kiwi-green-canvas-top) 0%, transparent 55%),
+        radial-gradient(ellipse at bottom right,
+            var(--kiwi-green-canvas-bottom) 0%, transparent 55%),
+        var(--kiwi-bg);
+}
+
+/* ─── Native form chrome (select / input / textarea) ────────────────────
+   Several KE admin views drop in unstyled <select> elements (attendees /
+   reservations event-filter, status filter, etc). Browsers paint these
+   with the OS default white background, which stays white in dark mode
+   even though the surrounding card flipped. Force surface + text colors
+   on every native form control inside a KE admin wrapper so they pick up
+   the dark canvas without each view needing its own class. */
+:root[data-theme="dark"] .wrap.ke-admin-wrap select,
+:root[data-theme="dark"] .wrap.ke-admin-wrap input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme="dark"] .wrap.ke-admin-wrap textarea,
+:root[data-theme="dark"] .ke-admin-page select,
+:root[data-theme="dark"] .ke-admin-page input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme="dark"] .ke-admin-page textarea,
+:root[data-theme="dark"] .ke-builder-wrap select,
+:root[data-theme="dark"] .ke-builder-wrap input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme="dark"] .ke-builder-wrap textarea {
+    background-color: var(--kiwi-surface);
+    color:            var(--kiwi-text);
+    border-color:     var(--kiwi-border);
+    color-scheme:     dark;             /* hints the UA to dark-paint internal chrome */
+}
+:root[data-theme="dark"] .wrap.ke-admin-wrap select option,
+:root[data-theme="dark"] .ke-admin-page select option,
+:root[data-theme="dark"] .ke-builder-wrap select option {
+    background-color: var(--kiwi-surface);
+    color:            var(--kiwi-text);
+}
+
+

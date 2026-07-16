@@ -57,7 +57,7 @@ class KE_Admin_Reservations_Report_PDF {
 
     public function stream() {
         $can_use_pdf = class_exists( 'FPDF' )
-            && class_exists( 'KE_Admin_Reservations_FPDF_Report' )
+            && class_exists( 'KE_Admin_Reservations_FPDF_Report', false )
             && self::fpdf_fonts_available();
         if ( $can_use_pdf ) {
             $this->stream_pdf();
@@ -618,7 +618,7 @@ class KE_Admin_Reservations_Report_PDF {
  * Tiny FPDF subclass with just the footer. Defined here so it loads in
  * lockstep with the report class and only when FPDF is actually present.
  */
-if ( ! class_exists( 'KE_Admin_Reservations_FPDF_Report' ) && class_exists( 'FPDF' ) ) {
+if ( ! class_exists( 'KE_Admin_Reservations_FPDF_Report', false ) && class_exists( 'FPDF' ) ) {
     class KE_Admin_Reservations_FPDF_Report extends FPDF {
         /** @var KE_Admin_Reservations_Report_PDF */
         private $report;

@@ -9,6 +9,12 @@ class Kiwi_Events {
     /** @var KE_Post_Types */
     private $post_types;
 
+    /** @var KE_Event_Slug */
+    private $event_slug;
+
+    /** @var KE_Shortcodes */
+    private $shortcodes;
+
     /** @var KE_Admin */
     private $admin;
 
@@ -33,6 +39,18 @@ class Kiwi_Events {
     /** @var KE_Organizer_Public */
     private $organizer_public;
 
+    /** @var KE_Promoter_Attribution */
+    private $promoter_attribution;
+
+    /** @var KE_Promoter_Portal */
+    private $promoter_portal;
+
+    /** @var KE_Admin_Promoters */
+    private $admin_promoters;
+
+    /** @var KE_Tickets_Wallet */
+    private $tickets_wallet;
+
     /**
      * Initialize all components
      */
@@ -46,15 +64,43 @@ class Kiwi_Events {
         $this->post_types = new KE_Post_Types();
         $this->post_types->init();
 
+        // Editable event slug + slug-history 301 redirects
+        $this->event_slug = new KE_Event_Slug();
+        $this->event_slug->init();
+
+        // Category-filtered event shortcodes
+        $this->shortcodes = new KE_Shortcodes();
+        $this->shortcodes->init();
+
+        // Promoter attribution: capture ?ke_promo on inbound traffic.
+        // Runs on every front-end request (skips REST/admin/cron internally).
+        $this->promoter_attribution = new KE_Promoter_Attribution();
+        $this->promoter_attribution->init();
+
+        // Promoter portal at /promoter/{slug} — rewrite rules + auth handlers.
+        // Always boot: the admin-post handlers must register on every request,
+        // and the rewrite-rule registration is idempotent.
+        $this->promoter_portal = new KE_Promoter_Portal();
+        $this->promoter_portal->init();
+
         // Admin
         if ( is_admin() ) {
             $this->admin = new KE_Admin();
             $this->admin->init();
+
+            // Promoters admin module — only register the admin-post handlers
+            // when we're in wp-admin.
+            $this->admin_promoters = new KE_Admin_Promoters();
+            $this->admin_promoters->init();
         }
 
         // Public
         $this->public_facing = new KE_Public();
         $this->public_facing->init();
+
+        // Customer ticket wallet — [kiwi_tickets_purchase] + gated PDF endpoint
+        $this->tickets_wallet = new KE_Tickets_Wallet();
+        $this->tickets_wallet->init();
 
         // REST API
         $this->rest_api = new KE_Rest_API();

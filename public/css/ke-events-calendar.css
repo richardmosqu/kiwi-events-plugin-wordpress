@@ -1,0 +1,512 @@
+/* ═══════════════════════════════════════════════════════════
+   KIWI EVENTS — Calendar shortcode
+   Premium minimalist month-view calendar.
+   Tokens (--kep-*) come from ke-public.css.
+   ═══════════════════════════════════════════════════════════ */
+
+.ke-calendar {
+    box-sizing:         border-box;
+    width:              100%;
+    min-width:          0;
+    background:         #fff;
+    border:             1px solid rgba(0, 0, 0, 0.06);
+    border-radius:      20px;
+    box-shadow:         0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 12px rgba(0, 0, 0, 0.04);
+    padding:            24px;
+    font-family:        var(--kep-font, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    color:              #111;
+    -webkit-font-smoothing: antialiased;
+    overflow:           hidden;
+    position:           relative;
+}
+
+.ke-calendar *,
+.ke-calendar *::before,
+.ke-calendar *::after {
+    box-sizing:         border-box;
+}
+
+/* ─── Header ──────────────────────────────────────────────── */
+.ke-calendar-header {
+    display:            flex;
+    align-items:        center;
+    justify-content:    space-between;
+    gap:                16px;
+    margin-bottom:      16px;
+}
+
+.ke-calendar-month-label {
+    margin:             0;
+    font-size:          26px;
+    font-weight:        700;
+    letter-spacing:     -0.5px;
+    color:              #111;
+    line-height:        1.1;
+}
+
+.ke-calendar-nav {
+    display:            flex;
+    align-items:        center;
+    gap:                6px;
+}
+
+.ke-calendar-nav-btn {
+    display:            inline-flex;
+    align-items:        center;
+    justify-content:    center;
+    width:              36px;
+    height:             36px;
+    padding:            0;
+    background:         #fff;
+    border:             1px solid rgba(0, 0, 0, 0.08);
+    border-radius:      10px;
+    color:              #444;
+    cursor:             pointer;
+    transition:         background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ke-calendar-nav-btn:hover {
+    background:         rgba(0, 0, 0, 0.03);
+    border-color:       rgba(0, 0, 0, 0.14);
+    color:              #111;
+}
+
+.ke-calendar-nav-btn:focus-visible {
+    outline:            2px solid var(--kep-accent-1, #6366f1);
+    outline-offset:     2px;
+}
+
+.ke-calendar-today {
+    height:             36px;
+    padding:            0 14px;
+    font-size:          13px;
+    font-weight:        600;
+    background:         #fff;
+    color:              #444;
+    border:             1px solid rgba(0, 0, 0, 0.08);
+    border-radius:      999px;
+    cursor:             pointer;
+    transition:         background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ke-calendar-today:hover {
+    background:         rgba(0, 0, 0, 0.03);
+    color:              #111;
+}
+
+.ke-calendar-today.is-away {
+    background:         var(--kep-accent-1, #6366f1);
+    border-color:       var(--kep-accent-1, #6366f1);
+    color:              #fff;
+}
+
+.ke-calendar-today.is-away:hover {
+    filter:             brightness(0.95);
+}
+
+.ke-calendar-today:focus-visible {
+    outline:            2px solid var(--kep-accent-1, #6366f1);
+    outline-offset:     2px;
+}
+
+/* ─── Divider ─────────────────────────────────────────────── */
+.ke-calendar-divider {
+    height:             1px;
+    background:         rgba(0, 0, 0, 0.06);
+    margin:             0 0 14px;
+}
+
+/* ─── Weekday row ─────────────────────────────────────────── */
+.ke-calendar-weekdays {
+    display:            grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap:                4px;
+    margin-bottom:      6px;
+}
+
+.ke-calendar-weekday {
+    text-align:         center;
+    padding:            6px 0;
+    font-size:          11px;
+    font-weight:        600;
+    letter-spacing:     0.08em;
+    text-transform:     uppercase;
+    color:              #888;
+}
+
+/* ─── Date grid ───────────────────────────────────────────── */
+.ke-calendar-grid {
+    display:            grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap:                4px;
+}
+
+.ke-calendar-cell {
+    position:           relative;
+    display:            flex;
+    flex-direction:     column;
+    align-items:        stretch;
+    min-height:         128px;
+    padding:            8px 8px 8px;
+    border-radius:      10px;
+    background:         transparent;
+    border:             1px solid transparent;
+    cursor:             default;
+    transition:         background 0.12s ease, border-color 0.12s ease;
+}
+
+.ke-calendar-cell.is-current-month {
+    color:              #111;
+}
+
+.ke-calendar-cell.is-other-month {
+    color:              #bbb;
+    pointer-events:     none;
+}
+
+.ke-calendar-cell.is-current-month.has-events,
+.ke-calendar-cell.is-current-month:hover {
+    cursor:             pointer;
+}
+
+.ke-calendar-cell.is-current-month:hover {
+    background:         rgba(0, 0, 0, 0.03);
+}
+
+.ke-calendar-cell.is-selected {
+    border-color:       var(--kep-accent-1, #6366f1);
+    background:         color-mix(in srgb, var(--kep-accent-1, #6366f1) 4%, white);
+}
+
+.ke-calendar-cell:focus-visible {
+    outline:            2px solid var(--kep-accent-1, #6366f1);
+    outline-offset:     -2px;
+}
+
+.ke-calendar-daynum {
+    display:            inline-flex;
+    align-items:        center;
+    justify-content:    center;
+    width:              28px;
+    height:             28px;
+    font-size:          14px;
+    font-weight:        500;
+    line-height:        1;
+    color:              inherit;
+    margin-bottom:      4px;
+    border-radius:      999px;
+}
+
+.ke-calendar-cell.is-today .ke-calendar-daynum {
+    background:         var(--kep-accent-1, #6366f1);
+    color:              #fff;
+    font-weight:        700;
+}
+
+/* ─── Event chips (desktop) ───────────────────────────────── */
+.ke-calendar-chips {
+    display:            flex;
+    flex-direction:     column;
+    gap:                4px;
+    min-width:          0;
+}
+
+.ke-calendar-chip {
+    display:            flex;
+    align-items:        center;
+    gap:                6px;
+    max-width:          100%;
+    padding:            3px 8px 3px 3px;
+    font-size:          11px;
+    font-weight:        600;
+    line-height:        1.3;
+    color:              var(--kep-accent-1, #6366f1);
+    background:         color-mix(in srgb, var(--kep-accent-1, #6366f1) 12%, white);
+    border-radius:      8px;
+    overflow:           hidden;
+}
+
+.ke-calendar-chip-thumb {
+    flex:               0 0 auto;
+    width:              32px;
+    height:             32px;
+    border-radius:      6px;
+    background:         #f3f4f6 no-repeat center / cover;
+    object-fit:         cover;
+    display:            block;
+}
+
+.ke-calendar-chip-thumb--fallback {
+    background:         var(--kep-accent-1, #6366f1);
+}
+
+.ke-calendar-chip-title {
+    min-width:          0;
+    flex:               1 1 auto;
+    white-space:        nowrap;
+    overflow:           hidden;
+    text-overflow:      ellipsis;
+}
+
+.ke-calendar-cell.is-past .ke-calendar-chip {
+    color:              #888;
+    background:         rgba(0, 0, 0, 0.05);
+}
+
+.ke-calendar-cell.is-past .ke-calendar-chip-thumb {
+    filter:             grayscale(0.5);
+    opacity:            0.85;
+}
+
+.ke-calendar-chip-more {
+    font-size:          11px;
+    font-weight:        500;
+    color:              #999;
+    padding:            0 2px;
+}
+
+/* ─── Event dots (mobile) ─────────────────────────────────── */
+.ke-calendar-dots {
+    display:            none;
+    align-items:        center;
+    gap:                3px;
+    flex-wrap:          wrap;
+    margin-top:         auto;
+    padding-top:        2px;
+}
+
+.ke-calendar-dot {
+    width:              6px;
+    height:             6px;
+    border-radius:      50%;
+    background:         var(--kep-accent-1, #6366f1);
+    flex:               0 0 auto;
+}
+
+.ke-calendar-dot--thumb {
+    width:              22px;
+    height:             22px;
+    border-radius:      6px;
+    background:         #f3f4f6;
+    overflow:           hidden;
+    box-shadow:         0 0 0 1px rgba(0, 0, 0, 0.06) inset;
+}
+
+.ke-calendar-dot--thumb img {
+    width:              100%;
+    height:             100%;
+    object-fit:         cover;
+    display:            block;
+    border-radius:      inherit;
+}
+
+.ke-calendar-cell.is-past .ke-calendar-dot {
+    background:         #bbb;
+}
+
+.ke-calendar-cell.is-past .ke-calendar-dot--thumb img {
+    filter:             grayscale(0.5);
+    opacity:            0.85;
+}
+
+.ke-calendar-dot-more {
+    font-size:          10px;
+    font-weight:        600;
+    color:              #999;
+    margin-left:        2px;
+}
+
+/* ─── Empty state ─────────────────────────────────────────── */
+.ke-calendar-empty {
+    margin-top:         16px;
+    padding:            16px;
+    text-align:         center;
+    font-size:          13px;
+    color:              #888;
+    background:         rgba(0, 0, 0, 0.02);
+    border-radius:      12px;
+}
+
+/* ─── Expansion panel ─────────────────────────────────────── */
+.ke-calendar-panel {
+    margin-top:         16px;
+    padding-top:        16px;
+    border-top:         1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ke-calendar-panel-header {
+    font-size:          16px;
+    font-weight:        600;
+    color:              #111;
+    margin-bottom:      12px;
+}
+
+.ke-calendar-panel-events {
+    display:            flex;
+    flex-direction:     column;
+    gap:                8px;
+}
+
+.ke-calendar-event-card {
+    display:            flex;
+    align-items:        center;
+    gap:                14px;
+    padding:            10px;
+    background:         #fff;
+    border:             1px solid rgba(0, 0, 0, 0.06);
+    border-radius:      14px;
+    transition:         background 0.12s ease, border-color 0.12s ease;
+}
+
+.ke-calendar-event-card:hover {
+    background:         rgba(0, 0, 0, 0.02);
+    border-color:       rgba(0, 0, 0, 0.10);
+}
+
+.ke-calendar-event-thumb {
+    flex:               0 0 auto;
+    width:              64px;
+    height:             64px;
+    border-radius:      10px;
+    background:         #f3f4f6 no-repeat center / cover;
+    overflow:           hidden;
+}
+
+.ke-calendar-event-thumb-placeholder {
+    display:            flex;
+    align-items:        center;
+    justify-content:    center;
+    width:              100%;
+    height:             100%;
+    font-size:          22px;
+    color:              #c4c4cf;
+}
+
+.ke-calendar-event-info {
+    flex:               1 1 auto;
+    min-width:          0;
+}
+
+.ke-calendar-event-title {
+    margin:             0 0 2px;
+    font-size:          15px;
+    font-weight:        600;
+    line-height:        1.3;
+    color:              #111;
+    overflow:           hidden;
+    text-overflow:      ellipsis;
+    white-space:        nowrap;
+}
+
+.ke-calendar-event-meta {
+    font-size:          13px;
+    color:              #666;
+    line-height:        1.4;
+    overflow:           hidden;
+    text-overflow:      ellipsis;
+    white-space:        nowrap;
+}
+
+.ke-calendar-event-view {
+    flex:               0 0 auto;
+    display:            inline-flex;
+    align-items:        center;
+    justify-content:    center;
+    padding:            8px 14px;
+    font-size:          12px;
+    font-weight:        600;
+    color:              #fff;
+    background:         var(--kep-accent-1, #6366f1);
+    border-radius:      999px;
+    text-decoration:    none;
+    white-space:        nowrap;
+    transition:         filter 0.15s ease;
+}
+
+.ke-calendar-event-view:hover {
+    filter:             brightness(0.95);
+    color:              #fff;
+    text-decoration:    none;
+}
+
+.ke-calendar-event-view:focus-visible {
+    outline:            2px solid var(--kep-accent-1, #6366f1);
+    outline-offset:     2px;
+}
+
+/* ─── Loading state ───────────────────────────────────────── */
+.ke-calendar.is-loading .ke-calendar-grid {
+    opacity:            0.5;
+    pointer-events:     none;
+    transition:         opacity 0.15s ease;
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+@media (max-width: 767px) {
+    .ke-calendar {
+        padding:        16px;
+        border-radius:  16px;
+    }
+    .ke-calendar-month-label {
+        font-size:      20px;
+    }
+    .ke-calendar-nav-btn,
+    .ke-calendar-today {
+        height:         36px;
+    }
+    .ke-calendar-grid {
+        gap:            2px;
+    }
+    .ke-calendar-cell {
+        min-height:     72px;
+        padding:        6px 4px 4px;
+    }
+    .ke-calendar-daynum {
+        width:          24px;
+        height:         24px;
+        font-size:      12px;
+        margin-bottom:  2px;
+    }
+    .ke-calendar-chips {
+        display:        none;
+    }
+    .ke-calendar-dots {
+        display:        flex;
+    }
+}
+
+@media (max-width: 479px) {
+    .ke-calendar {
+        padding:        14px;
+    }
+    .ke-calendar-month-label {
+        font-size:      18px;
+    }
+    .ke-calendar-cell {
+        min-height:     64px;
+    }
+    .ke-calendar-event-thumb {
+        width:          48px;
+        height:         48px;
+        border-radius:  8px;
+    }
+    .ke-calendar-event-title {
+        font-size:      14px;
+    }
+    .ke-calendar-event-meta {
+        font-size:      12px;
+    }
+    .ke-calendar-event-view {
+        padding:        6px 10px;
+        font-size:      11px;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .ke-calendar *,
+    .ke-calendar *::before,
+    .ke-calendar *::after {
+        transition:     none !important;
+    }
+}

@@ -19,12 +19,56 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'KE_VERSION', '1.5.4' );
+define( 'KE_VERSION', '2.0.3' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-define( 'KE_DB_VERSION', '1.7.0' );
-define( 'KE_SCANNER_ASSETS_VER', '0.9.8' );
+define( 'KE_DB_VERSION', '2.5.0' );
+
+// Diagnostic logging for promoter attribution. Flip to true ONLY while
+// debugging a missing-commission report; leaves a banner in wp-admin while
+// enabled so it can't be forgotten. Mirrors the pattern used by
+// ke-yappy-fee-fix's KE_FEE_DEBUG.
+if ( ! defined( 'KE_PROMOTER_DEBUG' ) ) {
+    define( 'KE_PROMOTER_DEBUG', false );
+}
+define( 'KE_SCANNER_ASSETS_VER', '0.10.2' );
+
+// Asset cache-bust for the event-builder admin page. Bump whenever
+// admin/css/ke-event-builder.css or admin/js/ke-event-builder.js change.
+// KE_VERSION moves slowly; the builder assets churn faster, and stale
+// versions on WordPress.com edge cache cause the wizard's step
+// indicators to lose their active/accent styling.
+define( 'KE_BUILDER_ASSETS_VER', '0.11.1' );
+
+// Admin design-token stylesheet (Kiwi brand: cream + green + glass).
+// Loads BEFORE every other KE admin CSS so subsequent rules can reference
+// --kiwi-* tokens. Bump when ke-admin-tokens.css changes so WordPress.com
+// edge cache picks up the new file.
+define( 'KE_TOKENS_ASSETS_VER', '0.9.2' );
+
+// Cache-bust for the general admin stylesheets (ke-admin.css, ke-attendees.css,
+// ke-admin-reservations.css). KE_VERSION moves with the plugin code; admin
+// styling iterates faster during the Kiwi-brand rollout, so it gets its own
+// version line. Bump whenever any of those CSS files change.
+define( 'KE_ADMIN_CSS_VER', '0.15.0' );
+
+// Cache-bust for the promoter portal assets (ke-promoter-portal.css,
+// ke-promoter-login.js). Bump when either file changes so WordPress.com edge
+// cache picks up the new file — KE_VERSION moves slowly and is shared with
+// schema/code changes, so portal styling gets its own line.
+define( 'KE_PORTAL_ASSETS_VER', '0.6.0' );
+
+// Cache-bust for the general admin JS (currently ke-admin-dashboard.js, which
+// reads --kiwi-* tokens at chart-render time). Bump when admin JS changes so
+// dashboard chart colors track the dark-mode token bumps without users having
+// to hard-reload past the edge cache.
+define( 'KE_ADMIN_JS_VER', '0.1.0' );
+
+// Cache-bust for the customer ticket-wallet assets (ke-tickets-wallet.css,
+// ke-tickets-wallet.js — the [kiwi_tickets_purchase] shortcode). Bump when
+// either file changes so WordPress.com edge cache picks up the new file.
+define( 'KE_WALLET_ASSETS_VER', '0.1.1' );
 
 // Load Composer autoloader
 if ( file_exists( KE_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
@@ -35,6 +79,8 @@ if ( file_exists( KE_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
 require_once KE_PLUGIN_DIR . 'includes/class-ke-activator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-deactivator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-post-types.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-event-slug.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-shortcodes.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-ticket-types.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-orders.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets.php';
@@ -43,8 +89,11 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-reservations.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-reservations-cron.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-event-extra-fields.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-qr-generator.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets-wallet.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-pdf-generator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-email.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-email-templates.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-email-queue.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-woocommerce.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-rest-api.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-scanner.php';
@@ -54,12 +103,24 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-public.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-stats.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-report-pdf.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-admin-reservations-pdf.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-attribution.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-commissions.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-event-promoters.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-portal.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-lists.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-notifications.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-visible.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-admin-preview.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-duplicate-events.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-service-fee-audit.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-admin-color-mode.php';
 require_once KE_PLUGIN_DIR . 'includes/class-kiwi-events.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-dashboard.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-attendees.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-reservations.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-ticket-types.php';
+require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-promoters.php';
 require_once KE_PLUGIN_DIR . 'public/class-ke-public.php';
 
 // Activation and deactivation hooks
@@ -78,6 +139,15 @@ add_action( 'plugins_loaded', 'kiwi_events_load_textdomain' );
  * Initialize the plugin
  */
 function kiwi_events_init() {
+    // Auto-run schema upgrades when KE_DB_VERSION bumps so existing installs
+    // pick up new columns / migrations without a manual reactivate.
+    if ( class_exists( 'KE_Activator' ) ) {
+        KE_Activator::maybe_upgrade();
+        if ( is_admin() ) {
+            add_action( 'admin_notices', array( 'KE_Activator', 'print_schema_warning_notice' ) );
+        }
+    }
+
     $plugin = new Kiwi_Events();
     $plugin->run();
 
@@ -86,6 +156,32 @@ function kiwi_events_init() {
     // — its constructor only adds filters/actions.
     if ( class_exists( 'KE_Reservations_Cron' ) ) {
         new KE_Reservations_Cron();
+    }
+
+    // Duplicate-events detector + admin cleanup tool. Hooks the events-list
+    // admin notice and an admin-post handler that purges safe duplicates.
+    if ( is_admin() && class_exists( 'KE_Duplicate_Events' ) ) {
+        ( new KE_Duplicate_Events() )->init();
+    }
+
+    // Service-fee shortfall audit (read-only). Registers a hidden admin
+    // submenu page reachable at admin.php?page=ke-service-fee-audit.
+    if ( is_admin() && class_exists( 'KE_Service_Fee_Audit' ) ) {
+        ( new KE_Service_Fee_Audit() )->init();
+    }
+
+    // Visible promoter attribution (URL persistence + badge + checkout
+    // summary line + email paragraph + WC admin meta). Hooks only fire when
+    // there is an active promoter in session, so a no-op otherwise.
+    if ( class_exists( 'KE_Promoter_Visible' ) ) {
+        ( new KE_Promoter_Visible() )->init();
+    }
+
+    // Admin-only light/dark color mode. Injects <html data-theme="dark">
+    // on Kiwi pages when the current user has opted in. Token remap lives
+    // in admin/css/ke-admin-tokens.css under :root[data-theme="dark"].
+    if ( is_admin() && class_exists( 'KE_Admin_Color_Mode' ) ) {
+        ( new KE_Admin_Color_Mode() )->init();
     }
 }
 add_action( 'plugins_loaded', 'kiwi_events_init' );

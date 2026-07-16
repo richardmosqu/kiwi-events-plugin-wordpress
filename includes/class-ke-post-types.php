@@ -84,7 +84,7 @@ class KE_Post_Types {
             'has_archive'        => true,
             'hierarchical'       => false,
             'menu_position'      => null,
-            'menu_icon'          => 'dashicons-calendar-alt',
+            'menu_icon'          => 'data:image/svg+xml;base64,' . base64_encode( '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="black"><path d="M10 1.5C5.3 1.5 1.5 5.3 1.5 10s3.8 8.5 8.5 8.5 8.5-3.8 8.5-8.5S14.7 1.5 10 1.5zm0 1.5c3.9 0 7 3.1 7 7s-3.1 7-7 7-7-3.1-7-7 3.1-7 7-7z"/><ellipse cx="10" cy="10" rx="0.75" ry="0.75"/><ellipse cx="10" cy="5.2" rx="0.35" ry="0.6"/><ellipse cx="10" cy="14.8" rx="0.35" ry="0.6"/><ellipse cx="5.2" cy="10" rx="0.6" ry="0.35"/><ellipse cx="14.8" cy="10" rx="0.6" ry="0.35"/><circle cx="6.6" cy="6.6" r="0.45"/><circle cx="13.4" cy="6.6" r="0.45"/><circle cx="6.6" cy="13.4" r="0.45"/><circle cx="13.4" cy="13.4" r="0.45"/></svg>' ),
             'supports'           => array( 'title', 'excerpt' ),
             'show_in_rest'       => true,
         );

@@ -67,7 +67,7 @@ class KE_PDF_Generator {
             $pdf->SetFont( 'helvetica', 'B', 10 );
             $pdf->SetTextColor( 107, 203, 119 );
             $pdf->SetXY( 10, 8 );
-            $pdf->Cell( 80, 6, '🥝 KIWIEVENTS', 0, 0, 'L' );
+            $pdf->Cell( 80, 6, 'KIWIEVENTS', 0, 0, 'L' );
 
             // Ticket type badge
             $ticket_type_name = $ticket->ticket_type_name ?? 'General';
@@ -76,6 +76,15 @@ class KE_PDF_Generator {
             $pdf->SetTextColor( 24, 24, 38 );
             $pdf->SetXY( 10, 16 );
             $pdf->Cell( 40, 6, strtoupper( $ticket_type_name ), 0, 0, 'C', true );
+
+            // Courtesy badge — sits right of the type badge when applicable.
+            if ( ! empty( $ticket->is_courtesy ) ) {
+                $pdf->SetFont( 'helvetica', 'B', 8 );
+                $pdf->SetFillColor( 252, 211, 77 ); // amber
+                $pdf->SetTextColor( 120, 53, 15 );
+                $pdf->SetXY( 52, 16 );
+                $pdf->Cell( 28, 6, 'CORTESIA', 0, 0, 'C', true );
+            }
 
             // Event Title
             $pdf->SetFont( 'helvetica', 'B', 18 );
@@ -87,12 +96,12 @@ class KE_PDF_Generator {
             $pdf->SetFont( 'helvetica', '', 9 );
             $pdf->SetTextColor( 180, 180, 200 );
             $pdf->SetXY( 10, 38 );
-            $pdf->Cell( 130, 5, '📅  ' . $formatted_date, 0, 1, 'L' );
+            $pdf->Cell( 130, 5, $formatted_date, 0, 1, 'L' );
 
             // Venue
             if ( $event_venue ) {
                 $pdf->SetXY( 10, 44 );
-                $pdf->Cell( 130, 5, '📍  ' . $event_venue . ( $event_address ? ' — ' . $event_address : '' ), 0, 1, 'L' );
+                $pdf->Cell( 130, 5, $event_venue . ( $event_address ? ' — ' . $event_address : '' ), 0, 1, 'L' );
             }
 
             // Separator line
@@ -134,14 +143,40 @@ class KE_PDF_Generator {
             $pdf->Cell( 130, 4, 'Present this ticket at the venue. This ticket is non-transferable.', 0, 0, 'L' );
 
             // QR Code section — right side with vertical dashed line separator
+            // (TCPDF has no SetLineDash; dashes are set via SetLineStyle.)
             $pdf->SetDrawColor( 60, 60, 80 );
-            $pdf->SetLineDash( 2, 2 );
+            $pdf->SetLineStyle( array( 'dash' => '2,2', 'color' => array( 60, 60, 80 ) ) );
             $pdf->Line( 148, 8, 148, 92 );
-            $pdf->SetLineDash(); // Reset
+            $pdf->SetLineStyle( array( 'dash' => 0 ) ); // Reset
 
-            // QR Code
-            if ( ! empty( $ticket->qr_code_path ) && file_exists( $ticket->qr_code_path ) ) {
-                $pdf->Image( $ticket->qr_code_path, 155, 15, 45, 45, 'PNG' );
+            // QR Code — qr_code_path holds an api.qrserver.com URL (see
+            // KE_QR_Generator), so remote sources must be fetched to a temp
+            // file before TCPDF can embed them. Local paths still work.
+            $qr_source  = $ticket->qr_code_path;
+            $qr_tmpfile = null;
+            if ( empty( $qr_source ) && ! empty( $ticket->ticket_code ) ) {
+                $qr_generator = new KE_QR_Generator();
+                $qr_source    = $qr_generator->get_url( $ticket->ticket_code );
+            }
+            if ( ! empty( $qr_source ) && preg_match( '#^https?://#i', $qr_source ) ) {
+                if ( ! function_exists( 'download_url' ) ) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                }
+                $downloaded = download_url( $qr_source, 15 );
+                if ( ! is_wp_error( $downloaded ) ) {
+                    $qr_tmpfile = $downloaded;
+                    $qr_source  = $downloaded;
+                } else {
+                    $qr_source = null;
+                }
+            }
+            $qr_embedded = false;
+            if ( ! empty( $qr_source ) && file_exists( $qr_source ) ) {
+                $pdf->Image( $qr_source, 155, 15, 45, 45, 'PNG' );
+                $qr_embedded = true;
+            }
+            if ( $qr_tmpfile ) {
+                @unlink( $qr_tmpfile );
             }
 
             // Scan instruction
@@ -165,9 +200,14 @@ class KE_PDF_Generator {
                 return new WP_Error( 'pdf_save_failed', 'Failed to save PDF ticket.' );
             }
 
-            // Update ticket with PDF path
-            $tickets_handler = new KE_Tickets();
-            $tickets_handler->update_pdf_path( $ticket->id, $filepath );
+            // Persist the path only when the QR made it into the PDF —
+            // a cached pdf_path is served forever, so a QR-less PDF from a
+            // transient qrserver outage must not be cached (the next
+            // request regenerates and retries the QR download).
+            if ( $qr_embedded ) {
+                $tickets_handler = new KE_Tickets();
+                $tickets_handler->update_pdf_path( $ticket->id, $filepath );
+            }
 
             return $filepath;
 

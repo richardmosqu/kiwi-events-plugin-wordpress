@@ -43,20 +43,22 @@ $export_pdf_url = add_query_arg( array_merge( $base_args, array( 'ke_export_pdf'
 ?>
 <div class="wrap ke-wrap">
 
-    <!-- Header -->
-    <div class="ke-page-header">
-        <div class="ke-page-header-left">
-            <h1><?php esc_html_e( 'Reservations', 'kiwi-events' ); ?></h1>
-            <p><?php esc_html_e( 'View, filter, and manage reservations across every event.', 'kiwi-events' ); ?></p>
-        </div>
-        <div class="ke-header-actions">
-            <a href="<?php echo esc_url( $export_csv_url ); ?>" class="ke-btn ke-btn-ghost">↓ <?php esc_html_e( 'Export CSV', 'kiwi-events' ); ?></a>
-            <a href="<?php echo esc_url( $export_pdf_url ); ?>" class="ke-btn ke-btn-ghost" target="_blank" rel="noopener">↓ <?php esc_html_e( 'Export PDF', 'kiwi-events' ); ?></a>
+    <!-- Page header — own white section card -->
+    <div class="ke-section-card ke-section-card--compact">
+        <div class="ke-page-header">
+            <div class="ke-page-header-left">
+                <h1><?php esc_html_e( 'Reservations', 'kiwi-events' ); ?></h1>
+                <p><?php esc_html_e( 'View, filter, and manage reservations across every event.', 'kiwi-events' ); ?></p>
+            </div>
+            <div class="ke-header-actions">
+                <a href="<?php echo esc_url( $export_csv_url ); ?>" class="ke-btn ke-btn-ghost">↓ <?php esc_html_e( 'Export CSV', 'kiwi-events' ); ?></a>
+                <a href="<?php echo esc_url( $export_pdf_url ); ?>" class="ke-btn ke-btn-ghost" target="_blank" rel="noopener">↓ <?php esc_html_e( 'Export PDF', 'kiwi-events' ); ?></a>
+            </div>
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="ke-card ke-filters">
+    <!-- Filters — own white section so labels read on white -->
+    <div class="ke-section-card ke-filters">
         <form method="get" action="">
             <input type="hidden" name="page" value="kiwi-events-reservations">
             <div class="ke-filter-row">
@@ -94,31 +96,33 @@ $export_pdf_url = add_query_arg( array_merge( $base_args, array( 'ke_export_pdf'
         </form>
     </div>
 
-    <!-- Stats Strip -->
-    <div class="ke-stat-strip">
-        <div class="ke-stat-strip-item">
-            <div class="ke-stat-strip-label"><?php esc_html_e( 'Pending', 'kiwi-events' ); ?></div>
-            <div class="ke-stat-strip-value"><?php echo (int) $stats['by_status']['pending']['rows']; ?></div>
-        </div>
-        <div class="ke-stat-strip-item">
-            <div class="ke-stat-strip-label"><?php esc_html_e( 'Confirmed', 'kiwi-events' ); ?></div>
-            <div class="ke-stat-strip-value"><?php echo (int) $stats['by_status']['confirmed']['rows']; ?></div>
-        </div>
-        <div class="ke-stat-strip-item">
-            <div class="ke-stat-strip-label"><?php esc_html_e( 'Holding seats', 'kiwi-events' ); ?></div>
-            <div class="ke-stat-strip-value"><?php echo (int) $stats['holding_seats']; ?></div>
-        </div>
-        <div class="ke-stat-strip-item">
-            <div class="ke-stat-strip-label"><?php esc_html_e( 'Checked in', 'kiwi-events' ); ?></div>
-            <div class="ke-stat-strip-value"><?php echo (int) $stats['checked_in']; ?></div>
-        </div>
-        <div class="ke-stat-strip-item">
-            <div class="ke-stat-strip-label"><?php esc_html_e( 'No-show', 'kiwi-events' ); ?></div>
-            <div class="ke-stat-strip-value"><?php echo (int) $stats['by_status']['cancelled_no_show']['rows']; ?></div>
-        </div>
-        <div class="ke-stat-strip-item">
-            <div class="ke-stat-strip-label"><?php esc_html_e( 'Total in scope', 'kiwi-events' ); ?></div>
-            <div class="ke-stat-strip-value"><?php echo (int) $stats['total_rows']; ?></div>
+    <!-- Stats strip — 6 KPIs in ONE white section card -->
+    <div class="ke-section-card ke-section-card--compact">
+        <div class="ke-stat-strip">
+            <div class="ke-stat-strip-item">
+                <div class="ke-stat-strip-label"><?php esc_html_e( 'Pending', 'kiwi-events' ); ?></div>
+                <div class="ke-stat-strip-value"><?php echo (int) $stats['by_status']['pending']['rows']; ?></div>
+            </div>
+            <div class="ke-stat-strip-item">
+                <div class="ke-stat-strip-label"><?php esc_html_e( 'Confirmed', 'kiwi-events' ); ?></div>
+                <div class="ke-stat-strip-value"><?php echo (int) $stats['by_status']['confirmed']['rows']; ?></div>
+            </div>
+            <div class="ke-stat-strip-item">
+                <div class="ke-stat-strip-label"><?php esc_html_e( 'Holding seats', 'kiwi-events' ); ?></div>
+                <div class="ke-stat-strip-value"><?php echo (int) $stats['holding_seats']; ?></div>
+            </div>
+            <div class="ke-stat-strip-item">
+                <div class="ke-stat-strip-label"><?php esc_html_e( 'Checked in', 'kiwi-events' ); ?></div>
+                <div class="ke-stat-strip-value"><?php echo (int) $stats['checked_in']; ?></div>
+            </div>
+            <div class="ke-stat-strip-item">
+                <div class="ke-stat-strip-label"><?php esc_html_e( 'No-show', 'kiwi-events' ); ?></div>
+                <div class="ke-stat-strip-value"><?php echo (int) $stats['by_status']['cancelled_no_show']['rows']; ?></div>
+            </div>
+            <div class="ke-stat-strip-item">
+                <div class="ke-stat-strip-label"><?php esc_html_e( 'Total in scope', 'kiwi-events' ); ?></div>
+                <div class="ke-stat-strip-value"><?php echo (int) $stats['total_rows']; ?></div>
+            </div>
         </div>
     </div>
 
@@ -132,7 +136,7 @@ $export_pdf_url = add_query_arg( array_merge( $base_args, array( 'ke_export_pdf'
         </div>
     <?php else : ?>
 
-        <div class="ke-card ke-attendees-card">
+        <div class="ke-section-card ke-section-card--flush ke-attendees-card">
             <table class="ke-table ke-attendees-table ke-resv-admin-table">
                 <thead>
                     <tr>

@@ -13,23 +13,28 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
 ?>
 <div class="wrap ke-wrap">
 
-    <!-- ── Header ── -->
-    <div class="ke-page-header">
-        <div class="ke-page-header-left">
-            <h1>Attendees</h1>
-            <p>View and manage event attendees</p>
-        </div>
-        <div class="ke-header-actions">
-            <?php if ( $event_id ) : ?>
-                <a href="<?php echo esc_url( add_query_arg( 'ke_export_csv', '1' ) ); ?>" class="ke-btn ke-btn-ghost">
-                    ↓ Export CSV
-                </a>
-            <?php endif; ?>
+    <!-- ── Header (page header wrapped in a section card) ── -->
+    <div class="ke-section-card ke-section-card--compact">
+        <div class="ke-page-header">
+            <div class="ke-page-header-left">
+                <h1>Attendees</h1>
+                <p>View and manage event attendees</p>
+            </div>
+            <div class="ke-header-actions">
+                <?php if ( $event_id ) : ?>
+                    <button type="button" class="ke-btn ke-btn-primary" id="ke-add-attendee-open">
+                        + Add Attendee
+                    </button>
+                    <a href="<?php echo esc_url( add_query_arg( 'ke_export_csv', '1' ) ); ?>" class="ke-btn ke-btn-ghost">
+                        ↓ Export CSV
+                    </a>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
-    <!-- ── Filters ── -->
-    <div class="ke-card ke-filters">
+    <!-- ── Filters (own white section so labels read on white) ── -->
+    <div class="ke-section-card ke-filters">
         <form method="get" action="">
             <input type="hidden" name="page" value="kiwi-events-attendees">
             <div class="ke-filter-row">
@@ -53,6 +58,15 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                             <option value="valid"     <?php selected( $status_filter, 'valid' ); ?>>Valid</option>
                             <option value="used"      <?php selected( $status_filter, 'used' ); ?>>Checked In</option>
                             <option value="cancelled" <?php selected( $status_filter, 'cancelled' ); ?>>Cancelled</option>
+                        </select>
+                    </div>
+
+                    <div class="ke-filter-field">
+                        <label>Attendee</label>
+                        <select name="attendee_type">
+                            <option value=""         <?php selected( $attendee_type, '' ); ?>>All</option>
+                            <option value="real"     <?php selected( $attendee_type, 'real' ); ?>>Real</option>
+                            <option value="courtesy" <?php selected( $attendee_type, 'courtesy' ); ?>>Cortesía</option>
                         </select>
                     </div>
 
@@ -118,11 +132,13 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
             }
         }
     ?>
-        <!-- Stats Strip -->
-        <div class="ke-stat-strip">
-            <div class="ke-stat-strip-item">
-                <div class="ke-stat-strip-label">Total Attendees</div>
-                <div class="ke-stat-strip-value"><?php echo intval( $total ); ?></div>
+        <!-- Total Attendees counter — its own section card so the figure pops against cream -->
+        <div class="ke-section-card ke-section-card--compact">
+            <div class="ke-stat-strip">
+                <div class="ke-stat-strip-item">
+                    <div class="ke-stat-strip-label">Total Attendees</div>
+                    <div class="ke-stat-strip-value"><?php echo intval( $total ); ?></div>
+                </div>
             </div>
         </div>
 
@@ -137,8 +153,8 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
             </div>
         </div>
 
-        <!-- Table -->
-        <div class="ke-card ke-attendees-card">
+        <!-- Table — flush variant so the table owns its own internal padding -->
+        <div class="ke-section-card ke-section-card--flush ke-attendees-card">
             <table class="ke-table ke-attendees-table">
                 <thead>
                     <tr>
@@ -169,6 +185,7 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                             'attendee_name'    => (string) $a->attendee_name,
                             'attendee_email'   => (string) $a->attendee_email,
                             'attendee_number'  => (int) $a->attendee_number,
+                            'is_courtesy'      => ! empty( $a->is_courtesy ) ? 1 : 0,
                             'status'           => (string) $a->status,
                             'checked_in_at'    => $a->checked_in_at,
                             'ticket_type_name' => (string) ( $a->ticket_type_name ?? '' ),
@@ -204,6 +221,9 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                                     </span>
                                 <?php else : ?>
                                     <span class="ke-type-empty">—</span>
+                                <?php endif; ?>
+                                <?php if ( ! empty( $a->is_courtesy ) ) : ?>
+                                    <span class="ke-type-pill ke-type-pill--courtesy" title="<?php esc_attr_e( 'Courtesy attendee — does not contribute to net revenue.', 'kiwi-events' ); ?>">Cortesía</span>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -329,5 +349,170 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
 
     <!-- ── Toast container ── -->
     <div class="ke-toasts" id="ke-toasts" aria-live="polite"></div>
+
+    <?php if ( $event_id ) :
+        // Build the ticket-type options + per-event extra-field config for the
+        // add-attendee modal. Re-uses what's already loaded for the table.
+        $types_for_select = $ticket_types->get_by_event( $event_id );
+        $addxf_cfg        = class_exists( 'KE_Event_Extra_Fields' )
+                            ? KE_Event_Extra_Fields::get_config( $event_id )
+                            : array( 'enabled' => false, 'fields' => array() );
+        $addxf_active     = ! empty( $addxf_cfg['enabled'] ) && ! empty( $addxf_cfg['fields'] );
+    ?>
+    <!-- ── Add Attendee Modal (admin direct entry: real or courtesy) ── -->
+    <div class="ke-modal" id="ke-modal-add" hidden>
+        <div class="ke-modal-backdrop" data-close></div>
+        <div class="ke-modal-dialog ke-modal-dialog-sm" role="dialog" aria-modal="true" aria-labelledby="ke-modal-add-title">
+            <button type="button" class="ke-modal-close" data-close aria-label="Close">×</button>
+            <div class="ke-modal-body">
+                <h2 id="ke-modal-add-title">Add Attendee</h2>
+                <p class="ke-muted" style="margin-top:-4px;">Real attendees count as paid sales. Courtesy attendees occupy a seat but contribute $0 to net.</p>
+
+                <div class="ke-form-field">
+                    <label>Attendee type</label>
+                    <div class="ke-segment-control">
+                        <label class="ke-segment">
+                            <input type="radio" name="ke-add-type" value="real" checked>
+                            <span class="ke-segment-label">Real</span>
+                        </label>
+                        <label class="ke-segment">
+                            <input type="radio" name="ke-add-type" value="courtesy">
+                            <span class="ke-segment-label">Cortesía</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="ke-form-field">
+                    <label for="ke-add-tt">Ticket type</label>
+                    <select id="ke-add-tt">
+                        <?php foreach ( $types_for_select as $tt ) : ?>
+                            <option value="<?php echo (int) $tt->id; ?>">
+                                <?php echo esc_html( $tt->name ); ?><?php echo $tt->price > 0 ? ' — $' . number_format( (float) $tt->price, 2 ) : ' — Free'; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="ke-form-field">
+                    <label for="ke-add-name">Attendee name</label>
+                    <input type="text" id="ke-add-name" placeholder="Full name">
+                </div>
+
+                <div class="ke-form-field">
+                    <label for="ke-add-email">Attendee email</label>
+                    <input type="email" id="ke-add-email" placeholder="email@example.com">
+                </div>
+
+                <?php if ( $addxf_active ) : ?>
+                    <div class="ke-add-xfields">
+                        <?php foreach ( $addxf_cfg['fields'] as $xf ) :
+                            $id   = 'ke-add-xf-' . esc_attr( $xf['id'] );
+                            $req  = ! empty( $xf['required'] ) ? ' *' : '';
+                        ?>
+                            <div class="ke-form-field">
+                                <label for="<?php echo $id; ?>"><?php echo esc_html( $xf['label'] . $req ); ?></label>
+                                <?php if ( ( $xf['type'] ?? 'text' ) === 'textarea' ) : ?>
+                                    <textarea id="<?php echo $id; ?>" data-xfield="<?php echo esc_attr( $xf['id'] ); ?>" rows="2"></textarea>
+                                <?php elseif ( ( $xf['type'] ?? 'text' ) === 'select' && ! empty( $xf['options'] ) ) : ?>
+                                    <select id="<?php echo $id; ?>" data-xfield="<?php echo esc_attr( $xf['id'] ); ?>">
+                                        <option value="">—</option>
+                                        <?php foreach ( (array) $xf['options'] as $opt ) : ?>
+                                            <option value="<?php echo esc_attr( $opt ); ?>"><?php echo esc_html( $opt ); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                <?php else : ?>
+                                    <input type="text" id="<?php echo $id; ?>" data-xfield="<?php echo esc_attr( $xf['id'] ); ?>">
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="ke-form-error" id="ke-add-error" hidden></div>
+            </div>
+            <div class="ke-modal-footer">
+                <button type="button" class="ke-btn ke-btn-ghost" data-close>Cancel</button>
+                <button type="button" class="ke-btn ke-btn-primary" id="ke-add-submit">Create &amp; Email Ticket</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        var modal = document.getElementById('ke-modal-add');
+        if ( ! modal ) return;
+        var openBtn = document.getElementById('ke-add-attendee-open');
+        var submit  = document.getElementById('ke-add-submit');
+        var errBox  = document.getElementById('ke-add-error');
+
+        function show() { modal.removeAttribute('hidden'); }
+        function hide() { modal.setAttribute('hidden', ''); }
+        function setErr( msg ) {
+            if ( ! msg ) { errBox.setAttribute('hidden',''); errBox.textContent=''; return; }
+            errBox.textContent = msg; errBox.removeAttribute('hidden');
+        }
+
+        if ( openBtn ) openBtn.addEventListener('click', function () { setErr(''); show(); });
+        modal.querySelectorAll('[data-close]').forEach(function (el) {
+            el.addEventListener('click', hide);
+        });
+
+        submit.addEventListener('click', function () {
+            setErr('');
+            var typeChoice = modal.querySelector('input[name="ke-add-type"]:checked');
+            var ticketType = document.getElementById('ke-add-tt').value;
+            var name       = document.getElementById('ke-add-name').value.trim();
+            var email      = document.getElementById('ke-add-email').value.trim();
+
+            if ( ! ticketType || ! name || ! email ) {
+                setErr( 'Name, email, and ticket type are required.' );
+                return;
+            }
+
+            var extras = {};
+            modal.querySelectorAll('[data-xfield]').forEach(function (el) {
+                extras[ el.getAttribute('data-xfield') ] = el.value;
+            });
+
+            var payload = {
+                ticket_type_id: parseInt( ticketType, 10 ),
+                name: name,
+                email: email,
+                is_courtesy: typeChoice && typeChoice.value === 'courtesy',
+                extra_fields: extras
+            };
+
+            submit.disabled = true;
+            submit.textContent = 'Creating…';
+
+            var url = '<?php echo esc_js( rest_url( 'ke/v1/events/' . (int) $event_id . '/attendees/add' ) ); ?>';
+            fetch( url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>'
+                },
+                body: JSON.stringify( payload )
+            } )
+            .then( function ( r ) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); } )
+            .then( function ( res ) {
+                submit.disabled = false;
+                submit.textContent = 'Create & Email Ticket';
+                if ( ! res.ok ) {
+                    setErr( ( res.body && res.body.message ) ? res.body.message : 'Could not create attendee.' );
+                    return;
+                }
+                window.location.reload();
+            } )
+            .catch( function ( err ) {
+                submit.disabled = false;
+                submit.textContent = 'Create & Email Ticket';
+                setErr( 'Network error: ' + ( err && err.message ? err.message : err ) );
+            } );
+        });
+    })();
+    </script>
+    <?php endif; ?>
 
 </div>

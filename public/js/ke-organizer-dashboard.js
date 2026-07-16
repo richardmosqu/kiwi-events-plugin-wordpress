@@ -178,6 +178,10 @@
         searchTimer: null,
         activityTimer: null,
         statsTimer: null,            // 60s stats poll
+        beaconTimer: null,           // 8s real-time sales beacon poll
+        beaconInflight: false,       // prevent overlapping beacon requests
+        lastSaleTs: parseInt(cfg.initialLastSale, 10) || 0, // seeded from PHP
+        toastTimer: null,            // auto-dismiss timer for "New sale!" toast
         lastUpdatedTimer: null,      // 5s "Last updated Ns ago" tick
         lastUpdatedAt: 0,            // Date.now() of last successful stats fetch
         consecutiveFailures: 0,      // for retry banner
@@ -405,27 +409,38 @@
 
     var ICON_PDF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
 
+    var ICON_CSV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
     var ICON_CHEVRON = '<svg class="ke-org-event-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+
+    var ICON_CALENDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
 
     function renderTicketTypeBreakdown(types) {
         if (!types || !types.length) {
             return '<div class="ke-org-event-types-empty">No ticket-type data for this range.</div>';
         }
         var total = 0;
+        var totalCourtesy = 0;
         var rows = types.map(function (t) {
             total += (parseInt(t.sold, 10) || 0);
+            var courtesy = parseInt(t.courtesy_count, 10) || 0;
+            totalCourtesy += courtesy;
             var revCell = t.is_free
                 ? '<span class="ke-org-type-badge ke-org-type-badge--free">Free</span>'
                 : fmtMoney(t.revenue) + ' net';
+            var soldText = fmtInt(t.sold) + ' sold' +
+                (courtesy > 0 ? ' (' + fmtInt(courtesy) + ' cortesía)' : '');
             return '<div class="ke-org-type-row">' +
                        '<div class="ke-org-type-name">' + escapeHtml(t.name || 'Unknown') + '</div>' +
-                       '<div class="ke-org-type-sold">' + fmtInt(t.sold) + ' sold</div>' +
+                       '<div class="ke-org-type-sold">' + soldText + '</div>' +
                        '<div class="ke-org-type-rev">' + revCell + '</div>' +
                    '</div>';
         }).join('');
+        var totalSoldText = fmtInt(total) +
+            (totalCourtesy > 0 ? ' (' + fmtInt(totalCourtesy) + ' cortesía)' : '');
         rows += '<div class="ke-org-type-row ke-org-type-row--total">' +
                     '<div class="ke-org-type-name">Total</div>' +
-                    '<div class="ke-org-type-sold">' + fmtInt(total) + '</div>' +
+                    '<div class="ke-org-type-sold">' + totalSoldText + '</div>' +
                     '<div class="ke-org-type-rev"></div>' +
                 '</div>';
         return rows;
@@ -448,22 +463,43 @@
             var active   = state.filterEventId === e.id ? ' is-active' : '';
             var expanded = !!state.expandedEvents[e.id];
             var expClass = expanded ? ' is-expanded' : '';
-            var hasTypes = e.ticket_types && e.ticket_types.length;
-            // Chevron only shows when there's a breakdown to reveal.
-            // The PDF button keeps stopPropagation so it doesn't toggle the row.
+            var hasTypes = !!(e.ticket_types && e.ticket_types.length);
+            // Row 1: icon · name/date · chevron (toggle hidden when no breakdown).
+            // Row 2: stat chips · PDF · CSV.
+            // Stat chips use a label + value so the data reads naturally on
+            // mobile when they wrap to two lines.
             var head =
                 '<div class="ke-org-event-row' + active + expClass + '" data-event-id="' + e.id + '">' +
-                    (hasTypes ? '<button type="button" class="ke-org-event-toggle" data-event-toggle="' + e.id + '" aria-expanded="' + (expanded ? 'true' : 'false') + '" aria-label="Toggle ticket-type breakdown">' + ICON_CHEVRON + '</button>' : '<span class="ke-org-event-toggle-spacer" aria-hidden="true"></span>') +
-                    '<div class="ke-org-event-row-main">' +
-                        '<div class="ke-org-event-name">' + escapeHtml(e.title) + '</div>' +
-                        '<div class="ke-org-event-date">' + escapeHtml(fmtDate(e.date)) + '</div>' +
+                    '<div class="ke-org-event-row-top">' +
+                        '<div class="ke-org-event-icon" aria-hidden="true">' + ICON_CALENDAR + '</div>' +
+                        '<div class="ke-org-event-row-main">' +
+                            '<div class="ke-org-event-name">' + escapeHtml(e.title) + '</div>' +
+                            '<div class="ke-org-event-date">' + escapeHtml(fmtDate(e.date)) + '</div>' +
+                        '</div>' +
+                        (hasTypes
+                            ? '<button type="button" class="ke-org-event-toggle" data-event-toggle="' + e.id + '" aria-expanded="' + (expanded ? 'true' : 'false') + '" aria-label="Toggle ticket-type breakdown">' + ICON_CHEVRON + '</button>'
+                            : '<span class="ke-org-event-toggle-spacer" aria-hidden="true"></span>'
+                        ) +
                     '</div>' +
-                    '<div class="ke-org-event-stat">' + fmtInt(e.tickets_sold) + ' sold</div>' +
-                    '<div class="ke-org-event-stat">' + fmtMoney(e.net_revenue) + '</div>' +
-                    '<div class="ke-org-event-stat">' + fmtPct(e.check_in_rate) + ' checked in</div>' +
-                    '<button type="button" class="ke-org-event-pdf-btn" data-event-pdf="' + e.id + '" title="Download PDF report for this event">' +
-                        ICON_PDF + 'PDF' +
-                    '</button>' +
+                    '<div class="ke-org-event-row-bottom">' +
+                        '<div class="ke-org-event-chips">' +
+                            '<span class="ke-org-event-chip"><span class="ke-org-event-chip-label">Sold</span><span class="ke-org-event-chip-value">' + fmtInt(e.tickets_sold) +
+                                ((parseInt(e.courtesy_tickets, 10) || 0) > 0
+                                    ? ' <span class="ke-org-event-chip-sub">(' + fmtInt(e.courtesy_tickets) + ' cortesía)</span>'
+                                    : '') +
+                            '</span></span>' +
+                            '<span class="ke-org-event-chip"><span class="ke-org-event-chip-label">Net</span><span class="ke-org-event-chip-value">' + fmtMoney(e.net_revenue) + '</span></span>' +
+                            '<span class="ke-org-event-chip"><span class="ke-org-event-chip-label">Check-in</span><span class="ke-org-event-chip-value">' + fmtPct(e.check_in_rate) + '</span></span>' +
+                        '</div>' +
+                        '<div class="ke-org-event-actions">' +
+                            '<button type="button" class="ke-org-event-action" data-event-pdf="' + e.id + '" title="Download PDF report for this event">' +
+                                ICON_PDF + '<span class="ke-org-event-action-label">PDF</span>' +
+                            '</button>' +
+                            '<button type="button" class="ke-org-event-action" data-event-csv="' + e.id + '" title="Download CSV for this event">' +
+                                ICON_CSV + '<span class="ke-org-event-action-label">CSV</span>' +
+                            '</button>' +
+                        '</div>' +
+                    '</div>' +
                 '</div>';
             var details = hasTypes
                 ? '<div class="ke-org-event-types' + (expanded ? ' is-open' : '') + '" data-event-types="' + e.id + '">' +
@@ -484,6 +520,14 @@
                     ev.stopPropagation();
                     var evId = parseInt(pdfBtn.getAttribute('data-event-pdf'), 10) || 0;
                     if (evId > 0) downloadPdf(evId);
+                    return;
+                }
+                // Per-event CSV button: same treatment as the PDF button.
+                var csvBtn = ev.target.closest && ev.target.closest('[data-event-csv]');
+                if (csvBtn) {
+                    ev.stopPropagation();
+                    var cEvId = parseInt(csvBtn.getAttribute('data-event-csv'), 10) || 0;
+                    if (cEvId > 0) downloadCsv(cEvId);
                     return;
                 }
                 // Chevron: toggle the breakdown without changing the attendee filter.
@@ -1205,12 +1249,73 @@
         });
     }
 
+    /* ── Real-time sales beacon ──────────────────────────────────────
+       Polls /last-sale every 8s while the tab is visible. When the
+       timestamp advances we trigger an immediate full refresh and show
+       a "New sale!" toast. The /last-sale endpoint is one transient
+       read on the server — no DB query — so ~450 reqs/hr per dashboard
+       is fine.
+    ──────────────────────────────────────────────────────────────── */
+    function pollSalesBeacon() {
+        if (state.beaconInflight) return;
+        state.beaconInflight = true;
+        getJson(cfg.restUrl + cfg.slug + '/last-sale').then(function (r) {
+            state.beaconInflight = false;
+            var ts = parseInt(r && r.last_sale, 10) || 0;
+            if (ts > state.lastSaleTs) {
+                var first = state.lastSaleTs === 0;
+                state.lastSaleTs = ts;
+                // Don't toast/refresh on the very first observation — we
+                // seed lastSaleTs from PHP but if the seed was 0 (e.g.
+                // brand-new organizer) the first non-zero value is "now
+                // known", not "new since you opened the page".
+                if (!first) {
+                    showNewSaleToast();
+                    fetchDashboardStats(true);
+                    loadActivity();
+                }
+            }
+        }).catch(function () {
+            state.beaconInflight = false;
+            // Silent — the 60s full poll will catch anything missed.
+        });
+    }
+
+    function showNewSaleToast() {
+        var bar = $('keOrgStatusBar');
+        if (!bar) return;
+        var toast = $('keOrgNewSaleToast');
+        if (!toast) {
+            toast = document.createElement('span');
+            toast.id = 'keOrgNewSaleToast';
+            toast.className = 'ke-org-new-sale-toast';
+            toast.setAttribute('role', 'status');
+            toast.innerHTML =
+                '<span class="ke-org-new-sale-dot" aria-hidden="true"></span>' +
+                '<span class="ke-org-new-sale-label">New sale!</span>';
+            bar.appendChild(toast);
+        }
+        // Reset the visible state so re-triggering restarts the animation.
+        toast.classList.remove('is-visible');
+        // Force reflow so the transition restarts.
+        void toast.offsetWidth;
+        toast.classList.add('is-visible');
+        if (state.toastTimer) clearTimeout(state.toastTimer);
+        state.toastTimer = setTimeout(function () {
+            toast.classList.remove('is-visible');
+            state.toastTimer = null;
+        }, 4000);
+    }
+
     function startPolling() {
         if (!state.statsTimer) {
             state.statsTimer = setInterval(function () { fetchDashboardStats(true); }, 60000);
         }
         if (!state.activityTimer) {
             state.activityTimer = setInterval(loadActivity, 30000);
+        }
+        if (!state.beaconTimer) {
+            state.beaconTimer = setInterval(pollSalesBeacon, 8000);
         }
         if (!state.lastUpdatedTimer) {
             state.lastUpdatedTimer = setInterval(tickLastUpdated, 5000);
@@ -1219,6 +1324,7 @@
     function stopPolling() {
         if (state.statsTimer)       { clearInterval(state.statsTimer);       state.statsTimer = null; }
         if (state.activityTimer)    { clearInterval(state.activityTimer);    state.activityTimer = null; }
+        if (state.beaconTimer)      { clearInterval(state.beaconTimer);      state.beaconTimer = null; }
         if (state.lastUpdatedTimer) { clearInterval(state.lastUpdatedTimer); state.lastUpdatedTimer = null; }
     }
 
@@ -1253,6 +1359,7 @@
                 fetchDashboardStats(true);
                 loadActivity();
                 tickLastUpdated();
+                pollSalesBeacon(); // catch up immediately on tab return
                 startPolling();
             }
         });

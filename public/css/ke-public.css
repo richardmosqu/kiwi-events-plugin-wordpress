@@ -767,18 +767,26 @@
     box-sizing:         border-box !important;
     display:            block !important;
     width:              100% !important;
-    padding:            12px 14px !important;
-    background:         var(--kep-surface) !important;
-    border:             1.5px solid var(--kep-border) !important;
-    border-radius:      var(--kep-r-xs) !important;
+    padding:            14px 0 !important;
+    background:         transparent !important;
+    border:             none !important;
+    border-bottom:      1px solid var(--kep-border) !important;
+    border-radius:      0 !important;
     font-family:        var(--kep-font) !important;
     font-size:          15px !important;
     color:              var(--kep-ink) !important;
-    transition:         border-color var(--kep-duration-fast) ease,
-                        box-shadow var(--kep-duration-fast) ease !important;
+    transition:         border-color var(--kep-duration-fast) ease !important;
     outline:            none !important;
     -webkit-appearance: none !important;
     appearance:         none !important;
+}
+
+#ke-checkout-sheet textarea {
+    min-height:         72px !important;
+    max-height:         200px !important;
+    padding:            12px 0 !important;
+    line-height:        1.5 !important;
+    resize:             vertical !important;
 }
 
 #ke-checkout-sheet input::placeholder,
@@ -790,8 +798,8 @@
 #ke-checkout-sheet input:focus,
 #ke-checkout-sheet textarea:focus,
 #ke-checkout-sheet select:focus {
-    border-color:       var(--kep-accent-1) !important;
-    box-shadow:         0 0 0 3px rgba(var(--kep-accent-rgb),0.12) !important;
+    border-bottom-color: var(--kep-accent-1) !important;
+    box-shadow:          none !important;
 }
 
 /* Narrow theme reset: only neutralize bare <button> defaults for buttons that
@@ -1203,81 +1211,85 @@
     margin-bottom:      12px;
 }
 
+/* Section group ("PURCHASER (ATTENDEE 1)" / "RESERVATION HOLDER").
+   Used by both the tickets and reservation sheets. No framed
+   container — just a top divider + vertical rhythm so the small
+   uppercase header label hangs naturally above its fields. The
+   first group in a form has no top divider. */
 .ke-sheet-attendee {
-    background:         var(--kep-surface-2);
-    border:             1.5px solid var(--kep-border-soft);
-    border-radius:      var(--kep-r-sm);
-    padding:            16px;
-    margin-bottom:      12px;
+    background:         transparent;
+    border:             none;
+    border-radius:      0;
+    padding:            0;
+    margin-bottom:      20px;
+}
+.ke-sheet-attendee + .ke-sheet-attendee {
+    margin-top:         8px;
+    padding-top:        20px;
+    border-top:         1px solid var(--kep-border-soft);
 }
 
 .ke-sheet-attendee-header {
-    font-size:          12px;
+    font-size:          11px;
     font-weight:        700;
     color:              var(--kep-ink-3);
     text-transform:     uppercase;
-    letter-spacing:     0.5px;
-    margin-bottom:      12px;
+    letter-spacing:     0.8px;
+    margin-bottom:      14px;
 }
 
 .ke-sheet-field {
-    margin-bottom:      10px;
+    margin-bottom:      4px;
 }
 
 .ke-sheet-field:last-child { margin-bottom: 0; }
 
-.ke-sheet-field input {
-    width:              100%;
-    padding:            12px 14px;
-    background:         var(--kep-surface);
-    border:             1.5px solid var(--kep-border);
-    border-radius:      var(--kep-r-xs);
-    font-family:        var(--kep-font);
-    font-size:          15px;
-    color:              var(--kep-ink);
-    transition:         border-color var(--kep-duration-fast) ease,
-                        box-shadow var(--kep-duration-fast) ease;
-    outline:            none;
-}
-
-.ke-sheet-field input::placeholder {
-    color:              var(--kep-ink-4);
-}
-
-.ke-sheet-field input:focus {
-    border-color:       var(--kep-accent-1);
-    box-shadow:         0 0 0 3px rgba(var(--kep-accent-rgb),0.12);
-}
-
+/* Borderless inputs with only a thin bottom underline — same minimal
+   style used by both modals. Vertical padding keeps the tap target
+   ≥ 44px without needing a heavy bordered box. */
+.ke-sheet-field input,
 .ke-sheet-field select,
 .ke-sheet-field textarea {
     width:              100%;
-    padding:            12px 14px;
-    background:         var(--kep-surface);
-    border:             1.5px solid var(--kep-border);
-    border-radius:      var(--kep-r-xs);
+    padding:            14px 0;
+    background:         transparent;
+    border:             none;
+    border-bottom:      1px solid var(--kep-border);
+    border-radius:      0;
     font-family:        var(--kep-font);
     font-size:          15px;
     color:              var(--kep-ink);
+    transition:         border-color var(--kep-duration-fast) ease;
     outline:            none;
-    transition:         border-color var(--kep-duration-fast) ease,
-                        box-shadow var(--kep-duration-fast) ease;
+    box-shadow:         none;
 }
+
+.ke-sheet-field input::placeholder,
+.ke-sheet-field textarea::placeholder {
+    color:              var(--kep-ink-4);
+}
+
+.ke-sheet-field input:focus,
 .ke-sheet-field select:focus,
 .ke-sheet-field textarea:focus {
-    border-color:       var(--kep-accent-1);
-    box-shadow:         0 0 0 3px rgba(var(--kep-accent-rgb),0.12);
+    border-bottom-color: var(--kep-accent-1);
+    box-shadow:         none;
 }
+
 .ke-sheet-field textarea {
-    min-height:         90px;
+    min-height:         72px;
+    max-height:         200px;
     resize:             vertical;
+    padding:            12px 0;
+    line-height:        1.5;
 }
+
 .ke-field-label {
     display:            block;
     font-size:          12.5px;
     font-weight:        600;
     color:              var(--kep-ink-2);
-    margin-bottom:      6px;
+    margin-bottom:      2px;
 }
 .ke-field-helper {
     margin-top:         6px;
