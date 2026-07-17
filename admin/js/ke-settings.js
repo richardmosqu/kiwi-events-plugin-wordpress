@@ -440,6 +440,47 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // ── Board tab save (same delegated pattern as Access Control) ──
+    $(document).on('click', '#ke-save-board-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const $btn = $(this);
+        const payload = {
+            enabled:            $('#ke-board-enabled').is(':checked'),
+            max_daily:          parseInt($('#ke-board-max-daily').val(), 10) || 3,
+            max_gallery:        parseInt($('#ke-board-max-gallery').val(), 10) || 0,
+            max_file_mb:        parseInt($('#ke-board-max-file-mb').val(), 10) || 5,
+            trending_threshold: parseInt($('#ke-board-trending').val(), 10) || 20,
+        };
+
+        $btn.prop('disabled', true).html('<span class="ke-spinner"></span> Saving...');
+        showMsg('#ke-board-msg', 'hide');
+
+        $.ajax({
+            url:         API + 'settings/board',
+            method:      'POST',
+            beforeSend:  function(xhr) { xhr.setRequestHeader('X-WP-Nonce', NONCE); },
+            data:        JSON.stringify(payload),
+            contentType: 'application/json',
+            success: function() {
+                showMsg('#ke-board-msg', 'Settings saved.', 'success');
+            },
+            error: function(xhr) {
+                let msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not save board settings.';
+                if (xhr.status === 401 || xhr.status === 403) {
+                    msg = 'Permission denied (' + xhr.status + ').';
+                } else if (xhr.status === 404) {
+                    msg = 'Endpoint missing (404). Visit Settings → Permalinks and click Save to refresh REST routes.';
+                }
+                showMsg('#ke-board-msg', msg, 'error');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Save Board Settings');
+            }
+        });
+    });
+
     $('#ke-test-notification-btn').on('click', function() {
         const $btn = $(this);
         $btn.prop('disabled', true).text('Sending...');

@@ -23,7 +23,7 @@ define( 'KE_VERSION', '2.0.3' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-define( 'KE_DB_VERSION', '2.5.0' );
+define( 'KE_DB_VERSION', '2.6.0' );
 
 // Diagnostic logging for promoter attribution. Flip to true ONLY while
 // debugging a missing-commission report; leaves a banner in wp-admin while
@@ -70,6 +70,11 @@ define( 'KE_ADMIN_JS_VER', '0.1.0' );
 // either file changes so WordPress.com edge cache picks up the new file.
 define( 'KE_WALLET_ASSETS_VER', '0.1.1' );
 
+// Cache-bust for the community board assets (ke-board.css, ke-board.js —
+// the [kiwi_board] / [kiwi_create_board] shortcodes and the /board/ single).
+// Bump when either file changes so WordPress.com edge cache picks them up.
+define( 'KE_BOARD_ASSETS_VER', '0.1.0' );
+
 // Load Composer autoloader
 if ( file_exists( KE_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
     require_once KE_PLUGIN_DIR . 'vendor/autoload.php';
@@ -90,6 +95,7 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-reservations-cron.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-event-extra-fields.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-qr-generator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets-wallet.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-board.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-pdf-generator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-email.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-email-templates.php';
@@ -121,6 +127,7 @@ require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-attendees.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-reservations.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-ticket-types.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-promoters.php';
+require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-board.php';
 require_once KE_PLUGIN_DIR . 'public/class-ke-public.php';
 
 // Activation and deactivation hooks

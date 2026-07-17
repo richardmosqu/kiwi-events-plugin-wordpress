@@ -62,6 +62,11 @@ $global_terms    = (string) get_option( 'ke_promoter_global_terms', '' );
 $promo_flash = get_transient( 'ke_promoter_flash_' . get_current_user_id() );
 if ( $promo_flash ) delete_transient( 'ke_promoter_flash_' . get_current_user_id() );
 
+// Community board settings (single array option, like ke_access_settings).
+$board_settings = class_exists( 'KE_Board' ) ? KE_Board::get_settings() : array(
+    'enabled' => true, 'max_daily' => 3, 'max_gallery' => 5, 'max_file_mb' => 5, 'trending_threshold' => 20,
+);
+
 // The 8-tab nav. Order matters — `general` is the default landing tab when
 // no URL hash is present. Icon is rendered as plain text in a span so we
 // can hide labels on narrow screens without losing the visual marker.
@@ -73,6 +78,7 @@ $ke_settings_tabs = array(
     array( 'id' => 'organizers', 'icon' => '👥', 'label' => __( 'Organizers', 'kiwi-events' ) ),
     array( 'id' => 'promoters',  'icon' => '🎯', 'label' => __( 'Promoters',  'kiwi-events' ) ),
     array( 'id' => 'categories', 'icon' => '🏷️', 'label' => __( 'Categories', 'kiwi-events' ) ),
+    array( 'id' => 'board',      'icon' => '📋', 'label' => __( 'Board',      'kiwi-events' ) ),
     array( 'id' => 'advanced',   'icon' => '🔧', 'label' => __( 'Advanced',   'kiwi-events' ) ),
 );
 ?>
@@ -1034,6 +1040,51 @@ $ke_settings_tabs = array(
                 <?php esc_html_e( 'Coming soon — REST API toggle, API keys, webhook URLs.', 'kiwi-events' ); ?>
             </div>
         </div>
+    </div>
+
+    <!-- ══════════ BOARD TAB ══════════ -->
+    <div class="ke-settings-content"
+         id="ke-tab-content-board"
+         data-content-id="board"
+         role="tabpanel"
+         aria-labelledby="ke-tab-board">
+
+        <h3 class="ke-settings-subhead"><?php esc_html_e( 'System', 'kiwi-events' ); ?></h3>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <input type="checkbox" id="ke-board-enabled" <?php checked( ! empty( $board_settings['enabled'] ) ); ?>>
+            <span><?php esc_html_e( 'Enable board', 'kiwi-events' ); ?></span>
+        </label>
+        <p class="description" style="margin-top:-8px;margin-bottom:18px;">
+            <?php esc_html_e( 'When off, [kiwi_board] and [kiwi_create_board] render nothing and the Board admin menu hides.', 'kiwi-events' ); ?>
+        </p>
+
+        <h3 class="ke-settings-subhead"><?php esc_html_e( 'Moderation', 'kiwi-events' ); ?></h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;max-width:760px;">
+            <div>
+                <label for="ke-board-max-daily" style="display:block;font-weight:600;margin-bottom:4px;"><?php esc_html_e( 'Max submissions per user per 24h', 'kiwi-events' ); ?></label>
+                <input type="number" min="1" step="1" class="ke-input" id="ke-board-max-daily" value="<?php echo esc_attr( (int) $board_settings['max_daily'] ); ?>">
+            </div>
+            <div>
+                <label for="ke-board-max-gallery" style="display:block;font-weight:600;margin-bottom:4px;"><?php esc_html_e( 'Max additional images per submission', 'kiwi-events' ); ?></label>
+                <input type="number" min="0" step="1" class="ke-input" id="ke-board-max-gallery" value="<?php echo esc_attr( (int) $board_settings['max_gallery'] ); ?>">
+            </div>
+            <div>
+                <label for="ke-board-max-file-mb" style="display:block;font-weight:600;margin-bottom:4px;"><?php esc_html_e( 'Max image file size (MB)', 'kiwi-events' ); ?></label>
+                <input type="number" min="1" step="1" class="ke-input" id="ke-board-max-file-mb" value="<?php echo esc_attr( (int) $board_settings['max_file_mb'] ); ?>">
+            </div>
+        </div>
+
+        <h3 class="ke-settings-subhead"><?php esc_html_e( 'Tendencia', 'kiwi-events' ); ?></h3>
+        <div style="max-width:360px;">
+            <label for="ke-board-trending" style="display:block;font-weight:600;margin-bottom:4px;"><?php esc_html_e( 'Trending threshold (likes)', 'kiwi-events' ); ?></label>
+            <input type="number" min="1" step="1" class="ke-input" id="ke-board-trending" value="<?php echo esc_attr( (int) $board_settings['trending_threshold'] ); ?>">
+            <p class="description"><?php esc_html_e( 'Actividades con este número de likes o más muestran la etiqueta Tendencia.', 'kiwi-events' ); ?></p>
+        </div>
+
+        <div id="ke-board-msg" class="ke-settings-msg" style="display:none;margin-top:14px;"></div>
+        <p style="margin-top:16px;">
+            <button type="button" class="ke-btn ke-btn-primary" id="ke-save-board-btn"><?php esc_html_e( 'Save Board Settings', 'kiwi-events' ); ?></button>
+        </p>
     </div>
 
 </div>

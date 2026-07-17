@@ -306,6 +306,22 @@ class KE_Activator {
             KEY created_at (created_at)
         ) $charset_collate;";
 
+        // ── Community board ─────────────────────────────────────────
+        //   ke_board_likes — one row per (post, user) like on a board
+        //   event. The UNIQUE KEY is the real double-like guard; the
+        //   _ke_board_like_count post meta is only a denormalized cache
+        //   recomputed from this table on every toggle.
+        $table_board_likes = $wpdb->prefix . 'ke_board_likes';
+        $sql_board_likes = "CREATE TABLE $table_board_likes (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            post_id bigint(20) unsigned NOT NULL,
+            user_id bigint(20) unsigned NOT NULL,
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY unique_like (post_id, user_id),
+            KEY post_id (post_id)
+        ) $charset_collate;";
+
         dbDelta( $sql_ticket_types );
         dbDelta( $sql_orders );
         dbDelta( $sql_tickets );
@@ -319,6 +335,7 @@ class KE_Activator {
         dbDelta( $sql_promoter_clicks );
         dbDelta( $sql_promoter_admin_audit );
         dbDelta( $sql_email_log );
+        dbDelta( $sql_board_likes );
 
         // Belt-and-suspenders migration: dbDelta can miss column additions
         // in some edge cases, so add is_archived explicitly if missing.

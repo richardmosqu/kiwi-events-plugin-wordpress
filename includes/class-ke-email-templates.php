@@ -21,8 +21,58 @@ class KE_Email_Templates {
                 return self::render_promoter_assignment( $context );
             case 'promoter_commission_earned':
                 return self::render_commission_earned( $context );
+            case 'board_approved':
+                return self::render_board_status( $context, true );
+            case 'board_rejected':
+                return self::render_board_status( $context, false );
         }
         return null;
+    }
+
+    /**
+     * Board submission approved/rejected notification.
+     * Context: first_name, post_title, post_url.
+     * Uses its own footer (layout() carries promoter-specific footer text).
+     */
+    private static function render_board_status( array $ctx, $approved ) {
+        $accent   = self::accent();
+        $sitename = esc_html( get_bloginfo( 'name' ) );
+        $name      = esc_html( $ctx['first_name'] ?? '' );
+        $title     = esc_html( $ctx['post_title'] ?? '' );
+        $url       = esc_url( $ctx['post_url'] ?? '' );
+        $raw_title = sanitize_text_field( $ctx['post_title'] ?? '' );
+
+        if ( $approved ) {
+            $subject = '¡Tu actividad fue aprobada! — ' . $raw_title;
+            $inner   = '<p>Hola ' . $name . ',</p>'
+                     . '<p>Tu actividad <strong>' . $title . '</strong> fue aprobada y ya es visible en el board. 🎉</p>'
+                     . ( $url ? '<p><a href="' . $url . '" style="display:inline-block; background:' . esc_attr( $accent ) . '; color:#fff; padding:10px 18px; border-radius:8px; text-decoration:none; font-weight:700;">Ver mi actividad</a></p>' : '' );
+            $heading = 'Actividad aprobada';
+        } else {
+            $subject = 'Tu actividad no fue aprobada — ' . $raw_title;
+            $inner   = '<p>Hola ' . $name . ',</p>'
+                     . '<p>Tu actividad <strong>' . $title . '</strong> no fue aprobada esta vez, así que no aparecerá en el board.</p>'
+                     . '<p>Si crees que fue un error o quieres ajustarla, contacta al equipo del sitio.</p>';
+            $heading = 'Actividad no aprobada';
+        }
+
+        $body = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+              . '<body style="margin:0; background:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; color:#0f172a;">'
+              . '<div style="max-width:600px; margin:24px auto; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,0.06);">'
+              . '<div style="background:' . esc_attr( $accent ) . '; color:#fff; padding:20px 24px;">'
+              . '<div style="font-size:13px; opacity:0.85;">' . $sitename . '</div>'
+              . '<h1 style="margin:4px 0 0; font-size:20px; font-weight:700;">' . esc_html( $heading ) . '</h1>'
+              . '</div>'
+              . '<div style="padding:24px;">' . $inner . '</div>'
+              . '<div style="padding:16px 24px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8;">'
+              . 'Recibes este correo porque enviaste una actividad al board de ' . $sitename . '.'
+              . '</div></div></body></html>';
+
+        return array(
+            'subject' => $subject,
+            'body'    => $body,
+            'headers' => array( 'Content-Type: text/html; charset=UTF-8' ),
+        );
     }
 
     /* ─── Shared helpers ────────────────────────────────────────────── */

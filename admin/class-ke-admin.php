@@ -427,6 +427,26 @@ class KE_Admin {
             array( $this, 'render_reservations_page' )
         );
 
+        // Community board moderation queue — hidden entirely when the board
+        // system is disabled in Settings → Board. The pending-count bubble
+        // reuses core's awaiting-mod classes so it looks native.
+        if ( class_exists( 'KE_Board' ) && KE_Board::is_enabled() ) {
+            $board_pending = KE_Board::pending_count();
+            $board_title   = 'Board';
+            if ( $board_pending > 0 ) {
+                $board_title .= ' <span class="awaiting-mod count-' . esc_attr( $board_pending ) . '"><span class="pending-count">'
+                    . esc_html( number_format_i18n( $board_pending ) ) . '</span></span>';
+            }
+            add_submenu_page(
+                'kiwi-events',
+                'Board',
+                $board_title,
+                'manage_kiwi_events',
+                'ke-board',
+                array( $this, 'render_board_page' )
+            );
+        }
+
         // System Settings
         add_submenu_page(
             'kiwi-events',
@@ -488,6 +508,7 @@ class KE_Admin {
             'kiwievents_page_ke-categories',
             'kiwievents_page_ke-organizers',
             'kiwievents_page_ke-promoters',
+            'kiwievents_page_ke-board',
             'kiwievents_page_ke-settings',
         );
 
@@ -726,5 +747,13 @@ class KE_Admin {
      */
     public function render_settings_page() {
         require_once KE_PLUGIN_DIR . 'admin/views/settings.php';
+    }
+
+    /**
+     * Render the Board moderation queue.
+     */
+    public function render_board_page() {
+        $module = new KE_Admin_Board();
+        $module->render();
     }
 }

@@ -51,6 +51,12 @@ class Kiwi_Events {
     /** @var KE_Tickets_Wallet */
     private $tickets_wallet;
 
+    /** @var KE_Board */
+    private $board;
+
+    /** @var KE_Admin_Board */
+    private $admin_board;
+
     /**
      * Initialize all components
      */
@@ -101,6 +107,14 @@ class Kiwi_Events {
         // Customer ticket wallet — [kiwi_tickets_purchase] + gated PDF endpoint
         $this->tickets_wallet = new KE_Tickets_Wallet();
         $this->tickets_wallet->init();
+
+        // Community board — [kiwi_board] / [kiwi_create_board] + moderation.
+        // The admin module always boots: its admin_post approve/reject
+        // handlers must register on every admin-context request.
+        $this->board = new KE_Board();
+        $this->board->init();
+        $this->admin_board = new KE_Admin_Board();
+        $this->admin_board->init();
 
         // REST API
         $this->rest_api = new KE_Rest_API();
