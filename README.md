@@ -16,6 +16,7 @@ Plugin de WordPress para gestión completa de eventos y venta de boletos: crea e
 - **Reservaciones** — reservas de grupo por evento (auto-confirmadas o aprobadas por la sede), en paralelo a la venta de boletos; página de administración con exportes CSV y PDF.
 - **Organizadores** — dashboard self-service en `/organizer/{slug}`, perfil público en `/organizers/{slug}`, estadísticas y reporte PDF de ventas.
 - **Promotores** — atribución por URL (`?ke_promo`), comisiones con política de reembolso configurable, portal del promotor en `/promoter/{slug}`, listas, importación y módulo de administración.
+- **Board comunitario** — actividades enviadas por usuarios (CPT `ke_board_event`, sin ticketing) con aprobación del admin, likes (tabla `wp_ke_board_likes` con índice único), comentarios nativos solo para logueados, etiqueta "Tendencia" configurable y cola de moderación en wp-admin.
 - **Emails** — confirmación con boletos adjuntos en PDF, cola de envío y plantillas.
 - **Dashboards** — ventas, ingresos y asistentes en wp-admin, con modo de color.
 
@@ -31,6 +32,8 @@ Plugin de WordPress para gestión completa de eventos y venta de boletos: crea e
 | `[kiwi_events_calendar]` | Calendario de eventos |
 | `[kiwi_organizers]` | Catálogo de organizadores |
 | `[kiwi_tickets_purchase]` | Wallet "Mis Boletos" del cliente (requiere login) |
+| `[kiwi_board]` | Carrusel público del board comunitario (actividades aprobadas) |
+| `[kiwi_create_board]` | Formulario para publicar en el board (requiere login; pasa por moderación) |
 | `[kiwi-promoter-dashboard]` | Mini-dashboard del promotor |
 
 ## Instalación
@@ -75,6 +78,7 @@ vendor/                  Dependencias Composer (TCPDF, php-qrcode) — se despli
 | `KE_ADMIN_CSS_VER` / `KE_ADMIN_JS_VER` | Admin general |
 | `KE_PORTAL_ASSETS_VER` | Portal del promotor |
 | `KE_WALLET_ASSETS_VER` | Wallet de boletos |
+| `KE_BOARD_ASSETS_VER` | Board comunitario |
 
 ## Notas para desarrollo
 
