@@ -447,11 +447,14 @@ jQuery(document).ready(function($) {
 
         const $btn = $(this);
         const payload = {
-            enabled:            $('#ke-board-enabled').is(':checked'),
-            max_daily:          parseInt($('#ke-board-max-daily').val(), 10) || 3,
-            max_gallery:        parseInt($('#ke-board-max-gallery').val(), 10) || 0,
-            max_file_mb:        parseInt($('#ke-board-max-file-mb').val(), 10) || 5,
-            trending_threshold: parseInt($('#ke-board-trending').val(), 10) || 20,
+            enabled:              $('#ke-board-enabled').is(':checked'),
+            max_daily:            parseInt($('#ke-board-max-daily').val(), 10) || 3,
+            max_gallery:          parseInt($('#ke-board-max-gallery').val(), 10) || 0,
+            max_file_mb:          parseInt($('#ke-board-max-file-mb').val(), 10) || 5,
+            trending_threshold:   parseInt($('#ke-board-trending').val(), 10) || 20,
+            notify_admin_new:     $('#ke-board-notify-admin').is(':checked'),
+            notify_user_received: $('#ke-board-notify-received').is(':checked'),
+            notify_user_decision: $('#ke-board-notify-decision').is(':checked'),
         };
 
         $btn.prop('disabled', true).html('<span class="ke-spinner"></span> Saving...');

@@ -638,6 +638,25 @@ class KE_Admin {
                 'nonce'   => wp_create_nonce( 'wp_rest' ),
             ) );
         }
+
+        // Board moderation page — tokens-only stylesheet (dark-mode safe)
+        // plus the modal/toggle behaviors.
+        if ( $hook === 'kiwievents_page_ke-board' ) {
+            wp_enqueue_style(
+                'ke-admin-board-css',
+                KE_PLUGIN_URL . 'admin/css/ke-admin-board.css',
+                array( 'ke-admin-css' ),
+                $ke_admin_css_ver
+            );
+            $ke_admin_js_ver = defined( 'KE_ADMIN_JS_VER' ) ? KE_ADMIN_JS_VER : KE_VERSION;
+            wp_enqueue_script(
+                'ke-admin-board-js',
+                KE_PLUGIN_URL . 'admin/js/ke-admin-board.js',
+                array(),
+                $ke_admin_js_ver,
+                true
+            );
+        }
     }
 
     /**

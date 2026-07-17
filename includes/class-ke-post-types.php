@@ -33,11 +33,11 @@ class KE_Post_Types {
         );
         add_rewrite_tag( '%ke_ticket_code%', '([a-f0-9]+)' );
 
-        // Flush once when the rule version changes (no manual permalink save needed)
-        if ( get_option( 'ke_rewrite_version', '' ) !== '1.0.1' ) {
-            flush_rewrite_rules( false );
-            update_option( 'ke_rewrite_version', '1.0.1' );
-        }
+        // Rewrite flushing is centralized in kiwi_events_maybe_flush_rewrites()
+        // (init 99, gated on KE_REWRITE_VERSION). The old local guard here
+        // shared the same ke_rewrite_version option against a different
+        // literal, which made the two guards ping-pong a flush on EVERY boot.
+        // Bump KE_REWRITE_VERSION in kiwi-events.php when this rule changes.
     }
 
     /**

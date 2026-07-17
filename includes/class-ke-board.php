@@ -20,9 +20,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  */
 class KE_Board {
 
-    const POST_TYPE       = 'ke_board_event';
-    const OPTION          = 'ke_board_settings';
-    const REWRITE_VERSION = '1.0.0';
+    const POST_TYPE = 'ke_board_event';
+    const OPTION    = 'ke_board_settings';
 
     /** Upload allowlist — SVG deliberately excluded (stored-XSS vector). */
     const ALLOWED_MIMES = array(
@@ -33,7 +32,8 @@ class KE_Board {
 
     public function init() {
         add_action( 'init', array( $this, 'register_post_type' ) );
-        add_action( 'init', array( $this, 'maybe_flush_rewrite' ), 20 );
+        // Rewrite flushing is centralized: kiwi_events_maybe_flush_rewrites()
+        // (init 99, gated on KE_REWRITE_VERSION in kiwi-events.php).
         add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 
         add_shortcode( 'kiwi_board', array( $this, 'render_board' ) );
@@ -58,11 +58,14 @@ class KE_Board {
     public static function get_settings() {
         $saved = get_option( self::OPTION, array() );
         return wp_parse_args( is_array( $saved ) ? $saved : array(), array(
-            'enabled'            => true,
-            'max_daily'          => 3,
-            'max_gallery'        => 5,
-            'max_file_mb'        => 5,
-            'trending_threshold' => 20,
+            'enabled'              => true,
+            'max_daily'            => 3,
+            'max_gallery'          => 5,
+            'max_file_mb'          => 5,
+            'trending_threshold'   => 20,
+            'notify_admin_new'     => true,
+            'notify_user_received' => true,
+            'notify_user_decision' => true,
         ) );
     }
 
@@ -96,14 +99,6 @@ class KE_Board {
             'hierarchical'       => false,
             'supports'           => array( 'title', 'editor', 'thumbnail', 'author', 'comments' ),
         ) );
-    }
-
-    /** Version-gated rewrite flush (same pattern as scanner/organizer). */
-    public function maybe_flush_rewrite() {
-        if ( get_option( 'ke_board_rewrite_version' ) !== self::REWRITE_VERSION ) {
-            flush_rewrite_rules( false );
-            update_option( 'ke_board_rewrite_version', self::REWRITE_VERSION );
-        }
     }
 
     /* ─────────────────────────────────────────────
@@ -377,11 +372,14 @@ class KE_Board {
         $current = self::get_settings();
 
         $new = array(
-            'enabled'            => isset( $params['enabled'] ) ? rest_sanitize_boolean( $params['enabled'] ) : $current['enabled'],
-            'max_daily'          => isset( $params['max_daily'] ) ? max( 1, absint( $params['max_daily'] ) ) : $current['max_daily'],
-            'max_gallery'        => isset( $params['max_gallery'] ) ? max( 0, absint( $params['max_gallery'] ) ) : $current['max_gallery'],
-            'max_file_mb'        => isset( $params['max_file_mb'] ) ? max( 1, absint( $params['max_file_mb'] ) ) : $current['max_file_mb'],
-            'trending_threshold' => isset( $params['trending_threshold'] ) ? max( 1, absint( $params['trending_threshold'] ) ) : $current['trending_threshold'],
+            'enabled'              => isset( $params['enabled'] ) ? rest_sanitize_boolean( $params['enabled'] ) : $current['enabled'],
+            'max_daily'            => isset( $params['max_daily'] ) ? max( 1, absint( $params['max_daily'] ) ) : $current['max_daily'],
+            'max_gallery'          => isset( $params['max_gallery'] ) ? max( 0, absint( $params['max_gallery'] ) ) : $current['max_gallery'],
+            'max_file_mb'          => isset( $params['max_file_mb'] ) ? max( 1, absint( $params['max_file_mb'] ) ) : $current['max_file_mb'],
+            'trending_threshold'   => isset( $params['trending_threshold'] ) ? max( 1, absint( $params['trending_threshold'] ) ) : $current['trending_threshold'],
+            'notify_admin_new'     => isset( $params['notify_admin_new'] ) ? rest_sanitize_boolean( $params['notify_admin_new'] ) : $current['notify_admin_new'],
+            'notify_user_received' => isset( $params['notify_user_received'] ) ? rest_sanitize_boolean( $params['notify_user_received'] ) : $current['notify_user_received'],
+            'notify_user_decision' => isset( $params['notify_user_decision'] ) ? rest_sanitize_boolean( $params['notify_user_decision'] ) : $current['notify_user_decision'],
         );
         update_option( self::OPTION, $new );
 
@@ -600,10 +598,57 @@ class KE_Board {
             $message .= sprintf( ' (%d imagen(es) adicional(es) no se pudieron procesar.)', $gallery_failed );
         }
 
+        // Notifications go through the queue — a mail failure must never
+        // fail the submission that already succeeded.
+        $this->queue_submission_notifications( $post_id, $settings );
+
         return rest_ensure_response( array(
             'success' => true,
             'message' => $message,
         ) );
+    }
+
+    /**
+     * Admin notification recipient. The plugin has no global "notification
+     * address" setting (the ticket-purchase admin email resolves per-event
+     * organizer term meta, which doesn't apply to board posts), so this
+     * falls back the same way that path does: get_option('admin_email').
+     */
+    public static function admin_recipient() {
+        return get_option( 'admin_email' );
+    }
+
+    /** Queue "new submission" emails to admin and submitter (per settings). */
+    private function queue_submission_notifications( $post_id, $settings ) {
+        if ( ! class_exists( 'KE_Email_Queue' ) || ! class_exists( 'KE_Email_Templates' ) ) {
+            return;
+        }
+        $post   = get_post( $post_id );
+        $author = $post ? get_userdata( (int) $post->post_author ) : null;
+
+        $ctx = array(
+            'post_title'      => $post ? $post->post_title : '',
+            'submitter_name'  => $author ? $author->display_name : '',
+            'submitter_email' => $author ? $author->user_email : '',
+            'date_display'    => self::format_datetime( $post_id ),
+            'location'        => get_post_meta( $post_id, '_ke_board_location', true ),
+            'university'      => get_post_meta( $post_id, '_ke_board_university', true ),
+            'organizer'       => get_post_meta( $post_id, '_ke_board_organizer', true ),
+            'contact'         => get_post_meta( $post_id, '_ke_board_contact', true ),
+            'excerpt'         => wp_trim_words( $post ? $post->post_content : '', 40 ),
+            'moderation_url'  => admin_url( 'admin.php?page=ke-board#board-post-' . $post_id ),
+        );
+
+        try {
+            if ( ! empty( $settings['notify_admin_new'] ) && is_email( self::admin_recipient() ) ) {
+                KE_Email_Queue::enqueue( 'board_submitted_admin', self::admin_recipient(), $ctx );
+            }
+            if ( ! empty( $settings['notify_user_received'] ) && $author && is_email( $author->user_email ) ) {
+                KE_Email_Queue::enqueue( 'board_submitted_user', $author->user_email, $ctx );
+            }
+        } catch ( \Throwable $e ) {
+            error_log( 'KiwiEvents board: could not queue submission notifications — ' . $e->getMessage() );
+        }
     }
 
     /** While a board upload runs, only the image allowlist is accepted. */

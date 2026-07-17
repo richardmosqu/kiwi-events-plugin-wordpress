@@ -1,0 +1,480 @@
+/* ─────────────────────────────────────────────────────────────
+ *  Kiwi Events — Board admin (Pendientes + Publicadas)
+ *  Tokens only (var(--kiwi-*)) so dark mode works via
+ *  :root[data-theme="dark"]. Glass ONLY on the modals.
+ * ───────────────────────────────────────────────────────────── */
+
+.ke-board-admin {
+    background: var(--kiwi-bg);
+}
+
+.ke-board-admin__header h1 {
+    margin: 0 0 4px;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: var(--kiwi-text);
+}
+
+.ke-board-admin__sub {
+    margin: 0 0 18px;
+    font-size: 13.5px;
+    color: var(--kiwi-text-muted);
+}
+
+/* Flash notice */
+.ke-board-flash {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-green-tint);
+    border: 1px solid var(--kiwi-green-line);
+    color: var(--kiwi-text);
+    font-size: 13.5px;
+    font-weight: 600;
+    box-shadow: 0 1px 0 var(--kiwi-inner-highlight-faint) inset;
+}
+
+/* ── Tabs (pill strip) ─────────────────────────────────────── */
+
+.ke-board-tabs {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    margin: 0 0 18px;
+    border-radius: var(--kiwi-radius-pill);
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border-hairline);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-soft) inset,
+        0 1px 3px var(--kiwi-shadow-3);
+}
+
+.ke-board-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 18px;
+    border-radius: var(--kiwi-radius-pill);
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--kiwi-text-muted);
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease;
+}
+
+.ke-board-tab:hover {
+    color: var(--kiwi-text);
+}
+
+.ke-board-tab.is-active {
+    background: var(--kiwi-green);
+    color: var(--kiwi-green-ink);
+    box-shadow: 0 1px 0 var(--kiwi-inner-highlight-soft) inset;
+}
+
+.ke-board-tab__count {
+    min-width: 20px;
+    padding: 1px 7px;
+    border-radius: var(--kiwi-radius-pill);
+    background: var(--kiwi-red);
+    color: var(--kiwi-white);
+    font-size: 11.5px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.ke-board-tab.is-active .ke-board-tab__count {
+    background: var(--kiwi-green-ink);
+    color: var(--kiwi-green);
+}
+
+.ke-board-tab__count--muted {
+    background: var(--kiwi-surface-sunken);
+    color: var(--kiwi-text-muted);
+}
+
+/* ── Cards ─────────────────────────────────────────────────── */
+
+.ke-board-admin .ke-section-card {
+    margin-bottom: 14px;
+}
+
+.ke-board-empty-card {
+    text-align: center;
+    padding: 44px 24px;
+}
+
+.ke-board-empty-card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--kiwi-text-muted);
+}
+
+/* Pendientes item */
+.ke-board-item {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.ke-board-item__media {
+    flex: 0 0 190px;
+}
+
+.ke-board-item__thumb {
+    width: 190px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: var(--kiwi-radius-md);
+    border: 1px solid var(--kiwi-border-hairline);
+    box-shadow: 0 1px 0 var(--kiwi-inner-highlight-faint) inset, 0 1px 3px var(--kiwi-shadow-3);
+    display: block;
+}
+
+.ke-board-item__thumb--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--kiwi-surface-muted);
+    color: var(--kiwi-text-faint);
+    font-size: 12.5px;
+}
+
+.ke-board-item__gallery {
+    display: flex;
+    gap: 5px;
+    margin-top: 7px;
+    flex-wrap: wrap;
+}
+
+.ke-board-item__gallery img {
+    width: 42px;
+    height: 42px;
+    object-fit: cover;
+    border-radius: var(--kiwi-radius-sm);
+    border: 1px solid var(--kiwi-border-hairline);
+}
+
+.ke-board-item__body {
+    flex: 1;
+    min-width: 300px;
+}
+
+.ke-board-item__title {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--kiwi-text);
+}
+
+.ke-board-item__byline {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+    color: var(--kiwi-text-muted);
+}
+
+.ke-board-item__byline-mail {
+    color: var(--kiwi-text-faint);
+}
+
+.ke-board-item__data {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px 20px;
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-surface-muted);
+    border: 1px solid var(--kiwi-border-hairline);
+}
+
+.ke-board-item__data dt {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--kiwi-text-muted);
+    margin: 0 0 2px;
+}
+
+.ke-board-item__data dd {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--kiwi-text);
+    overflow-wrap: anywhere;
+}
+
+.ke-board-item__data-desc {
+    grid-column: 1 / -1;
+}
+
+.ke-board-item__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ke-board-item__actions form {
+    display: inline;
+}
+
+/* ── Publicadas rows ───────────────────────────────────────── */
+
+.ke-board-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+
+.ke-board-toolbar label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kiwi-text-muted);
+}
+
+.ke-board-admin .ke-board-sort {
+    padding: 8px 32px 8px 12px;
+    border-radius: var(--kiwi-radius-sm);
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
+    color: var(--kiwi-text);
+    font-size: 13px;
+    box-shadow: 0 1px 0 var(--kiwi-inner-highlight-faint) inset, 0 1px 2px var(--kiwi-shadow-2);
+}
+
+.ke-board-row__main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.ke-board-row__thumb {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: var(--kiwi-radius-sm);
+    border: 1px solid var(--kiwi-border-hairline);
+    flex-shrink: 0;
+}
+
+.ke-board-row__thumb--empty {
+    background: var(--kiwi-surface-muted);
+}
+
+.ke-board-row__info {
+    flex: 1;
+    min-width: 220px;
+}
+
+.ke-board-row__title-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ke-board-row__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--kiwi-text);
+    text-decoration: none;
+}
+
+.ke-board-row__title:hover {
+    color: var(--kiwi-green-text);
+}
+
+.ke-board-row__meta {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--kiwi-text-muted);
+}
+
+/* Tendencia badge — green fill with dark ink text (never green text) */
+.ke-board-badge-trending {
+    padding: 2px 10px;
+    border-radius: var(--kiwi-radius-pill);
+    background: var(--kiwi-green);
+    color: var(--kiwi-green-ink);
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 1px 0 var(--kiwi-inner-highlight-soft) inset;
+}
+
+.ke-board-row__stats {
+    display: flex;
+    gap: 14px;
+}
+
+.ke-board-stat {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--kiwi-text-muted);
+    white-space: nowrap;
+}
+
+.ke-board-row__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ke-board-row__actions form {
+    display: inline;
+}
+
+.ke-board-row__actions .ke-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+}
+
+/* ── Comments panel ────────────────────────────────────────── */
+
+.ke-board-comments-panel {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--kiwi-border-hairline);
+}
+
+.ke-board-comment {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-surface-muted);
+    border: 1px solid var(--kiwi-border-hairline);
+    margin-bottom: 8px;
+}
+
+.ke-board-comment__avatar {
+    border-radius: var(--kiwi-radius-pill);
+    flex-shrink: 0;
+}
+
+.ke-board-comment__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ke-board-comment__head {
+    margin: 0 0 2px;
+    font-size: 12.5px;
+    color: var(--kiwi-text);
+}
+
+.ke-board-comment__head span {
+    color: var(--kiwi-text-faint);
+    margin-left: 6px;
+    font-size: 11.5px;
+}
+
+.ke-board-comment__text {
+    margin: 0;
+    font-size: 13px;
+    color: var(--kiwi-text);
+    overflow-wrap: anywhere;
+}
+
+.ke-board-admin .ke-board-comment__delete-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--kiwi-red-text);
+}
+
+.ke-board-comments-panel__foot {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+}
+
+.ke-board-comments-panel__foot a {
+    color: var(--kiwi-text-muted);
+}
+
+/* ── Modals (glass — overlays only) ────────────────────────── */
+
+.ke-board-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.ke-board-modal[hidden] {
+    display: none;
+}
+
+.ke-board-modal__overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--kiwi-overlay-dim);
+}
+
+.ke-board-modal__panel {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    padding: 24px;
+    border-radius: var(--kiwi-radius-xl);
+    background: var(--kiwi-glass-bg);
+    -webkit-backdrop-filter: var(--kiwi-glass-blur);
+    backdrop-filter: var(--kiwi-glass-blur);
+    border: 1px solid var(--kiwi-glass-border);
+    box-shadow:
+        0 1px 0 var(--kiwi-inner-highlight-medium) inset,
+        0 24px 64px var(--kiwi-shadow-modal);
+}
+
+.ke-board-modal__panel h2 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--kiwi-text);
+}
+
+.ke-board-modal__sub {
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--kiwi-text-muted);
+}
+
+.ke-board-modal__panel label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--kiwi-text-muted);
+}
+
+.ke-board-admin .ke-board-modal__panel textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-surface);
+    border: 1px solid var(--kiwi-border);
+    color: var(--kiwi-text);
+    font-size: 13.5px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.ke-board-admin .ke-board-modal__panel textarea:focus {
+    outline: none;
+    border-color: var(--kiwi-green);
+    box-shadow: 0 0 0 3px var(--kiwi-green-glow);
+}
+
+.ke-board-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}

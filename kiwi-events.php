@@ -51,7 +51,7 @@ define( 'KE_TOKENS_ASSETS_VER', '0.9.2' );
 // ke-admin-reservations.css). KE_VERSION moves with the plugin code; admin
 // styling iterates faster during the Kiwi-brand rollout, so it gets its own
 // version line. Bump whenever any of those CSS files change.
-define( 'KE_ADMIN_CSS_VER', '0.15.0' );
+define( 'KE_ADMIN_CSS_VER', '0.16.0' );
 
 // Cache-bust for the promoter portal assets (ke-promoter-portal.css,
 // ke-promoter-login.js). Bump when either file changes so WordPress.com edge
@@ -63,7 +63,7 @@ define( 'KE_PORTAL_ASSETS_VER', '0.6.0' );
 // reads --kiwi-* tokens at chart-render time). Bump when admin JS changes so
 // dashboard chart colors track the dark-mode token bumps without users having
 // to hard-reload past the edge cache.
-define( 'KE_ADMIN_JS_VER', '0.1.0' );
+define( 'KE_ADMIN_JS_VER', '0.2.0' );
 
 // Cache-bust for the customer ticket-wallet assets (ke-tickets-wallet.css,
 // ke-tickets-wallet.js — the [kiwi_tickets_purchase] shortcode). Bump when
@@ -73,7 +73,15 @@ define( 'KE_WALLET_ASSETS_VER', '0.1.1' );
 // Cache-bust for the community board assets (ke-board.css, ke-board.js —
 // the [kiwi_board] / [kiwi_create_board] shortcodes and the /board/ single).
 // Bump when either file changes so WordPress.com edge cache picks them up.
-define( 'KE_BOARD_ASSETS_VER', '0.1.0' );
+define( 'KE_BOARD_ASSETS_VER', '0.1.1' );
+
+// Rewrite-rules version. register_post_type() only ADDS rules in memory —
+// WordPress persists them on an explicit flush, which normally only happens
+// on plugin activation. Plugin UPDATES never re-run activation, so a new
+// CPT/slug shipped in an update 404s until flushed. Bump this constant
+// whenever rewrite rules change (new CPT, changed slug); the init-99 guard
+// below flushes exactly once per version — never on every request.
+define( 'KE_REWRITE_VERSION', '1.1.0' );
 
 // Load Composer autoloader
 if ( file_exists( KE_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
@@ -141,6 +149,20 @@ function kiwi_events_load_textdomain() {
     load_plugin_textdomain( 'kiwi-events', false, dirname( KE_PLUGIN_BASENAME ) . '/languages' );
 }
 add_action( 'plugins_loaded', 'kiwi_events_load_textdomain' );
+
+/**
+ * Version-gated one-time rewrite flush. Runs at init 99 so every CPT and
+ * custom rewrite (all registered at init ≤ 20) exists before the flush.
+ * Activation still flushes for fresh installs; this covers plugin UPDATES,
+ * where the activation hook never re-runs.
+ */
+function kiwi_events_maybe_flush_rewrites() {
+    if ( get_option( 'ke_rewrite_version' ) !== KE_REWRITE_VERSION ) {
+        flush_rewrite_rules();
+        update_option( 'ke_rewrite_version', KE_REWRITE_VERSION );
+    }
+}
+add_action( 'init', 'kiwi_events_maybe_flush_rewrites', 99 );
 
 /**
  * Initialize the plugin

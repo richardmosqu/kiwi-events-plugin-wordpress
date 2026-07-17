@@ -25,8 +25,91 @@ class KE_Email_Templates {
                 return self::render_board_status( $context, true );
             case 'board_rejected':
                 return self::render_board_status( $context, false );
+            case 'board_submitted_admin':
+                return self::render_board_submitted_admin( $context );
+            case 'board_submitted_user':
+                return self::render_board_submitted_user( $context );
         }
         return null;
+    }
+
+    /** Shared board email shell (own footer — layout() is promoter-specific). */
+    private static function board_shell( $heading, $inner, $footer ) {
+        $accent   = self::accent();
+        $sitename = esc_html( get_bloginfo( 'name' ) );
+        return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+             . '<body style="margin:0; background:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; color:#0f172a;">'
+             . '<div style="max-width:600px; margin:24px auto; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,0.06);">'
+             . '<div style="background:' . esc_attr( $accent ) . '; color:#fff; padding:20px 24px;">'
+             . '<div style="font-size:13px; opacity:0.85;">' . $sitename . '</div>'
+             . '<h1 style="margin:4px 0 0; font-size:20px; font-weight:700;">' . esc_html( $heading ) . '</h1>'
+             . '</div>'
+             . '<div style="padding:24px;">' . $inner . '</div>'
+             . '<div style="padding:16px 24px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8;">'
+             . esc_html( $footer )
+             . '</div></div></body></html>';
+    }
+
+    /** Standard headers for board mail; admin variant carries the global BCC. */
+    private static function board_headers( $include_global_bcc = false ) {
+        $headers = array( 'Content-Type: text/html; charset=UTF-8' );
+        if ( $include_global_bcc ) {
+            $settings = get_option( 'ke_notifications_settings', array() );
+            $bcc      = isset( $settings['global_bcc'] ) ? trim( (string) $settings['global_bcc'] ) : '';
+            if ( is_email( $bcc ) ) {
+                $headers[] = 'Bcc: ' . $bcc;
+            }
+        }
+        return $headers;
+    }
+
+    /**
+     * New board submission → admin. Context: post_title, submitter_name,
+     * submitter_email, date_display, location, university, organizer,
+     * contact, excerpt, moderation_url. All user content escaped.
+     */
+    private static function render_board_submitted_admin( array $ctx ) {
+        $accent = self::accent();
+        $row    = static function ( $label, $value ) {
+            if ( '' === trim( (string) $value ) ) {
+                return '';
+            }
+            return '<tr><td style="padding:6px 10px 6px 0; color:#64748b; font-size:13px; white-space:nowrap; vertical-align:top;">' . esc_html( $label ) . '</td>'
+                 . '<td style="padding:6px 0; font-size:13px;">' . esc_html( $value ) . '</td></tr>';
+        };
+
+        $inner = '<p>Hay una nueva actividad esperando revisión en el board:</p>'
+               . '<h2 style="margin:0 0 10px; font-size:17px;">' . esc_html( $ctx['post_title'] ?? '' ) . '</h2>'
+               . '<table style="border-collapse:collapse; width:100%;">'
+               . $row( 'Enviada por', trim( ( $ctx['submitter_name'] ?? '' ) . ' (' . ( $ctx['submitter_email'] ?? '' ) . ')' ) )
+               . $row( 'Fecha / hora', $ctx['date_display'] ?? '' )
+               . $row( 'Ubicación', $ctx['location'] ?? '' )
+               . $row( 'Universidad', $ctx['university'] ?? '' )
+               . $row( 'Organiza', $ctx['organizer'] ?? '' )
+               . $row( 'Contacto', $ctx['contact'] ?? '' )
+               . $row( 'Descripción', $ctx['excerpt'] ?? '' )
+               . '</table>'
+               . '<p style="margin-top:18px;"><a href="' . esc_url( $ctx['moderation_url'] ?? '' ) . '" style="display:inline-block; background:' . esc_attr( $accent ) . '; color:#fff; padding:10px 18px; border-radius:8px; text-decoration:none; font-weight:700;">Revisar en moderación</a></p>';
+
+        return array(
+            'subject' => 'Nueva actividad del board por revisar — ' . sanitize_text_field( $ctx['post_title'] ?? '' ),
+            'body'    => self::board_shell( 'Nueva actividad pendiente', $inner, 'Notificación de moderación del board de ' . get_bloginfo( 'name' ) . '.' ),
+            'headers' => self::board_headers( true ),
+        );
+    }
+
+    /** Submission received → submitter. */
+    private static function render_board_submitted_user( array $ctx ) {
+        $inner = '<p>Hola ' . esc_html( $ctx['submitter_name'] ?? '' ) . ',</p>'
+               . '<p>Recibimos tu actividad <strong>' . esc_html( $ctx['post_title'] ?? '' ) . '</strong>'
+               . ( ! empty( $ctx['date_display'] ) ? ' (' . esc_html( $ctx['date_display'] ) . ')' : '' ) . '.</p>'
+               . '<p>Será revisada por el equipo y te avisaremos por este medio cuando sea aprobada o si no puede publicarse.</p>';
+
+        return array(
+            'subject' => 'Recibimos tu actividad — ' . sanitize_text_field( $ctx['post_title'] ?? '' ),
+            'body'    => self::board_shell( 'Actividad recibida', $inner, 'Recibes este correo porque enviaste una actividad al board de ' . get_bloginfo( 'name' ) . '.' ),
+            'headers' => self::board_headers( false ),
+        );
     }
 
     /**
@@ -50,8 +133,12 @@ class KE_Email_Templates {
             $heading = 'Actividad aprobada';
         } else {
             $subject = 'Tu actividad no fue aprobada — ' . $raw_title;
+            $reason  = trim( (string) ( $ctx['reason'] ?? '' ) );
             $inner   = '<p>Hola ' . $name . ',</p>'
                      . '<p>Tu actividad <strong>' . $title . '</strong> no fue aprobada esta vez, así que no aparecerá en el board.</p>'
+                     . ( '' !== $reason
+                        ? '<div style="margin:14px 0; padding:12px 16px; background:#f8fafc; border-left:3px solid #cbd5e1; border-radius:6px;"><strong style="font-size:13px; color:#64748b;">Motivo:</strong><br>' . esc_html( $reason ) . '</div>'
+                        : '' )
                      . '<p>Si crees que fue un error o quieres ajustarla, contacta al equipo del sitio.</p>';
             $heading = 'Actividad no aprobada';
         }

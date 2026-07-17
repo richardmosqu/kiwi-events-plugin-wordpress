@@ -1074,6 +1074,20 @@ $ke_settings_tabs = array(
             </div>
         </div>
 
+        <h3 class="ke-settings-subhead"><?php esc_html_e( 'Notifications', 'kiwi-events' ); ?></h3>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <input type="checkbox" id="ke-board-notify-admin" <?php checked( ! empty( $board_settings['notify_admin_new'] ) ); ?>>
+            <span><?php esc_html_e( 'Notify admin on new submission', 'kiwi-events' ); ?></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <input type="checkbox" id="ke-board-notify-received" <?php checked( ! empty( $board_settings['notify_user_received'] ) ); ?>>
+            <span><?php esc_html_e( 'Notify submitter on submission received', 'kiwi-events' ); ?></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+            <input type="checkbox" id="ke-board-notify-decision" <?php checked( ! empty( $board_settings['notify_user_decision'] ) ); ?>>
+            <span><?php esc_html_e( 'Notify submitter on approve/reject', 'kiwi-events' ); ?></span>
+        </label>
+
         <h3 class="ke-settings-subhead"><?php esc_html_e( 'Tendencia', 'kiwi-events' ); ?></h3>
         <div style="max-width:360px;">
             <label for="ke-board-trending" style="display:block;font-weight:600;margin-bottom:4px;"><?php esc_html_e( 'Trending threshold (likes)', 'kiwi-events' ); ?></label>
