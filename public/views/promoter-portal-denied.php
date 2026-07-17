@@ -50,7 +50,7 @@ $current_email = $current_u ? (string) $current_u->user_email : '';
             <?php if ( $current_uid ) : ?>
                 <a class="kep-btn kep-btn-ghost" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">Sign out</a>
             <?php else : ?>
-                <a class="kep-btn kep-btn-ghost" href="<?php echo esc_url( wp_login_url() ); ?>">Sign in</a>
+                <a class="kep-btn kep-btn-ghost" href="<?php echo esc_url( KE_Board::login_redirect_url( home_url( add_query_arg( array() ) ) ) ); ?>">Sign in</a>
             <?php endif; ?>
         </div>
     </div>

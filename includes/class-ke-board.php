@@ -251,8 +251,15 @@ class KE_Board {
         }
     }
 
-    /** Login URL from Access Control settings, with redirect back. */
-    private function login_url( $back_url = '' ) {
+    /**
+     * Login URL for logged-out gates. ALWAYS resolves from the Access
+     * Control settings (Settings → Events → Access Control — on production
+     * that's /micuenta), appending redirect_to so the user returns where
+     * they were. wp_login_url() is only the fallback when the setting is
+     * empty. Every logged-out gate must use this — never wp_login_url()
+     * directly.
+     */
+    public static function login_redirect_url( $back_url = '' ) {
         $access = get_option( 'ke_access_settings', array() );
         if ( '' === $back_url ) {
             $back_url = is_singular() ? get_permalink() : home_url( add_query_arg( array() ) );
@@ -260,6 +267,10 @@ class KE_Board {
         return ! empty( $access['login_url'] )
             ? add_query_arg( 'redirect_to', urlencode( $back_url ), $access['login_url'] )
             : wp_login_url( $back_url );
+    }
+
+    private function login_url( $back_url = '' ) {
+        return self::login_redirect_url( $back_url );
     }
 
     public function render_board( $atts = array() ) {

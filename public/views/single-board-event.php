@@ -57,7 +57,7 @@ $has_liked  = is_user_logged_in() && KE_Board::user_has_liked( $board_id, get_cu
                     <span class="ke-board-like__count" data-ke-board-like-count><?php echo esc_html( number_format_i18n( $likes ) ); ?></span>
                 </button>
             <?php else : ?>
-                <a class="ke-board-like ke-board-like--login" href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>">
+                <a class="ke-board-like ke-board-like--login" href="<?php echo esc_url( KE_Board::login_redirect_url( get_permalink() ) ); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.5-1.5 3-3.3 3-5.5A4.5 4.5 0 0 0 17.5 4c-1.8 0-3.4 1-4.5 2.5A5.4 5.4 0 0 0 8.5 4 4.5 4.5 0 0 0 4 8.5c0 2.2 1.5 4 3 5.5l5 5Z"/></svg>
                     <span>Inicia sesión para dar like</span>
                     <span class="ke-board-like__count"><?php echo esc_html( number_format_i18n( $likes ) ); ?></span>
@@ -137,7 +137,7 @@ $has_liked  = is_user_logged_in() && KE_Board::user_has_liked( $board_id, get_cu
             <?php else : ?>
                 <div class="ke-board-comments__gate">
                     <p>Debes iniciar sesión para comentar.</p>
-                    <a class="ke-board-btn ke-board-btn--secondary" href="<?php echo esc_url( wp_login_url( get_permalink() . '#comentarios' ) ); ?>">Iniciar sesión</a>
+                    <a class="ke-board-btn ke-board-btn--secondary" href="<?php echo esc_url( KE_Board::login_redirect_url( get_permalink() . '#comentarios' ) ); ?>">Iniciar sesión</a>
                 </div>
             <?php endif; ?>
         </section>

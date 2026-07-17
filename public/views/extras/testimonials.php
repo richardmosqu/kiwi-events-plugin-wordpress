@@ -12,7 +12,8 @@ $require_approval = array_key_exists( 'require_approval', $extra_config ) ? ! em
 $allow_ratings    = array_key_exists( 'allow_ratings', $extra_config )    ? ! empty( $extra_config['allow_ratings'] )    : true;
 
 $is_logged_in = is_user_logged_in();
-$login_url    = wp_login_url( get_permalink( $event_id ) );
+// Logged-out gates always resolve through Access Control (prod: /micuenta).
+$login_url    = KE_Board::login_redirect_url( get_permalink( $event_id ) );
 $per_page     = 10;
 
 // Prime the first page server-side so visitors without JS still see comments.
