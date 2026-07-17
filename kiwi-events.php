@@ -157,9 +157,41 @@ add_action( 'plugins_loaded', 'kiwi_events_load_textdomain' );
  * where the activation hook never re-runs.
  */
 function kiwi_events_maybe_flush_rewrites() {
-    if ( get_option( 'ke_rewrite_version' ) !== KE_REWRITE_VERSION ) {
-        flush_rewrite_rules();
-        update_option( 'ke_rewrite_version', KE_REWRITE_VERSION );
+    $version_stale = ( get_option( 'ke_rewrite_version' ) !== KE_REWRITE_VERSION );
+
+    // Self-heal: the version option can say "done" while the persisted
+    // rules still lack our patterns (permalinks re-saved under old code,
+    // stale persistent object cache on managed hosts, option restored from
+    // a backup). rewrite_rules is autoloaded, so this check costs nothing.
+    $board_rule_missing = false;
+    if ( ! $version_stale && post_type_exists( 'ke_board_event' ) ) {
+        $rules = get_option( 'rewrite_rules' );
+        if ( is_array( $rules ) && ! empty( $rules ) ) {
+            $board_rule_missing = true;
+            foreach ( $rules as $pattern => $target ) {
+                if ( 0 === strpos( $pattern, 'board/' ) ) {
+                    $board_rule_missing = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if ( ! $version_stale && ! $board_rule_missing ) {
+        return;
+    }
+
+    // If a previous self-heal attempt couldn't restore the rule, don't
+    // degrade into a flush-per-request loop — retry at most hourly.
+    if ( $board_rule_missing && get_transient( 'ke_rewrite_selfheal_lock' ) ) {
+        return;
+    }
+
+    flush_rewrite_rules();
+    update_option( 'ke_rewrite_version', KE_REWRITE_VERSION );
+
+    if ( $board_rule_missing ) {
+        set_transient( 'ke_rewrite_selfheal_lock', 1, HOUR_IN_SECONDS );
     }
 }
 add_action( 'init', 'kiwi_events_maybe_flush_rewrites', 99 );
