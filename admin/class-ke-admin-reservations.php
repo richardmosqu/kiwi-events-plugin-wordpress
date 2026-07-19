@@ -86,8 +86,11 @@ class KE_Admin_Reservations {
      * Export the current filter set as CSV. Caps at 50k rows so a runaway
      * "all events" request can't exhaust memory — the operator can narrow
      * with filters if they hit that ceiling.
+     *
+     * Streams headers + body, so it must run on `admin_init` before any
+     * admin HTML is emitted — see KE_Admin::maybe_export_early().
      */
-    private function export_csv() {
+    public function export_csv() {
         if ( ! current_user_can( 'manage_kiwi_events' ) && ! current_user_can( 'manage_options' ) ) {
             wp_die( 'Unauthorized' );
         }
@@ -146,8 +149,11 @@ class KE_Admin_Reservations {
      * Export the current filter set as a PDF report (FPDF when available,
      * printable HTML otherwise). Same filter shape as CSV — one report per
      * scope.
+     *
+     * Streams a file download, so it must run on `admin_init` before any
+     * admin HTML is emitted — see KE_Admin::maybe_export_early().
      */
-    private function export_pdf() {
+    public function export_pdf() {
         if ( ! current_user_can( 'manage_kiwi_events' ) && ! current_user_can( 'manage_options' ) ) {
             wp_die( 'Unauthorized' );
         }

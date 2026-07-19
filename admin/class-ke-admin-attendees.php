@@ -66,9 +66,14 @@ class KE_Admin_Attendees {
     }
 
     /**
-     * Export attendees as CSV
+     * Export attendees as CSV.
+     *
+     * Must run on `admin_init` (before any admin HTML is sent) so the
+     * Content-Type/Content-Disposition headers take effect — see
+     * KE_Admin::maybe_export_early(). Calling it from render() streams the
+     * CSV into the middle of the already-emitted admin page instead.
      */
-    private function export_csv() {
+    public function export_csv() {
         if ( ! current_user_can( 'manage_kiwi_events' ) ) {
             wp_die( 'Unauthorized' );
         }

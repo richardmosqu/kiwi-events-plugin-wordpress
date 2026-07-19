@@ -7,6 +7,11 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class KE_Admin {
 
     public function init() {
+        // Streamed exports (CSV/PDF) must be intercepted before any admin
+        // HTML is emitted, otherwise the download headers are ignored and the
+        // file ends up appended to the middle of the rendered admin page.
+        // render() runs far too late for that — hook admin_init instead.
+        add_action( 'admin_init', array( $this, 'maybe_export_early' ) );
         add_action( 'admin_menu', array( $this, 'register_menu' ) );
         add_action( 'admin_menu', array( $this, 'add_scanner_link' ), 99 );
         add_action( 'admin_footer', array( $this, 'scanner_link_new_tab' ) );
@@ -665,6 +670,38 @@ class KE_Admin {
     public function render_dashboard_page() {
         $dashboard = new KE_Admin_Dashboard();
         $dashboard->render();
+    }
+
+    /**
+     * Intercept streamed exports on admin_init, before any admin HTML output.
+     *
+     * The Attendees and Reservations pages both offer CSV/PDF downloads that
+     * send their own Content-Disposition headers and stream the file. Those
+     * headers only work if nothing has been printed yet, so we can't wait for
+     * the page's render() callback (which fires after the admin <head>, menu,
+     * and notices are already on the wire). This runs early, matches on the
+     * page + export flag, and streams + exits before WordPress renders the
+     * chrome.
+     */
+    public function maybe_export_early() {
+        $page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+
+        if ( $page === 'kiwi-events-attendees'
+            && isset( $_GET['ke_export_csv'] ) && $_GET['ke_export_csv'] === '1' ) {
+            ( new KE_Admin_Attendees() )->export_csv(); // streams + exits
+            return;
+        }
+
+        if ( $page === 'kiwi-events-reservations' ) {
+            if ( isset( $_GET['ke_export_csv'] ) && $_GET['ke_export_csv'] === '1' ) {
+                ( new KE_Admin_Reservations() )->export_csv(); // streams + exits
+                return;
+            }
+            if ( isset( $_GET['ke_export_pdf'] ) && $_GET['ke_export_pdf'] === '1' ) {
+                ( new KE_Admin_Reservations() )->export_pdf(); // streams + exits
+                return;
+            }
+        }
     }
 
     /**
