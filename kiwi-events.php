@@ -39,7 +39,7 @@ define( 'KE_SCANNER_ASSETS_VER', '0.10.2' );
 // KE_VERSION moves slowly; the builder assets churn faster, and stale
 // versions on WordPress.com edge cache cause the wizard's step
 // indicators to lose their active/accent styling.
-define( 'KE_BUILDER_ASSETS_VER', '0.11.1' );
+define( 'KE_BUILDER_ASSETS_VER', '0.11.2' );
 
 // Admin design-token stylesheet (Kiwi brand: cream + green + glass).
 // Loads BEFORE every other KE admin CSS so subsequent rules can reference
