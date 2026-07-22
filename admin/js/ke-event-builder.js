@@ -775,6 +775,7 @@ jQuery(document).ready(function ($) {
             organizer:             $('#ke-organizer').val() || '',
             categories:            cats,
             max_tickets_per_person: parseInt($('#ke-max-tickets').val(), 10) || 10,
+            scanner_open_hours_before: parseInt($('#ke-scanner-open-hours').val(), 10) || 24,
             email_from_name:       $('#ke-email-from-name').val().trim(),
             email_custom_message:  $('#ke-email-custom-message').val().trim(),
             is_featured:           $('#ke-is-featured').is(':checked') ? 1 : 0,
