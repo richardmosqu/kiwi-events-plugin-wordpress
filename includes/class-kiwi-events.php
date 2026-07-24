@@ -116,6 +116,10 @@ class Kiwi_Events {
         $this->admin_board = new KE_Admin_Board();
         $this->admin_board->init();
 
+        // Historias Destacadas — organizer-owned highlight collections (CPT +
+        // data model). CRUD/rendering wired via REST + dashboard + builder.
+        ( new KE_Highlights() )->init();
+
         // REST API
         $this->rest_api = new KE_Rest_API();
         add_action( 'rest_api_init', array( $this->rest_api, 'register_routes' ) );

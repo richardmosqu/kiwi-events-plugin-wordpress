@@ -104,6 +104,7 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-event-extra-fields.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-qr-generator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets-wallet.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-board.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-highlights.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-pdf-generator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-email.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-email-templates.php';
