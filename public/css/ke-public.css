@@ -2135,24 +2135,36 @@
     outline-offset: 2px;
 }
 
-/* "Enlace copiado ✓" toast for the Compartir fallback. */
+/* "Enlace copiado ✓" toast for the Compartir fallback. Absolutely positioned
+   under the share row so it never adds a gap between the buttons; toggled via
+   visibility + opacity (not the hidden attribute — an author `display` would
+   defeat the UA [hidden] rule and leave it occupying flex space). */
+.ke-hero-share { position: relative; }
 .ke-share-toast {
-    display:       inline-flex;
-    align-items:   center;
-    font-size:     12px;
-    font-weight:   600;
-    color:         #10b981;
-    background:    rgba(16, 185, 129, 0.15);
-    border:        1px solid rgba(16, 185, 129, 0.35);
-    border-radius: 999px;
-    padding:       4px 10px;
-    opacity:       0;
-    transform:     translateY(2px);
-    transition:    opacity 0.2s ease, transform 0.2s ease;
+    position:       absolute;
+    left:           0;
+    top:            calc(100% + 6px);
+    display:        inline-flex;
+    align-items:    center;
+    white-space:    nowrap;
+    font-size:      12px;
+    font-weight:    600;
+    color:          #10b981;
+    background:     rgba(16, 185, 129, 0.15);
+    border:         1px solid rgba(16, 185, 129, 0.35);
+    border-radius:  999px;
+    padding:        4px 10px;
+    opacity:        0;
+    visibility:     hidden;
+    transform:      translateY(2px);
+    pointer-events: none;
+    transition:     opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+    z-index:        3;
 }
 .ke-share-toast.is-visible {
-    opacity:   1;
-    transform: translateY(0);
+    opacity:    1;
+    visibility: visible;
+    transform:  translateY(0);
 }
 
 @media (max-width: 640px) {

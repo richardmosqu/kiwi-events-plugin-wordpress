@@ -300,7 +300,7 @@ $allowed_iframe = array(
                             </svg>
                         </button>
 
-                        <span class="ke-share-toast" role="status" aria-live="polite" hidden><?php esc_html_e( 'Enlace copiado ✓', 'kiwi-events' ); ?></span>
+                        <span class="ke-share-toast" role="status" aria-live="polite"><?php esc_html_e( 'Enlace copiado ✓', 'kiwi-events' ); ?></span>
                     </div>
                     <script>
                     (function () {
@@ -312,13 +312,10 @@ $allowed_iframe = array(
                         var toastTimer;
                         function showToast() {
                             if (!toast) return;
-                            toast.hidden = false;
-                            void toast.offsetWidth; // reflow so the transition runs
                             toast.classList.add('is-visible');
                             clearTimeout(toastTimer);
                             toastTimer = setTimeout(function () {
                                 toast.classList.remove('is-visible');
-                                setTimeout(function () { toast.hidden = true; }, 220);
                             }, 2200);
                         }
                         function legacyCopy() {
