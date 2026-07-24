@@ -598,6 +598,24 @@ $allowed_iframe = array(
             </div>
         <?php endif; ?>
 
+        <?php
+        // ─── Cumpleaños widget — pinned directly BELOW the ticket section ───
+        // It's still configured through the extras system (stored in
+        // _ke_event_extras), but it renders here so the user sees it right
+        // under the tickets while scrolling — not buried at the bottom with the
+        // other extras. It is skipped in the generic extras loop below so it
+        // never renders twice.
+        $ke_all_extras = get_post_meta( $event_id, '_ke_event_extras', true );
+        if ( is_array( $ke_all_extras ) ) {
+            foreach ( $ke_all_extras as $extra ) {
+                if ( ( $extra['type'] ?? '' ) !== 'birthday' || empty( $extra['enabled'] ) ) continue;
+                $extra_config = is_array( $extra['config'] ?? null ) ? $extra['config'] : array();
+                include KE_PLUGIN_DIR . 'public/views/extras/birthday.php';
+                break;
+            }
+        }
+        ?>
+
         <!-- RESERVATIONS (group/table bookings — runs alongside tickets) -->
         <?php if ( $resv_active && $status === 'active' ) :
             $rmode      = $resv_cfg['confirmation_mode'] ?? 'auto';
@@ -722,6 +740,7 @@ $allowed_iframe = array(
             } );
             foreach ( $extras as $extra ) {
                 if ( empty( $extra['enabled'] ) || empty( $extra['type'] ) ) continue;
+                if ( ( $extra['type'] ?? '' ) === 'birthday' ) continue; // rendered above, directly below the tickets
                 $type_slug = str_replace( '_', '-', preg_replace( '/[^a-z0-9_]/', '', $extra['type'] ) );
                 $template  = KE_PLUGIN_DIR . 'public/views/extras/' . $type_slug . '.php';
                 if ( file_exists( $template ) ) {

@@ -3389,11 +3389,13 @@ body.ke-hlv-lock { overflow: hidden; }
     line-height: 1.65;
     color: var(--kep-text-muted, #4b5563);
 }
-.ke-bday-card-link,
-.ke-bday-card-link:hover,
-.ke-bday-card-link:focus,
-.ke-bday-card-link:focus-visible,
-.ke-bday-card-link:active {
+.ke-bday-widget .ke-bday-card-link,
+.ke-bday-widget .ke-bday-card-link:link,
+.ke-bday-widget .ke-bday-card-link:visited,
+.ke-bday-widget .ke-bday-card-link:hover,
+.ke-bday-widget .ke-bday-card-link:focus,
+.ke-bday-widget .ke-bday-card-link:focus-visible,
+.ke-bday-widget .ke-bday-card-link:active {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3401,7 +3403,7 @@ body.ke-hlv-lock { overflow: hidden; }
     padding: 12px 22px;
     border: 0;
     border-radius: 12px;
-    color: #fff;
+    color: #ffffff;
     background: linear-gradient(135deg, var(--kep-accent-1, #6366f1), var(--kep-accent-2, #8b5cf6));
     font-weight: 700;
     font-size: 15px;
