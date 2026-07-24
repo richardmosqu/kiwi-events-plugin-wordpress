@@ -128,6 +128,7 @@ function ke_get_meta_val( $meta_array, $key, $default = '' ) {
 // ── Meta values ────────────────────────────────────────────────────────────
 $date_start    = ke_get_meta_val( $meta, '_ke_event_date_start' );
 $date_end      = ke_get_meta_val( $meta, '_ke_event_date_end' );
+$scanner_open_hours = ke_get_meta_val( $meta, '_ke_scanner_open_hours_before', '24' );
 $timezone      = ke_get_meta_val( $meta, '_ke_event_timezone', wp_timezone_string() );
 $location_type = ke_get_meta_val( $meta, '_ke_event_location_type', 'venue' );
 $venue         = ke_get_meta_val( $meta, '_ke_event_venue' );
@@ -721,6 +722,15 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                     <?php endif; ?>
                 </div>
                 <p class="ke-hint"><?php esc_html_e( 'Se muestran como círculos debajo de los botones de compartir en la página del evento. Si cambias el organizador, solo se mostrarán las historias del organizador actual.', 'kiwi-events' ); ?></p>
+            </div>
+
+            <div class="ke-form-group">
+                <label class="ke-label"><?php esc_html_e( 'Scanner Access (hours before start)', 'kiwi-events' ); ?></label>
+                <input type="number" id="ke-scanner-open-hours" class="ke-input ke-input-sm" min="1" max="720"
+                       value="<?php echo esc_attr( $scanner_open_hours ?: 24 ); ?>">
+                <p class="ke-hint" style="margin-top:6px;">
+                    <?php esc_html_e( 'Default 24. Increase so this event appears in the scanner earlier (e.g. 72 = 3 days before) — useful for redemption / pickup centers ahead of the event. Only affects this event; the public event date is unchanged.', 'kiwi-events' ); ?>
+                </p>
             </div>
 
             <div class="ke-form-group">

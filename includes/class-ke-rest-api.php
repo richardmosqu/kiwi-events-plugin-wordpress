@@ -1556,7 +1556,7 @@ class KE_Rest_API {
      */
     public function get_public_active_events( WP_REST_Request $request ) {
         $now            = current_time( 'timestamp' );
-        $window_before  = 24 * HOUR_IN_SECONDS;
+        $default_before = 24 * HOUR_IN_SECONDS; // per-event override applied in the loop below
         $window_after   = 12 * HOUR_IN_SECONDS;
 
         $posts = get_posts( array(
@@ -1575,6 +1575,9 @@ class KE_Rest_API {
             $end   = (int) strtotime( (string) get_post_meta( $p->ID, '_ke_event_date_end',   true ) );
             if ( $end <= 0 ) $end = $start + ( 4 * HOUR_IN_SECONDS ); // sensible default
             if ( $start <= 0 ) continue;
+            // Per-event scanner-open override (hours before start). Empty/0 → 24h default.
+            $hours_before  = (int) get_post_meta( $p->ID, '_ke_scanner_open_hours_before', true );
+            $window_before = $hours_before > 0 ? $hours_before * HOUR_IN_SECONDS : $default_before;
             if ( $now < ( $start - $window_before ) ) continue; // too far in the future
             if ( $now > ( $end   + $window_after  ) ) continue; // ended too long ago
 
@@ -1944,6 +1947,18 @@ class KE_Rest_API {
         // Numeric meta
         if ( array_key_exists( 'max_tickets_per_person', $params ) ) {
             update_post_meta( $event_id, '_ke_event_max_tickets_per_person', absint( $params['max_tickets_per_person'] ) );
+        }
+
+        // Scanner visibility override: how many hours BEFORE start this event
+        // shows up in /scanner/active-events. Empty/0 falls back to the 24h
+        // default; clamped to 1h–720h (30 days). Lets a single event open
+        // scanning early (e.g. redemption centers) without moving the public
+        // event date or affecting any other event.
+        if ( array_key_exists( 'scanner_open_hours_before', $params ) ) {
+            $soh = absint( $params['scanner_open_hours_before'] );
+            if ( $soh < 1 )   $soh = 24;
+            if ( $soh > 720 ) $soh = 720;
+            update_post_meta( $event_id, '_ke_scanner_open_hours_before', $soh );
         }
 
         // Textarea meta
