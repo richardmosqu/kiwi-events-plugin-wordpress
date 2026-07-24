@@ -2084,6 +2084,51 @@
     color:        #10b981 !important;
 }
 
+/* WordPress.com button guard for the hero share pills. Scoped under .ke-hero
+   so base (0,2,0) and pseudo-states (0,3,0) beat WP.com's [type=button] and
+   [type=button]:focus/:hover globals — never leaving background/border/color
+   undeclared for WP.com to fill with magenta. */
+.ke-hero .ke-share-pill,
+.ke-hero .ke-share-pill:hover,
+.ke-hero .ke-share-pill:focus,
+.ke-hero .ke-share-pill:focus-visible,
+.ke-hero .ke-share-pill:active {
+    background:    rgba(255, 255, 255, 0.10);
+    border:        1px solid rgba(255, 255, 255, 0.18);
+    color:         rgba(255, 255, 255, 0.90);
+    border-radius: 50%;
+    box-shadow:    none;
+}
+.ke-hero .ke-share-pill:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color:      #ffffff;
+}
+.ke-hero .ke-share-pill:focus { outline: none; }
+.ke-hero .ke-share-pill:focus-visible {
+    outline:        2px solid var(--kep-accent-1, #6366f1);
+    outline-offset: 2px;
+}
+
+/* "Enlace copiado ✓" toast for the Compartir fallback. */
+.ke-share-toast {
+    display:       inline-flex;
+    align-items:   center;
+    font-size:     12px;
+    font-weight:   600;
+    color:         #10b981;
+    background:    rgba(16, 185, 129, 0.15);
+    border:        1px solid rgba(16, 185, 129, 0.35);
+    border-radius: 999px;
+    padding:       4px 10px;
+    opacity:       0;
+    transform:     translateY(2px);
+    transition:    opacity 0.2s ease, transform 0.2s ease;
+}
+.ke-share-toast.is-visible {
+    opacity:   1;
+    transform: translateY(0);
+}
+
 @media (max-width: 640px) {
     .ke-hero-share {
         gap:        5px;

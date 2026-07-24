@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'KE_VERSION', '2.0.3' );
+define( 'KE_VERSION', '2.1.0' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
