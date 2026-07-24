@@ -117,6 +117,32 @@
     background:         rgba(5, 5, 20, 0.38);
 }
 
+/* Per-event custom hero background image — sharp (not blurred), cover/center,
+   with a fixed darkening gradient (darker toward the bottom where the text
+   sits) so the title/date/location/badges stay legible over ANY image,
+   including bright ones. Enforced in CSS — the organizer cannot weaken it. */
+.ke-hero-custombg {
+    position:            absolute;
+    inset:               0;
+    background-image:    var(--hero-bg-image);
+    background-size:     cover;
+    background-position: center;
+    z-index:             0;
+}
+.ke-hero-custombg::before {
+    content:       '';
+    position:      absolute;
+    inset:         0;
+    background:    linear-gradient(180deg,
+                       rgba(0, 0, 0, 0.55) 0%,
+                       rgba(0, 0, 0, 0.72) 60%,
+                       rgba(0, 0, 0, 0.85) 100%);
+    pointer-events: none;
+}
+/* With a custom sharp background, drop the blurred featured-image ambient so
+   the image reads cleanly. */
+.ke-hero.has-custom-bg .ke-hero-bg { display: none; }
+
 /* ─── Content body ─────────────────────────────────────── */
 .ke-hero-body {
     position:           relative;

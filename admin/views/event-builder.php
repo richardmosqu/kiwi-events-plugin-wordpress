@@ -135,6 +135,9 @@ $address       = ke_get_meta_val( $meta, '_ke_event_address' );
 $virtual_url   = ke_get_meta_val( $meta, '_ke_event_virtual_url' );
 $capacity      = ke_get_meta_val( $meta, '_ke_event_capacity' );
 $max_tickets   = ke_get_meta_val( $meta, '_ke_event_max_tickets_per_person', 10 );
+$hero_bg_id    = (int) ke_get_meta_val( $meta, '_ke_event_hero_bg_id', 0 );
+$hero_bg_url   = $hero_bg_id ? wp_get_attachment_image_url( $hero_bg_id, 'ke_hero_bg' ) : '';
+if ( ! $hero_bg_url && $hero_bg_id ) { $hero_bg_url = wp_get_attachment_image_url( $hero_bg_id, 'large' ); }
 $maps_embed    = ke_get_meta_val( $meta, '_ke_event_maps_embed' );
 $service_fee_id = ke_get_meta_val( $meta, '_ke_event_service_fee_id' );
 $social_instagram = ke_get_meta_val( $meta, '_ke_social_instagram' );
@@ -655,6 +658,29 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                 <label class="ke-label">Max Tickets per Person</label>
                 <input type="number" id="ke-max-tickets" class="ke-input ke-input-sm" min="1" max="100"
                        value="<?php echo esc_attr( $max_tickets ?: 10 ); ?>">
+            </div>
+
+            <div class="ke-form-group">
+                <label class="ke-label"><?php esc_html_e( 'Fondo del evento (opcional)', 'kiwi-events' ); ?></label>
+                <div class="ke-banner-uploader" id="ke-herobg-uploader">
+                    <div class="ke-banner-preview" id="ke-herobg-preview"
+                         <?php if ( $hero_bg_url ) echo 'style="background-image:url(' . esc_url( $hero_bg_url ) . ');display:block;"'; ?>>
+                        <div class="ke-banner-placeholder" id="ke-herobg-placeholder"
+                             <?php if ( $hero_bg_url ) echo 'style="display:none;"'; ?>>
+                            <span class="dashicons dashicons-format-image"></span>
+                            <span><?php esc_html_e( 'Subir imagen de fondo', 'kiwi-events' ); ?></span>
+                        </div>
+                    </div>
+                    <input type="hidden" id="ke-herobg-id" value="<?php echo esc_attr( $hero_bg_id ?: '' ); ?>">
+                    <div class="ke-banner-actions">
+                        <button type="button" class="ke-btn ke-btn-ghost ke-small" id="ke-herobg-btn">
+                            <?php echo $hero_bg_url ? esc_html__( 'Cambiar imagen', 'kiwi-events' ) : esc_html__( 'Elegir imagen', 'kiwi-events' ); ?>
+                        </button>
+                        <button type="button" class="ke-btn ke-btn-danger ke-small" id="ke-herobg-remove"
+                                <?php if ( ! $hero_bg_url ) echo 'style="display:none;"'; ?>><?php esc_html_e( 'Quitar', 'kiwi-events' ); ?></button>
+                    </div>
+                </div>
+                <p class="ke-hint"><?php esc_html_e( 'Imagen de fondo para la cabecera del evento. Se aplica un oscurecimiento automático para que el texto siga siendo legible. Tamaño recomendado: 2400 × 1350 px (16:9), mínimo 1920 × 1080, JPG o WebP, máximo 2 MB. Vacío = fondo actual.', 'kiwi-events' ); ?></p>
             </div>
 
             <div class="ke-form-group">

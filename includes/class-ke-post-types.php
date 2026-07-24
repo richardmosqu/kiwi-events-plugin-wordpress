@@ -13,10 +13,22 @@ class KE_Post_Types {
         add_action( 'init', array( $this, 'register_post_type' ) );
         add_action( 'init', array( $this, 'register_taxonomies' ) );
         add_action( 'init', array( $this, 'register_ticket_rewrite' ), 1 );
+        add_action( 'after_setup_theme', array( $this, 'register_image_sizes' ) );
         add_filter( 'query_vars', array( $this, 'register_query_vars' ) );
         add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
         add_action( 'save_post_ke_event', array( $this, 'save_meta' ), 10, 2 );
         add_filter( 'enter_title_here', array( $this, 'custom_title_placeholder' ), 10, 2 );
+    }
+
+    /**
+     * Custom image sizes.
+     * ke_hero_bg — per-event hero background, 16:9 retina (2400×1350), hard
+     * crop so a center-weighted subject survives the cover crop. Only applies
+     * to images uploaded AFTER this size is registered; the hero-bg field is
+     * new, so its uploads always get the size (render falls back to 'large').
+     */
+    public function register_image_sizes() {
+        add_image_size( 'ke_hero_bg', 2400, 1350, true );
     }
 
     /**

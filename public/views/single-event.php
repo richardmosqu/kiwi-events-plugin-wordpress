@@ -31,6 +31,12 @@ $location_type = get_post_meta( $event_id, '_ke_event_location_type', true ) ?: 
 $virtual_url = get_post_meta( $event_id, '_ke_event_virtual_url', true );
 $status      = get_post_meta( $event_id, '_ke_event_status', true ) ?: 'active';
 $thumbnail   = get_the_post_thumbnail_url( $event_id, 'large' );
+// Optional per-event hero background image (separate from the poster). When
+// set, it renders sharp behind the hero with a fixed darkening gradient; when
+// empty the hero keeps its gradient + blurred-poster ambient (no regression).
+$hero_bg_id  = (int) get_post_meta( $event_id, '_ke_event_hero_bg_id', true );
+$hero_bg_url = $hero_bg_id ? wp_get_attachment_image_url( $hero_bg_id, 'ke_hero_bg' ) : '';
+if ( ! $hero_bg_url && $hero_bg_id ) { $hero_bg_url = wp_get_attachment_image_url( $hero_bg_id, 'large' ); }
 $maps_embed_raw = get_post_meta( $event_id, '_ke_event_maps_embed', true );
 // Normalize legacy/shortcode values stored before the save-time fix
 if ( $maps_embed_raw && stripos( $maps_embed_raw, '<iframe' ) === false ) {
@@ -120,9 +126,15 @@ $allowed_iframe = array(
     ?>
 
     <!-- ═══════════════ HERO ═══════════════ -->
-    <div class="ke-hero"<?php if ( $thumbnail ) echo ' style="--hero-image: url(' . esc_url( $thumbnail ) . ')"'; ?>>
+    <div class="ke-hero<?php echo $hero_bg_url ? ' has-custom-bg' : ''; ?>"<?php
+        $ke_hero_style = '';
+        if ( $thumbnail )   { $ke_hero_style .= '--hero-image: url(' . esc_url( $thumbnail ) . ');'; }
+        if ( $hero_bg_url ) { $ke_hero_style .= '--hero-bg-image: url(' . esc_url( $hero_bg_url ) . ');'; }
+        if ( $ke_hero_style ) { echo ' style="' . $ke_hero_style . '"'; }
+    ?>>
 
         <div class="ke-hero-bg"></div>
+        <?php if ( $hero_bg_url ) : ?><div class="ke-hero-custombg" aria-hidden="true"></div><?php endif; ?>
 
         <div class="ke-hero-body">
             <div class="ke-hero-inner">

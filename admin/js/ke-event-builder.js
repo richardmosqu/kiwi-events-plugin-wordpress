@@ -464,6 +464,38 @@ jQuery(document).ready(function ($) {
         $(this).hide();
     });
 
+    // ─── Hero background image uploader (optional, separate from banner) ─────
+    var heroBgFrame;
+    function openHeroBgUploader() {
+        if (heroBgFrame) { heroBgFrame.open(); return; }
+        heroBgFrame = wp.media({
+            title:    'Fondo del evento',
+            button:   { text: 'Usar esta imagen' },
+            multiple: false,
+            library:  { type: 'image' },
+        });
+        heroBgFrame.on('select', function () {
+            const att = heroBgFrame.state().get('selection').first().toJSON();
+            $('#ke-herobg-id').val(att.id);
+            $('#ke-herobg-preview').css('background-image', 'url(' + att.url + ')').show();
+            $('#ke-herobg-placeholder').hide();
+            $('#ke-herobg-btn').text('Cambiar imagen');
+            $('#ke-herobg-remove').show();
+        });
+        heroBgFrame.open();
+    }
+    $(document).on('click', '#ke-herobg-btn, #ke-herobg-placeholder', function (e) {
+        e.stopPropagation();
+        openHeroBgUploader();
+    });
+    $(document).on('click', '#ke-herobg-remove', function () {
+        $('#ke-herobg-id').val('');
+        $('#ke-herobg-preview').css('background-image', '').hide();
+        $('#ke-herobg-placeholder').show();
+        $('#ke-herobg-btn').text('Elegir imagen');
+        $(this).hide();
+    });
+
     // ─── Ticket card rendering ─────────────────────────────────────────────
     function renderTicketCard(data, idx) {
         const isPaid          = (data.ticket_type || 'free') === 'paid';
@@ -784,6 +816,7 @@ jQuery(document).ready(function ($) {
             promo_label:           $('#ke-promo-label').val().trim(),
             service_fee_id:        $('#ke-service-fee-id').val() || '',
             banner_id:             parseInt($('#ke-banner-id').val(), 10) || 0,
+            hero_bg_id:            parseInt($('#ke-herobg-id').val(), 10) || 0,
             tickets:               tickets,
             extras:                collectExtras(),
             extra_fields:          collectExtraFields(),

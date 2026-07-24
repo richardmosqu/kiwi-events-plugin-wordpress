@@ -1830,6 +1830,18 @@ class KE_Rest_API {
             }
         }
 
+        // Per-event hero background image (separate from the poster/featured
+        // image). Stored as an attachment id; 0/empty clears it so the hero
+        // falls back to the default gradient + blurred-poster ambient.
+        if ( array_key_exists( 'hero_bg_id', $params ) ) {
+            $hero_bg_id = absint( $params['hero_bg_id'] );
+            if ( $hero_bg_id > 0 ) {
+                update_post_meta( $event_id, '_ke_event_hero_bg_id', $hero_bg_id );
+            } else {
+                delete_post_meta( $event_id, '_ke_event_hero_bg_id' );
+            }
+        }
+
         // ── Simple meta fields (sanitize_text_field) ──────────────────────
         $text_meta = array(
             'event_start'    => '_ke_event_date_start',
