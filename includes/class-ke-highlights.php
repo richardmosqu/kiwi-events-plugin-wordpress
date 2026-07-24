@@ -163,4 +163,70 @@ class KE_Highlights {
         }
         return $out;
     }
+
+    /* ── Upload hardening (mirrors the community board's proven pattern) ──── */
+
+    /** While a highlight upload runs, only the image allowlist is accepted. */
+    public static function restrict_upload_mimes( $mimes ) {
+        return self::ALLOWED_MIMES;
+    }
+
+    /**
+     * Validate one uploaded file: real content check (finfo via
+     * wp_check_filetype_and_ext + getimagesize), allowlisted MIME only (never
+     * SVG), size cap, and a decompression-bomb dimension cap. The extension is
+     * never trusted.
+     *
+     * @return true|WP_Error
+     */
+    public static function validate_image_file( $file, $max_bytes ) {
+        if ( ! empty( $file['error'] ) ) {
+            return new WP_Error( 'ke_hl_upload_error', 'Error al subir un archivo. Intenta de nuevo.', array( 'status' => 400 ) );
+        }
+        if ( (int) $file['size'] > $max_bytes ) {
+            return new WP_Error(
+                'ke_hl_file_too_big',
+                sprintf( 'Cada imagen debe pesar máximo %d MB.', (int) ( $max_bytes / ( 1024 * 1024 ) ) ),
+                array( 'status' => 400 )
+            );
+        }
+
+        $check = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'], self::ALLOWED_MIMES );
+        if ( empty( $check['type'] ) || ! in_array( $check['type'], array_values( self::ALLOWED_MIMES ), true ) ) {
+            return new WP_Error( 'ke_hl_bad_file_type', 'Solo se permiten imágenes JPG, PNG o WEBP.', array( 'status' => 400 ) );
+        }
+
+        // Belt-and-suspenders: it must decode as a real image (catches a PHP
+        // file renamed to .jpg even if headers were spoofed).
+        $dims = @getimagesize( $file['tmp_name'] );
+        if ( false === $dims ) {
+            return new WP_Error( 'ke_hl_not_an_image', 'El archivo no es una imagen válida.', array( 'status' => 400 ) );
+        }
+
+        // Dimension cap — the byte cap alone doesn't stop decompression bombs.
+        $w = isset( $dims[0] ) ? (int) $dims[0] : 0;
+        $h = isset( $dims[1] ) ? (int) $dims[1] : 0;
+        if ( $w > 8000 || $h > 8000 || ( $w * $h ) > 25000000 ) {
+            return new WP_Error( 'ke_hl_image_too_large', 'La imagen es demasiado grande (máximo 8000px por lado).', array( 'status' => 400 ) );
+        }
+
+        return true;
+    }
+
+    /**
+     * Upload one $_FILES field to the media library, attached to $post_id, with
+     * the image allowlist enforced for the duration. Returns attachment id or
+     * WP_Error. Caller MUST have validated the file first via validate_image_file.
+     */
+    public static function handle_upload( $field_key, $post_id ) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        add_filter( 'upload_mimes', array( __CLASS__, 'restrict_upload_mimes' ) );
+        $att_id = media_handle_upload( $field_key, (int) $post_id );
+        remove_filter( 'upload_mimes', array( __CLASS__, 'restrict_upload_mimes' ) );
+
+        return $att_id;
+    }
 }

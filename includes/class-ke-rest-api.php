@@ -435,6 +435,41 @@ class KE_Rest_API {
             )
         );
 
+        // Historias Destacadas — organizer-owned highlight collections.
+        // Reads allow the owner OR an admin (read-only impersonation); writes
+        // require the real organizer session (enforced in require_highlight_write).
+        // Numeric ids come straight from the (?P<id>\d+) regex, so no bare-
+        // internal validate/sanitize callbacks are needed (PHP 8 safe).
+        register_rest_route( $this->namespace, '/organizer/(?P<slug>[a-z0-9_-]+)/highlights', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => $this->safe_organizer_callback( 'organizer_highlights_list' ),
+                'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => $this->safe_organizer_callback( 'organizer_highlight_create' ),
+                'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/organizer/(?P<slug>[a-z0-9_-]+)/highlights/(?P<id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => $this->safe_organizer_callback( 'organizer_highlight_get' ),
+                'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE, // POST (multipart) update
+                'callback'            => $this->safe_organizer_callback( 'organizer_highlight_update' ),
+                'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => $this->safe_organizer_callback( 'organizer_highlight_delete' ),
+                'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+            ),
+        ) );
+
         // Admin (wp-admin) reservation actions — same transitions as the
         // organizer endpoint, but gated on manage_kiwi_events instead of an
         // organizer session, and not scoped to a specific organizer's events.
@@ -3904,6 +3939,268 @@ class KE_Rest_API {
             'success'     => true,
             'reservation' => $this->format_reservation_row( $updated ),
         ) );
+    }
+
+    /* ─── Historias Destacadas (highlights) CRUD ──────────────────────────── */
+
+    /**
+     * Write gate: resolve the organizer term AND require the REAL organizer
+     * session. require_session_for_slug() lets an admin through for reads
+     * (read-only impersonation), so here we additionally reject when the
+     * caller isn't the actual session owner — admins cannot modify another
+     * organizer's highlights. Returns the term or a WP_Error.
+     */
+    private function require_highlight_write( $slug ) {
+        $term = KE_Organizer_Dashboard::require_session_for_slug( $slug );
+        if ( is_wp_error( $term ) ) {
+            return $term;
+        }
+        $auth_id = KE_Organizer_Dashboard::get_authenticated_organizer_id();
+        if ( $auth_id !== (int) $term->term_id ) {
+            return new WP_Error( 'ke_hl_read_only', __( 'Modo solo lectura: no puedes modificar estas historias.', 'kiwi-events' ), array( 'status' => 403 ) );
+        }
+        return $term;
+    }
+
+    /** GET /organizer/{slug}/highlights — cards for the grid (owner or admin). */
+    public function organizer_highlights_list( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = KE_Organizer_Dashboard::require_session_for_slug( $slug );
+        if ( is_wp_error( $term ) ) {
+            return $term;
+        }
+        $items = array();
+        foreach ( KE_Highlights::get_for_organizer( $term->term_id ) as $post ) {
+            $card = KE_Highlights::to_card( $post->ID );
+            if ( $card ) {
+                $items[] = $card;
+            }
+        }
+        // can_edit drives the dashboard's read-only UI for admin impersonation.
+        $can_edit = ( KE_Organizer_Dashboard::get_authenticated_organizer_id() === (int) $term->term_id );
+        return rest_ensure_response( array( 'items' => $items, 'can_edit' => $can_edit ) );
+    }
+
+    /** GET /organizer/{slug}/highlights/{id} — detail for the edit form. */
+    public function organizer_highlight_get( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = KE_Organizer_Dashboard::require_session_for_slug( $slug );
+        if ( is_wp_error( $term ) ) {
+            return $term;
+        }
+        $id = (int) $request->get_param( 'id' );
+        if ( ! KE_Highlights::belongs_to_organizer( $id, $term->term_id ) ) {
+            return new WP_Error( 'ke_hl_not_found', __( 'Historia no encontrada.', 'kiwi-events' ), array( 'status' => 404 ) );
+        }
+        $post   = get_post( $id );
+        $images = array();
+        foreach ( KE_Highlights::get_images( $id ) as $att ) {
+            $src = wp_get_attachment_image_src( $att, 'medium' );
+            $images[] = array( 'id' => (int) $att, 'url' => $src ? $src[0] : wp_get_attachment_url( $att ) );
+        }
+        return rest_ensure_response( array(
+            'id'     => $id,
+            'name'   => $post ? $post->post_title : '',
+            'cover'  => KE_Highlights::cover_url( $id ),
+            'images' => $images,
+        ) );
+    }
+
+    /** POST /organizer/{slug}/highlights — create (multipart: name, cover, image_*). */
+    public function organizer_highlight_create( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = $this->require_highlight_write( $slug );
+        if ( is_wp_error( $term ) ) {
+            return $term;
+        }
+
+        $name = trim( (string) $request->get_param( 'name' ) );
+        if ( $name === '' ) {
+            return new WP_Error( 'ke_hl_name_required', __( 'El nombre es obligatorio.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+
+        $files = $request->get_file_params();
+        if ( empty( $files['cover'] ) || empty( $files['cover']['tmp_name'] ) ) {
+            return new WP_Error( 'ke_hl_cover_required', __( 'La portada es obligatoria.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+
+        $image_keys = $this->collect_highlight_image_keys( $files );
+        if ( empty( $image_keys ) ) {
+            return new WP_Error( 'ke_hl_images_required', __( 'Agrega al menos una imagen.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+        if ( count( $image_keys ) > KE_Highlights::MAX_IMAGES ) {
+            return new WP_Error( 'ke_hl_too_many', sprintf( __( 'Máximo %d imágenes por historia.', 'kiwi-events' ), KE_Highlights::MAX_IMAGES ), array( 'status' => 400 ) );
+        }
+
+        // Validate EVERY file (cover + frames) before creating anything.
+        $max_bytes = KE_Highlights::MAX_FILE_MB * 1024 * 1024;
+        foreach ( array_merge( array( 'cover' ), $image_keys ) as $key ) {
+            $v = KE_Highlights::validate_image_file( $files[ $key ], $max_bytes );
+            if ( is_wp_error( $v ) ) {
+                return $v;
+            }
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => KE_Highlights::POST_TYPE,
+            'post_status' => 'publish',
+            'post_title'  => $name,
+            'post_author' => get_current_user_id(),
+        ), true );
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'ke_hl_create_failed', $post_id->get_error_message(), array( 'status' => 500 ) );
+        }
+        update_post_meta( $post_id, KE_Highlights::META_ORGANIZER, (int) $term->term_id );
+
+        $cover_id = KE_Highlights::handle_upload( 'cover', $post_id );
+        if ( is_wp_error( $cover_id ) ) {
+            wp_delete_post( $post_id, true );
+            return new WP_Error( 'ke_hl_cover_failed', $cover_id->get_error_message(), array( 'status' => 400 ) );
+        }
+        set_post_thumbnail( $post_id, $cover_id );
+
+        $image_ids = array();
+        foreach ( $image_keys as $key ) {
+            $gid = KE_Highlights::handle_upload( $key, $post_id );
+            if ( ! is_wp_error( $gid ) ) {
+                $image_ids[] = (int) $gid;
+            }
+        }
+        if ( empty( $image_ids ) ) {
+            wp_delete_post( $post_id, true );
+            return new WP_Error( 'ke_hl_images_failed', __( 'No se pudieron subir las imágenes.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+        update_post_meta( $post_id, KE_Highlights::META_IMAGES, $image_ids );
+
+        return rest_ensure_response( array( 'success' => true, 'highlight' => KE_Highlights::to_card( $post_id ) ) );
+    }
+
+    /** POST /organizer/{slug}/highlights/{id} — update (name, cover, keep_images order, new image_*). */
+    public function organizer_highlight_update( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = $this->require_highlight_write( $slug );
+        if ( is_wp_error( $term ) ) {
+            return $term;
+        }
+        $id = (int) $request->get_param( 'id' );
+        if ( ! KE_Highlights::belongs_to_organizer( $id, $term->term_id ) ) {
+            return new WP_Error( 'ke_hl_not_found', __( 'Historia no encontrada.', 'kiwi-events' ), array( 'status' => 404 ) );
+        }
+
+        $name = trim( (string) $request->get_param( 'name' ) );
+        if ( $name !== '' ) {
+            wp_update_post( array( 'ID' => $id, 'post_title' => $name ) );
+        }
+
+        $max_bytes = KE_Highlights::MAX_FILE_MB * 1024 * 1024;
+        $files     = $request->get_file_params();
+
+        // Optional replacement cover.
+        if ( ! empty( $files['cover'] ) && ! empty( $files['cover']['tmp_name'] ) ) {
+            $v = KE_Highlights::validate_image_file( $files['cover'], $max_bytes );
+            if ( is_wp_error( $v ) ) {
+                return $v;
+            }
+            $cover_id = KE_Highlights::handle_upload( 'cover', $id );
+            if ( is_wp_error( $cover_id ) ) {
+                return new WP_Error( 'ke_hl_cover_failed', $cover_id->get_error_message(), array( 'status' => 400 ) );
+            }
+            $old_cover = (int) get_post_thumbnail_id( $id );
+            set_post_thumbnail( $id, $cover_id );
+            if ( $old_cover && $old_cover !== (int) $cover_id ) {
+                wp_delete_attachment( $old_cover, true );
+            }
+        }
+
+        // Kept existing frames (ordered), intersected with what actually exists.
+        $current  = KE_Highlights::get_images( $id );
+        $keep_raw = (string) $request->get_param( 'keep_images' );
+        if ( $request->get_param( 'keep_images' ) === null ) {
+            $keep = $current; // no keep param → keep all
+        } else {
+            $keep = array();
+            foreach ( explode( ',', $keep_raw ) as $kid ) {
+                $kid = (int) trim( $kid );
+                if ( $kid > 0 && in_array( $kid, $current, true ) && ! in_array( $kid, $keep, true ) ) {
+                    $keep[] = $kid;
+                }
+            }
+        }
+
+        $image_keys = $this->collect_highlight_image_keys( $files );
+        if ( count( $keep ) + count( $image_keys ) > KE_Highlights::MAX_IMAGES ) {
+            return new WP_Error( 'ke_hl_too_many', sprintf( __( 'Máximo %d imágenes por historia.', 'kiwi-events' ), KE_Highlights::MAX_IMAGES ), array( 'status' => 400 ) );
+        }
+        foreach ( $image_keys as $key ) {
+            $v = KE_Highlights::validate_image_file( $files[ $key ], $max_bytes );
+            if ( is_wp_error( $v ) ) {
+                return $v;
+            }
+        }
+        $new_ids = array();
+        foreach ( $image_keys as $key ) {
+            $gid = KE_Highlights::handle_upload( $key, $id );
+            if ( ! is_wp_error( $gid ) ) {
+                $new_ids[] = (int) $gid;
+            }
+        }
+
+        $final = array_merge( $keep, $new_ids );
+        if ( empty( $final ) ) {
+            return new WP_Error( 'ke_hl_images_required', __( 'La historia debe tener al menos una imagen.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+        update_post_meta( $id, KE_Highlights::META_IMAGES, $final );
+
+        // Delete frames the organizer removed (present before, not kept).
+        foreach ( $current as $cid ) {
+            if ( ! in_array( (int) $cid, $keep, true ) ) {
+                wp_delete_attachment( (int) $cid, true );
+            }
+        }
+
+        return rest_ensure_response( array( 'success' => true, 'highlight' => KE_Highlights::to_card( $id ) ) );
+    }
+
+    /** DELETE /organizer/{slug}/highlights/{id}. */
+    public function organizer_highlight_delete( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = $this->require_highlight_write( $slug );
+        if ( is_wp_error( $term ) ) {
+            return $term;
+        }
+        $id = (int) $request->get_param( 'id' );
+        if ( ! KE_Highlights::belongs_to_organizer( $id, $term->term_id ) ) {
+            return new WP_Error( 'ke_hl_not_found', __( 'Historia no encontrada.', 'kiwi-events' ), array( 'status' => 404 ) );
+        }
+
+        $atts  = KE_Highlights::get_images( $id );
+        $cover = (int) get_post_thumbnail_id( $id );
+        if ( $cover ) {
+            $atts[] = $cover;
+        }
+        foreach ( array_unique( array_map( 'intval', $atts ) ) as $att ) {
+            if ( $att > 0 ) {
+                wp_delete_attachment( $att, true );
+            }
+        }
+        wp_delete_post( $id, true );
+
+        return rest_ensure_response( array( 'success' => true, 'id' => $id ) );
+    }
+
+    /**
+     * Collect uploaded story-frame file keys (image_0, image_1, …) in natural
+     * numeric order so the frames keep the order the organizer arranged them.
+     */
+    private function collect_highlight_image_keys( array $files ) {
+        $keys = array();
+        foreach ( array_keys( $files ) as $key ) {
+            if ( 0 === strpos( $key, 'image_' ) && ! empty( $files[ $key ]['tmp_name'] ) ) {
+                $keys[] = $key;
+            }
+        }
+        sort( $keys, SORT_NATURAL );
+        return $keys;
     }
 
     /**
