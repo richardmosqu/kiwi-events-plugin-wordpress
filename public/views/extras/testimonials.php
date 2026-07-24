@@ -132,9 +132,27 @@ $total        = (int) get_comments( array(
     var submitBtn   = root.querySelector('.ke-testi-submit');
     var statusEl    = root.querySelector('.ke-testi-status');
 
-    var ke    = (window.kePublic || {});
-    var base  = (ke.restUrl || '/wp-json/ke/v1/');
-    var nonce = ke.nonce || '';
+    var ke      = (window.kePublic || {});
+    var base    = (ke.restUrl || '/wp-json/ke/v1/');
+    var ajaxUrl = (ke.ajaxUrl || '/wp-admin/admin-ajax.php');
+
+    // WordPress.com caches page HTML aggressively, so the wp_rest nonce baked
+    // into kePublic can be stale by submit time — the REST API then rejects an
+    // authenticated write with "Cookie check failed" (rest_cookie_invalid_nonce).
+    // Fetch a fresh, session-correct nonce from admin-ajax (never page-cached,
+    // authenticated by cookie, no nonce needed) right before posting. Memoized
+    // for the page's lifetime; falls back to the baked nonce if the call fails.
+    var freshNonce = null;
+    function getNonce() {
+        if (freshNonce) return Promise.resolve(freshNonce);
+        return fetch(ajaxUrl + '?action=ke_fresh_nonce', {
+            method: 'POST',
+            credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            freshNonce = (d && d.success && d.data && d.data.nonce) ? d.data.nonce : (ke.nonce || '');
+            return freshNonce;
+        }).catch(function () { return ke.nonce || ''; });
+    }
 
     // ─── Rating picker ─────────────────────────────────────
     if (allowStars && stars.length) {
@@ -173,7 +191,8 @@ $total        = (int) get_comments( array(
                 body.rating = parseInt(ratingField.value, 10) || 0;
             }
 
-            fetch(base + 'events/' + eventId + '/testimonials', {
+            getNonce().then(function (nonce) {
+              return fetch(base + 'events/' + eventId + '/testimonials', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -181,6 +200,7 @@ $total        = (int) get_comments( array(
                     'X-WP-Nonce': nonce
                 },
                 body: JSON.stringify(body)
+              });
             }).then(function (r) {
                 return r.json().then(function (d) { return { ok: r.ok, data: d }; });
             }).then(function (res) {
@@ -215,9 +235,13 @@ $total        = (int) get_comments( array(
             moreBtn.disabled = true;
             moreBtn.textContent = 'Loading…';
 
+            // Public read — no nonce sent on purpose. For a logged-in user a
+            // stale baked nonce would make rest_cookie_check_errors reject this
+            // with "Cookie check failed"; with no nonce the request is treated
+            // as an anonymous read of already-approved testimonials, which is
+            // exactly what this endpoint serves.
             fetch(base + 'events/' + eventId + '/testimonials?page=' + page + '&per_page=' + perPage, {
-                credentials: 'same-origin',
-                headers: { 'X-WP-Nonce': nonce }
+                credentials: 'same-origin'
             }).then(function (r) { return r.json(); })
               .then(function (data) {
                   var rows = (data && data.items) || [];

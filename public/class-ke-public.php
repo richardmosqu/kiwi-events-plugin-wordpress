@@ -19,6 +19,31 @@ class KE_Public {
 
         // Serve the standalone ticket view page at /ticket/{code}
         add_action( 'template_redirect', array( $this, 'maybe_render_ticket_view' ) );
+
+        // Fresh wp_rest nonce for logged-in users (survives page caching).
+        add_action( 'wp_ajax_ke_fresh_nonce', array( $this, 'ajax_fresh_nonce' ) );
+    }
+
+    /**
+     * Return a fresh wp_rest nonce for the current logged-in user.
+     *
+     * WordPress.com serves aggressively cached page HTML, so the nonce baked
+     * into the page via wp_localize_script() ('kePublic.nonce') can be stale
+     * by the time a user submits — the REST API then rejects the request with
+     * rest_cookie_invalid_nonce ("Cookie check failed" / "Ha fallado la
+     * comprobación de la cookie"). This admin-ajax endpoint authenticates via
+     * the standard auth cookie (no REST nonce required to identify the user)
+     * and mints a nonce valid for THIS session, which the front-end fetches
+     * right before an authenticated REST call. admin-ajax responses are never
+     * page-cached; nocache_headers() is sent defensively. Only wp_ajax_
+     * (logged-in) is registered — logged-out visitors have no comment form.
+     */
+    public function ajax_fresh_nonce() {
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => 'not_logged_in' ), 403 );
+        }
+        nocache_headers();
+        wp_send_json_success( array( 'nonce' => wp_create_nonce( 'wp_rest' ) ) );
     }
 
     /**
@@ -87,7 +112,11 @@ class KE_Public {
 
         $localize = array(
             'restUrl'     => esc_url_raw( rest_url( 'ke/v1/' ) ),
+            // Baked-in nonce is a best-effort fallback only. On cached pages it
+            // can be stale, so authenticated writes fetch a fresh one at submit
+            // time from admin-ajax (action=ke_fresh_nonce) using ajaxUrl below.
             'nonce'       => wp_create_nonce( 'wp_rest' ),
+            'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
             'homeUrl'     => home_url(),
             'serviceFee'  => null,
             'accentColor' => $accent_color ?: '#6366f1',
