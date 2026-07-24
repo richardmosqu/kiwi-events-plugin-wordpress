@@ -393,7 +393,11 @@ $allowed_iframe = array(
                         </button>
                         <?php endforeach; ?>
                     </div>
-                    <script type="application/json" id="ke-hl-data"><?php echo wp_json_encode( array( 'names' => $ke_hl_names, 'frames' => $ke_hl_frames ) ); ?></script>
+                    <script type="application/json" id="ke-hl-data"><?php
+                        // JSON_HEX_TAG escapes < and > so an organizer-submitted
+                        // highlight name containing "</script>" can't break out.
+                        echo wp_json_encode( array( 'names' => $ke_hl_names, 'frames' => $ke_hl_frames ), JSON_HEX_TAG | JSON_HEX_AMP );
+                    ?></script>
                     <script>
                     (function () {
                         var dataEl = document.getElementById('ke-hl-data');

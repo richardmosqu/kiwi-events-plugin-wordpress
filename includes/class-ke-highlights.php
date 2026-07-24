@@ -152,7 +152,9 @@ class KE_Highlights {
     public static function frames_payload( $highlight_id ) {
         $out = array();
         foreach ( self::get_images( $highlight_id ) as $att_id ) {
-            $full = wp_get_attachment_image_src( $att_id, 'large' );
+            // Full size for crisp full-screen frames — uploads are already
+            // capped at 3 MB / 8000px, and the viewer loads them one at a time.
+            $full = wp_get_attachment_image_src( $att_id, 'full' );
             if ( ! $full ) continue;
             $out[] = array(
                 'id'  => (int) $att_id,
