@@ -3277,3 +3277,93 @@
     .ke-resv-description { font-size: 14px; }
 }
 
+/* ══════════════ Historias Destacadas — hero row ══════════════
+ * Circular covers under the share buttons. Buttons declare their own
+ * background/border/color (+ pseudo-states) scoped under .ke-hero so WP.com's
+ * [type=button] globals can't paint magenta. Accent from --kep-* tokens. */
+.ke-hl-row {
+    display: flex;
+    gap: 14px;
+    margin-top: 16px;
+    padding-bottom: 4px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.ke-hl-row::-webkit-scrollbar { display: none; }
+.ke-hero .ke-hl-bubble,
+.ke-hero .ke-hl-bubble:hover,
+.ke-hero .ke-hl-bubble:focus,
+.ke-hero .ke-hl-bubble:focus-visible,
+.ke-hero .ke-hl-bubble:active {
+    background: transparent;
+    border: 0;
+    color: #fff;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    width: 72px;
+    scroll-snap-align: start;
+    cursor: pointer;
+}
+.ke-hero .ke-hl-bubble:focus-visible { outline: 2px solid var(--kep-accent-1, #6366f1); outline-offset: 3px; border-radius: 12px; }
+.ke-hl-bubble-ring {
+    width: 64px; height: 64px; border-radius: 50%; padding: 2px;
+    background: linear-gradient(135deg, var(--kep-accent-1, #6366f1), var(--kep-accent-2, #8b5cf6));
+    display: block;
+}
+.ke-hl-bubble-img {
+    display: block; width: 100%; height: 100%; border-radius: 50%;
+    background: #333 center/cover no-repeat; border: 2px solid #12121a;
+}
+.ke-hl-bubble-name {
+    max-width: 72px; font-size: 11px; line-height: 1.2; text-align: center;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (min-width: 768px) {
+    .ke-hl-bubble-ring { width: 80px; height: 80px; }
+    .ke-hero .ke-hl-bubble { width: 88px; }
+    .ke-hl-bubble-name { max-width: 88px; font-size: 12px; }
+}
+
+/* ══════════════ Story viewer (full-screen) ══════════════ */
+body.ke-hlv-lock { overflow: hidden; }
+.ke-hlv {
+    position: fixed; inset: 0; z-index: 999999; background: #000;
+    display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.ke-hlv[hidden] { display: none; }
+.ke-hlv-progress { display: flex; gap: 4px; padding: 10px 10px 6px; }
+.ke-hlv-seg { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.3); }
+.ke-hlv-seg.is-on { background: #fff; }
+.ke-hlv-top { display: flex; align-items: center; justify-content: space-between; padding: 4px 14px 10px; color: #fff; }
+.ke-hlv-name { font-size: 14px; font-weight: 600; }
+.ke-hlv .ke-hlv-close,
+.ke-hlv .ke-hlv-close:hover,
+.ke-hlv .ke-hlv-close:focus,
+.ke-hlv .ke-hlv-close:focus-visible,
+.ke-hlv .ke-hlv-close:active {
+    background: transparent; border: 0; color: #fff;
+    font-size: 28px; line-height: 1; cursor: pointer;
+    min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+}
+.ke-hlv .ke-hlv-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.ke-hlv-stage { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.ke-hlv-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.ke-hlv .ke-hlv-nav,
+.ke-hlv .ke-hlv-nav:hover,
+.ke-hlv .ke-hlv-nav:focus,
+.ke-hlv .ke-hlv-nav:active {
+    position: absolute; top: 0; bottom: 0;
+    background: transparent; border: 0; color: transparent; cursor: pointer;
+}
+.ke-hlv .ke-hlv-prev { left: 0; width: 32%; }
+.ke-hlv .ke-hlv-next { right: 0; width: 68%; }
+.ke-hlv .ke-hlv-nav:focus-visible { outline: none; }
+

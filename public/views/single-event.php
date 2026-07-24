@@ -349,6 +349,139 @@ $allowed_iframe = array(
                     })();
                     </script>
 
+                    <?php
+                    // ─── Historias Destacadas — resolve enabled highlights ───
+                    // Intersect the event's stored selection with the CURRENT
+                    // organizer's highlights so an organizer change or a deleted
+                    // highlight simply drops out (no empty circle, no error).
+                    $ke_hl_cards  = array();
+                    $ke_hl_frames = array();
+                    $ke_hl_names  = array();
+                    if ( class_exists( 'KE_Highlights' ) && get_post_meta( $event_id, '_ke_event_show_highlights', true ) === '1' ) {
+                        $ke_org_terms = wp_get_object_terms( $event_id, 'ke_organizer', array( 'fields' => 'ids' ) );
+                        $ke_org_id    = ( ! is_wp_error( $ke_org_terms ) && ! empty( $ke_org_terms ) ) ? (int) $ke_org_terms[0] : 0;
+                        if ( $ke_org_id ) {
+                            $ke_owned_ids = array_map( function ( $p ) { return (int) $p->ID; }, KE_Highlights::get_for_organizer( $ke_org_id ) );
+                            $ke_sel       = get_post_meta( $event_id, '_ke_event_highlights', true );
+                            if ( $ke_sel === 'all' ) {
+                                $ke_show_ids = $ke_owned_ids;
+                            } elseif ( is_array( $ke_sel ) ) {
+                                $ke_show_ids = array_values( array_intersect( array_map( 'intval', $ke_sel ), $ke_owned_ids ) );
+                            } else {
+                                $ke_show_ids = array();
+                            }
+                            foreach ( $ke_show_ids as $ke_hid ) {
+                                $ke_card = KE_Highlights::to_card( $ke_hid );
+                                if ( ! $ke_card || $ke_card['image_count'] < 1 ) continue;
+                                $ke_frames = KE_Highlights::frames_payload( $ke_hid );
+                                if ( empty( $ke_frames ) ) continue;
+                                $ke_hl_cards[]           = $ke_card;
+                                $ke_hl_frames[ $ke_hid ] = $ke_frames;
+                                $ke_hl_names[ $ke_hid ]  = $ke_card['name'];
+                            }
+                        }
+                    }
+                    ?>
+                    <?php if ( ! empty( $ke_hl_cards ) ) : ?>
+                    <div class="ke-hl-row" role="list" aria-label="<?php esc_attr_e( 'Historias destacadas', 'kiwi-events' ); ?>">
+                        <?php foreach ( $ke_hl_cards as $ke_card ) : ?>
+                        <button type="button" class="ke-hl-bubble" role="listitem" data-hl-id="<?php echo (int) $ke_card['id']; ?>" aria-label="<?php echo esc_attr( $ke_card['name'] ); ?>">
+                            <span class="ke-hl-bubble-ring">
+                                <span class="ke-hl-bubble-img"<?php if ( $ke_card['cover'] ) echo ' style="background-image:url(' . esc_url( $ke_card['cover'] ) . ')"'; ?>></span>
+                            </span>
+                            <span class="ke-hl-bubble-name"><?php echo esc_html( $ke_card['name'] ); ?></span>
+                        </button>
+                        <?php endforeach; ?>
+                    </div>
+                    <script type="application/json" id="ke-hl-data"><?php echo wp_json_encode( array( 'names' => $ke_hl_names, 'frames' => $ke_hl_frames ) ); ?></script>
+                    <script>
+                    (function () {
+                        var dataEl = document.getElementById('ke-hl-data');
+                        if (!dataEl) return;
+                        var DATA; try { DATA = JSON.parse(dataEl.textContent || '{}'); } catch (e) { return; }
+                        var FRAMES = DATA.frames || {}, NAMES = DATA.names || {};
+                        var bubbles = Array.prototype.slice.call(document.querySelectorAll('.ke-hl-bubble'));
+                        if (!bubbles.length) return;
+
+                        var overlay, progressWrap, imgEl, nameEl, lastFocus = null;
+                        var cur = { frames: [], idx: 0 };
+
+                        function build() {
+                            overlay = document.createElement('div');
+                            overlay.className = 'ke-hlv';
+                            overlay.setAttribute('role', 'dialog');
+                            overlay.setAttribute('aria-modal', 'true');
+                            overlay.setAttribute('aria-label', 'Historia');
+                            overlay.hidden = true;
+                            overlay.innerHTML =
+                                '<div class="ke-hlv-progress" aria-hidden="true"></div>' +
+                                '<div class="ke-hlv-top"><span class="ke-hlv-name"></span>' +
+                                '<button type="button" class="ke-hlv-close" aria-label="Cerrar">×</button></div>' +
+                                '<div class="ke-hlv-stage">' +
+                                    '<img class="ke-hlv-img" alt="">' +
+                                    '<button type="button" class="ke-hlv-nav ke-hlv-prev" aria-label="Anterior"></button>' +
+                                    '<button type="button" class="ke-hlv-nav ke-hlv-next" aria-label="Siguiente"></button>' +
+                                '</div>';
+                            document.body.appendChild(overlay);
+                            progressWrap = overlay.querySelector('.ke-hlv-progress');
+                            imgEl = overlay.querySelector('.ke-hlv-img');
+                            nameEl = overlay.querySelector('.ke-hlv-name');
+                            overlay.querySelector('.ke-hlv-close').addEventListener('click', close);
+                            overlay.querySelector('.ke-hlv-prev').addEventListener('click', function (e) { e.stopPropagation(); prev(); });
+                            overlay.querySelector('.ke-hlv-next').addEventListener('click', function (e) { e.stopPropagation(); next(); });
+                            var stage = overlay.querySelector('.ke-hlv-stage');
+                            var sx = 0, sy = 0, dx = 0, dy = 0, touching = false;
+                            stage.addEventListener('touchstart', function (e) { var t = e.changedTouches[0]; sx = t.clientX; sy = t.clientY; dx = dy = 0; touching = true; }, { passive: true });
+                            stage.addEventListener('touchmove', function (e) { if (!touching) return; var t = e.changedTouches[0]; dx = t.clientX - sx; dy = t.clientY - sy; }, { passive: true });
+                            stage.addEventListener('touchend', function () {
+                                if (!touching) return; touching = false;
+                                if (Math.abs(dy) > 80 && Math.abs(dy) > Math.abs(dx)) { if (dy > 0) close(); return; }
+                                if (Math.abs(dx) > 50) { if (dx < 0) next(); else prev(); }
+                            });
+                        }
+
+                        function renderProgress() {
+                            var h = '';
+                            for (var i = 0; i < cur.frames.length; i++) { h += '<span class="ke-hlv-seg' + (i <= cur.idx ? ' is-on' : '') + '"></span>'; }
+                            progressWrap.innerHTML = h;
+                        }
+                        function preload(i) { if (i >= 0 && i < cur.frames.length) { var im = new Image(); im.src = cur.frames[i].url; } }
+                        function show() { var f = cur.frames[cur.idx]; if (!f) return; imgEl.src = f.url; renderProgress(); preload(cur.idx + 1); }
+                        function next() { if (cur.idx < cur.frames.length - 1) { cur.idx++; show(); } else { close(); } }
+                        function prev() { if (cur.idx > 0) { cur.idx--; show(); } }
+
+                        function open(id, trigger) {
+                            var frames = FRAMES[id];
+                            if (!frames || !frames.length) return;
+                            if (!overlay) build();
+                            lastFocus = trigger || document.activeElement;
+                            cur = { frames: frames, idx: 0 };
+                            nameEl.textContent = NAMES[id] || '';
+                            overlay.hidden = false;
+                            document.body.classList.add('ke-hlv-lock');
+                            show();
+                            overlay.querySelector('.ke-hlv-close').focus();
+                            document.addEventListener('keydown', onKey);
+                        }
+                        function close() {
+                            if (!overlay) return;
+                            overlay.hidden = true;
+                            imgEl.removeAttribute('src');
+                            document.body.classList.remove('ke-hlv-lock');
+                            document.removeEventListener('keydown', onKey);
+                            if (lastFocus && lastFocus.focus) lastFocus.focus();
+                        }
+                        function onKey(e) {
+                            if (e.key === 'Escape') close();
+                            else if (e.key === 'ArrowRight') next();
+                            else if (e.key === 'ArrowLeft') prev();
+                            else if (e.key === 'Tab') { e.preventDefault(); overlay.querySelector('.ke-hlv-close').focus(); } // trap
+                        }
+                        bubbles.forEach(function (b) { b.addEventListener('click', function () { open(parseInt(b.getAttribute('data-hl-id'), 10), b); }); });
+                    })();
+                    </script>
+                    <?php endif; ?>
+
                 </div><!-- /.ke-hero-info -->
 
             </div><!-- /.ke-hero-inner -->
