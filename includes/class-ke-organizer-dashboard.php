@@ -99,7 +99,7 @@ class KE_Organizer_Dashboard {
         // or JS payload changes shape (button rebrand, new ticket-type
         // breakdown markup, etc.) so production stops serving stale assets
         // without requiring a full plugin-version bump.
-        $dash_ver = KE_VERSION . '-d10';
+        $dash_ver = KE_VERSION . '-d11';
 
         wp_enqueue_style(
             'ke-organizer-dashboard',

@@ -297,6 +297,55 @@ $admin_email = get_option( 'admin_email' );
                     </div>
                 </section>
 
+                <section class="ke-org-section" id="keOrgHighlightsSection">
+                    <p class="ke-org-section-eyebrow"><?php esc_html_e( 'Historias Destacadas', 'kiwi-events' ); ?></p>
+                    <div class="ke-org-card">
+                        <header class="ke-org-card-header ke-org-card-header--toolbar">
+                            <div class="ke-org-card-titles">
+                                <h2 class="ke-org-card-title"><?php esc_html_e( 'Historias Destacadas', 'kiwi-events' ); ?></h2>
+                                <p class="ke-org-card-subtitle"><?php esc_html_e( 'Colecciones tipo historia (portada + imágenes) que puedes mostrar en tus eventos.', 'kiwi-events' ); ?></p>
+                            </div>
+                            <button type="button" class="ke-org-hl-add" id="keOrgHlAdd" hidden><?php esc_html_e( '+ Agregar historia destacada', 'kiwi-events' ); ?></button>
+                        </header>
+                        <div class="ke-org-hl-grid" id="keOrgHlGrid" aria-busy="true">
+                            <div class="ke-org-hl-loading"><?php esc_html_e( 'Cargando…', 'kiwi-events' ); ?></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Highlight editor drawer — populated + toggled by JS. -->
+                <div class="ke-org-hl-drawer" id="keOrgHlDrawer" hidden>
+                    <div class="ke-org-hl-drawer-overlay" data-hl-close="1"></div>
+                    <aside class="ke-org-hl-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="keOrgHlDrawerTitle">
+                        <header class="ke-org-hl-drawer-header">
+                            <h3 class="ke-org-hl-drawer-title" id="keOrgHlDrawerTitle"><?php esc_html_e( 'Historia destacada', 'kiwi-events' ); ?></h3>
+                            <button type="button" class="ke-org-hl-close" data-hl-close="1" aria-label="<?php esc_attr_e( 'Cerrar', 'kiwi-events' ); ?>">×</button>
+                        </header>
+                        <div class="ke-org-hl-drawer-body">
+                            <label class="ke-org-hl-label"><?php esc_html_e( 'Nombre', 'kiwi-events' ); ?>
+                                <input type="text" id="keOrgHlName" maxlength="60" class="ke-org-hl-input" placeholder="<?php esc_attr_e( 'Ej. Horario, Menú, Ubicación', 'kiwi-events' ); ?>">
+                            </label>
+                            <div class="ke-org-hl-field">
+                                <span class="ke-org-hl-label-text"><?php esc_html_e( 'Portada · 1:1 (recomendado 600×600, se recorta en círculo)', 'kiwi-events' ); ?></span>
+                                <div class="ke-org-hl-cover-preview" id="keOrgHlCoverPreview"></div>
+                                <input type="file" id="keOrgHlCoverInput" accept="image/jpeg,image/png,image/webp" hidden>
+                                <button type="button" class="ke-org-hl-btn ke-org-hl-btn--ghost" id="keOrgHlCoverBtn"><?php esc_html_e( 'Elegir portada', 'kiwi-events' ); ?></button>
+                            </div>
+                            <div class="ke-org-hl-field">
+                                <span class="ke-org-hl-label-text"><?php esc_html_e( 'Imágenes · 9:16 (recomendado 1080×1920, máx 20, 3 MB c/u)', 'kiwi-events' ); ?></span>
+                                <div class="ke-org-hl-images" id="keOrgHlImages"></div>
+                                <input type="file" id="keOrgHlImagesInput" accept="image/jpeg,image/png,image/webp" multiple hidden>
+                                <button type="button" class="ke-org-hl-btn ke-org-hl-btn--ghost" id="keOrgHlImagesBtn"><?php esc_html_e( 'Agregar imágenes', 'kiwi-events' ); ?></button>
+                            </div>
+                            <p class="ke-org-hl-error" id="keOrgHlError" role="alert" hidden></p>
+                        </div>
+                        <footer class="ke-org-hl-drawer-actions">
+                            <button type="button" class="ke-org-hl-btn ke-org-hl-btn--ghost" data-hl-close="1"><?php esc_html_e( 'Cancelar', 'kiwi-events' ); ?></button>
+                            <button type="button" class="ke-org-hl-btn ke-org-hl-btn--primary" id="keOrgHlSave"><?php esc_html_e( 'Guardar', 'kiwi-events' ); ?></button>
+                        </footer>
+                    </aside>
+                </div>
+
                 <footer class="ke-org-footer">
                     <?php
                     printf(

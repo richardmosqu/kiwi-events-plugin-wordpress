@@ -1328,6 +1328,205 @@
         if (state.lastUpdatedTimer) { clearInterval(state.lastUpdatedTimer); state.lastUpdatedTimer = null; }
     }
 
+    /* ─── Historias Destacadas (highlights manager) ────────────────────────
+     * List grid of the organizer's highlights + a drawer editor (name, cover,
+     * ordered images with up/down/remove). Uploads go as multipart FormData
+     * (postForm) so the browser sets the boundary. Reads may be admin read-only
+     * (can_edit=false) → the create/edit/delete controls stay hidden. */
+    var hlState = { items: [], canEdit: false, editing: null, cover: null, images: [] };
+
+    function cssUrl(u) { return "'" + String(u == null ? '' : u).replace(/'/g, '%27').replace(/[\r\n]/g, '') + "'"; }
+
+    function postForm(url, formData) {
+        return fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-WP-Nonce': cfg.nonce || '' },
+            body: formData
+        }).then(function (res) {
+            return res.json().then(function (data) { return { ok: res.ok, status: res.status, data: data }; });
+        });
+    }
+
+    function loadHighlights() {
+        var grid = $('keOrgHlGrid');
+        if (!grid) return;
+        getJson(cfg.restUrl + cfg.slug + '/highlights').then(function (r) {
+            if (r.status === 401) { location.reload(); return; }
+            if (!r.ok || !r.data) { grid.innerHTML = '<div class="ke-org-hl-empty">No se pudieron cargar las historias.</div>'; grid.removeAttribute('aria-busy'); return; }
+            hlState.items  = r.data.items || [];
+            hlState.canEdit = !!r.data.can_edit;
+            var addBtn = $('keOrgHlAdd');
+            if (addBtn) addBtn.hidden = !hlState.canEdit;
+            renderHighlights();
+        }).catch(function () {
+            grid.innerHTML = '<div class="ke-org-hl-empty">Error de red.</div>';
+            grid.removeAttribute('aria-busy');
+        });
+    }
+
+    function renderHighlights() {
+        var grid = $('keOrgHlGrid');
+        if (!grid) return;
+        grid.removeAttribute('aria-busy');
+        if (!hlState.items.length) {
+            grid.innerHTML = '<div class="ke-org-hl-empty">' +
+                (hlState.canEdit ? 'Aún no tienes historias. Crea la primera con “Agregar”.' : 'Este organizador todavía no tiene historias.') +
+                '</div>';
+            return;
+        }
+        var html = '';
+        hlState.items.forEach(function (h) {
+            html += '<div class="ke-org-hl-item" data-id="' + h.id + '">' +
+                '<div class="ke-org-hl-cover-circle"' + (h.cover ? ' style="background-image:url(' + cssUrl(h.cover) + ')"' : '') + '></div>' +
+                '<div class="ke-org-hl-name">' + escapeHtml(h.name) + '</div>' +
+                '<div class="ke-org-hl-count">' + fmtInt(h.image_count) + ' img</div>' +
+                (hlState.canEdit ?
+                    '<div class="ke-org-hl-actions">' +
+                        '<button type="button" class="ke-org-hl-mini" data-hl-edit="' + h.id + '">Editar</button>' +
+                        '<button type="button" class="ke-org-hl-mini ke-org-hl-mini--danger" data-hl-del="' + h.id + '">Eliminar</button>' +
+                    '</div>' : '') +
+            '</div>';
+        });
+        grid.innerHTML = html;
+        if (hlState.canEdit) {
+            grid.querySelectorAll('[data-hl-edit]').forEach(function (b) {
+                b.addEventListener('click', function () { openHlEditor(parseInt(b.getAttribute('data-hl-edit'), 10)); });
+            });
+            grid.querySelectorAll('[data-hl-del]').forEach(function (b) {
+                b.addEventListener('click', function () { deleteHighlight(parseInt(b.getAttribute('data-hl-del'), 10), b); });
+            });
+        }
+    }
+
+    function renderHlImages() {
+        var box = $('keOrgHlImages');
+        if (!box) return;
+        box.innerHTML = '';
+        hlState.images.forEach(function (im, idx) {
+            var url = im.url || (im.file ? URL.createObjectURL(im.file) : '');
+            var row = document.createElement('div');
+            row.className = 'ke-org-hl-imgrow';
+            row.innerHTML =
+                '<span class="ke-org-hl-thumb" style="background-image:url(' + cssUrl(url) + ')"></span>' +
+                '<span class="ke-org-hl-imgnum">' + (idx + 1) + '</span>' +
+                '<button type="button" class="ke-org-hl-mini" data-up="' + idx + '" aria-label="Subir">↑</button>' +
+                '<button type="button" class="ke-org-hl-mini" data-down="' + idx + '" aria-label="Bajar">↓</button>' +
+                '<button type="button" class="ke-org-hl-mini ke-org-hl-mini--danger" data-rm="' + idx + '" aria-label="Quitar">✕</button>';
+            box.appendChild(row);
+        });
+        box.querySelectorAll('[data-up]').forEach(function (b) { b.addEventListener('click', function () { moveHlImage(parseInt(b.getAttribute('data-up'), 10), -1); }); });
+        box.querySelectorAll('[data-down]').forEach(function (b) { b.addEventListener('click', function () { moveHlImage(parseInt(b.getAttribute('data-down'), 10), 1); }); });
+        box.querySelectorAll('[data-rm]').forEach(function (b) { b.addEventListener('click', function () { hlState.images.splice(parseInt(b.getAttribute('data-rm'), 10), 1); renderHlImages(); }); });
+    }
+
+    function moveHlImage(idx, dir) {
+        var j = idx + dir;
+        if (j < 0 || j >= hlState.images.length) return;
+        var t = hlState.images[idx]; hlState.images[idx] = hlState.images[j]; hlState.images[j] = t;
+        renderHlImages();
+    }
+
+    function showHlDrawer(open) {
+        var d = $('keOrgHlDrawer');
+        if (!d) return;
+        d.hidden = !open;
+        document.body.style.overflow = open ? 'hidden' : '';
+    }
+
+    function openHlEditor(id) {
+        hlState.editing = id || null;
+        hlState.cover   = null;   // File, or null = keep existing on edit
+        hlState.images  = [];     // { file?:File } or { id:int, url:string }
+        var nameEl = $('keOrgHlName'), cov = $('keOrgHlCoverPreview'), err = $('keOrgHlError');
+        if (nameEl) nameEl.value = '';
+        if (cov) cov.style.backgroundImage = '';
+        if (err) err.hidden = true;
+        renderHlImages();
+        var title = $('keOrgHlDrawerTitle');
+        if (title) title.textContent = id ? 'Editar historia' : 'Nueva historia';
+        if (id) {
+            getJson(cfg.restUrl + cfg.slug + '/highlights/' + id).then(function (r) {
+                if (r.ok && r.data) {
+                    if (nameEl) nameEl.value = r.data.name || '';
+                    if (cov && r.data.cover) cov.style.backgroundImage = 'url(' + cssUrl(r.data.cover) + ')';
+                    (r.data.images || []).forEach(function (im) { hlState.images.push({ id: im.id, url: im.url }); });
+                    renderHlImages();
+                }
+            });
+        }
+        showHlDrawer(true);
+    }
+
+    function saveHighlight() {
+        var err = $('keOrgHlError');
+        if (err) err.hidden = true;
+        var name = (($('keOrgHlName') || {}).value || '').trim();
+        function fail(msg) { if (err) { err.textContent = msg; err.hidden = false; } }
+        if (!name) return fail('El nombre es obligatorio.');
+        if (!hlState.images.length) return fail('Agrega al menos una imagen.');
+        if (!hlState.editing && !hlState.cover) return fail('La portada es obligatoria.');
+
+        var fd = new FormData();
+        fd.append('name', name);
+        if (hlState.cover) fd.append('cover', hlState.cover);
+        var keep = [], imgIdx = 0;
+        hlState.images.forEach(function (im) {
+            if (im.file) { fd.append('image_' + imgIdx, im.file); imgIdx++; }
+            else if (im.id) { keep.push(im.id); }
+        });
+        if (hlState.editing) fd.append('keep_images', keep.join(','));
+
+        var url = cfg.restUrl + cfg.slug + '/highlights' + (hlState.editing ? '/' + hlState.editing : '');
+        var btn = $('keOrgHlSave');
+        if (btn) btn.disabled = true;
+        postForm(url, fd).then(function (r) {
+            if (btn) btn.disabled = false;
+            if (!r.ok || !r.data || !r.data.success) return fail((r.data && r.data.message) || 'No se pudo guardar.');
+            showHlDrawer(false);
+            loadHighlights();
+        }).catch(function () { if (btn) btn.disabled = false; fail('Error de red.'); });
+    }
+
+    function deleteHighlight(id, btn) {
+        if (!window.confirm('¿Eliminar esta historia destacada? No se puede deshacer.')) return;
+        if (btn) btn.disabled = true;
+        fetch(cfg.restUrl + cfg.slug + '/highlights/' + id, {
+            method: 'DELETE',
+            credentials: 'same-origin',
+            headers: { 'X-WP-Nonce': cfg.nonce || '' }
+        }).then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+          .then(function (r) {
+            if (!r.ok || !r.data || !r.data.success) { if (btn) btn.disabled = false; window.alert((r.data && r.data.message) || 'No se pudo eliminar.'); return; }
+            loadHighlights();
+        }).catch(function () { if (btn) btn.disabled = false; window.alert('Error de red.'); });
+    }
+
+    function initHighlights() {
+        if (!$('keOrgHlGrid')) return;
+        on($('keOrgHlAdd'), 'click', function () { openHlEditor(null); });
+        var drawer = $('keOrgHlDrawer');
+        if (drawer) drawer.querySelectorAll('[data-hl-close]').forEach(function (el) { el.addEventListener('click', function () { showHlDrawer(false); }); });
+        on($('keOrgHlCoverBtn'), 'click', function () { $('keOrgHlCoverInput').click(); });
+        on($('keOrgHlCoverInput'), 'change', function () {
+            var f = this.files && this.files[0];
+            if (!f) return;
+            hlState.cover = f;
+            var cov = $('keOrgHlCoverPreview');
+            if (cov) cov.style.backgroundImage = 'url(' + cssUrl(URL.createObjectURL(f)) + ')';
+        });
+        on($('keOrgHlImagesBtn'), 'click', function () { $('keOrgHlImagesInput').click(); });
+        on($('keOrgHlImagesInput'), 'change', function () {
+            var files = this.files ? Array.prototype.slice.call(this.files) : [];
+            files.forEach(function (f) { if (hlState.images.length < 20) hlState.images.push({ file: f }); });
+            this.value = '';
+            renderHlImages();
+        });
+        on($('keOrgHlSave'), 'click', saveHighlight);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('keOrgHlDrawer').hidden) showHlDrawer(false); });
+        loadHighlights();
+    }
+
     function initDashboard() {
         var range = $('keOrgRange');
         if (range) {
@@ -1341,6 +1540,7 @@
         initSearch();
         initExports();
         initReservations();
+        initHighlights();
 
         fetchDashboardStats(false);
         loadAttendees();

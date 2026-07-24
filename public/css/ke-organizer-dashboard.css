@@ -1674,3 +1674,107 @@ body.ke-org-resv-drawer-open { overflow: hidden; }
     .ke-org-resv-drawer-panel { width: 100%; }
     .ke-org-resv-detail-label { flex-basis: 90px; }
 }
+
+/* ══════════════ Historias Destacadas (highlights manager) ══════════════
+ * Buttons declare their own background/border/color (and pseudo-states) so
+ * WP.com's [type=button] globals never fill a gap. The base reset already
+ * lives under .ke-org-dash above; these parent-scoped rules layer on top. */
+.ke-org-dash .ke-org-hl-add {
+    background: var(--kep-accent-grad);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.ke-org-dash .ke-org-hl-add:hover,
+.ke-org-dash .ke-org-hl-add:focus,
+.ke-org-dash .ke-org-hl-add:active,
+.ke-org-dash .ke-org-hl-add:focus-visible {
+    background: var(--kep-accent-grad);
+    color: #fff;
+    border: 0;
+}
+.ke-org-dash .ke-org-hl-add:focus-visible { outline: 2px solid rgba(var(--kep-accent-rgb), 0.5); outline-offset: 2px; }
+
+.ke-org-hl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 16px 10px;
+    padding: 8px 2px;
+}
+.ke-org-hl-loading, .ke-org-hl-empty {
+    grid-column: 1 / -1;
+    color: var(--kep-text-muted, #64748b);
+    font-size: 14px;
+    padding: 10px 0;
+}
+.ke-org-hl-item { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
+.ke-org-hl-cover-circle {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: #e2e8f0 center/cover no-repeat;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--kep-accent-1);
+}
+.ke-org-hl-name {
+    font-size: 12px; font-weight: 600; max-width: 92px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ke-org-hl-count { font-size: 11px; color: var(--kep-text-muted, #64748b); }
+.ke-org-hl-actions { display: flex; gap: 4px; }
+.ke-org-dash .ke-org-hl-mini {
+    background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 3px 7px; font-size: 11px; font-weight: 600;
+}
+.ke-org-dash .ke-org-hl-mini:hover { background: #e2e8f0; color: #334155; border: 1px solid #cbd5e1; }
+.ke-org-dash .ke-org-hl-mini:focus-visible { outline: 2px solid rgba(var(--kep-accent-rgb), 0.5); outline-offset: 1px; }
+.ke-org-dash .ke-org-hl-mini--danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+.ke-org-dash .ke-org-hl-mini--danger:hover { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+
+/* Editor drawer (reuses the reservations drawer shell conventions) */
+.ke-org-hl-drawer { position: fixed; inset: 0; z-index: 100000; }
+.ke-org-hl-drawer[hidden] { display: none; }
+.ke-org-hl-drawer-overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.55); }
+.ke-org-hl-drawer-panel {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: min(440px, 100%); background: #fff; display: flex; flex-direction: column;
+    box-shadow: -12px 0 40px rgba(2, 6, 23, 0.25);
+}
+.ke-org-hl-drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px; border-bottom: 1px solid #e2e8f0;
+}
+.ke-org-hl-drawer-title { margin: 0; font-size: 16px; }
+.ke-org-dash .ke-org-hl-close { background: transparent; color: #64748b; border: 0; font-size: 22px; line-height: 1; padding: 4px 8px; }
+.ke-org-dash .ke-org-hl-close:hover { background: transparent; color: #0f172a; border: 0; }
+.ke-org-hl-drawer-body { padding: 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.ke-org-hl-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #334155; }
+.ke-org-hl-label-text { font-size: 13px; font-weight: 600; color: #334155; display: block; margin-bottom: 8px; }
+.ke-org-dash .ke-org-hl-input {
+    background: #fff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px;
+    padding: 9px 11px; font-size: 14px; cursor: text;
+}
+.ke-org-dash .ke-org-hl-input:focus-visible { outline: 2px solid rgba(var(--kep-accent-rgb), 0.5); outline-offset: 1px; border-color: var(--kep-accent-1); }
+.ke-org-hl-cover-preview {
+    width: 96px; height: 96px; border-radius: 50%; background: #e2e8f0 center/cover no-repeat;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #cbd5e1; margin-bottom: 10px;
+}
+.ke-org-hl-images { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.ke-org-hl-imgrow { display: flex; align-items: center; gap: 8px; }
+.ke-org-hl-thumb { width: 40px; height: 40px; border-radius: 6px; background: #e2e8f0 center/cover no-repeat; flex-shrink: 0; }
+.ke-org-hl-imgnum { width: 22px; font-size: 12px; color: #64748b; }
+.ke-org-dash .ke-org-hl-btn {
+    background: #fff; color: #334155; border: 1px solid #cbd5e1;
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+}
+.ke-org-dash .ke-org-hl-btn--ghost { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.ke-org-dash .ke-org-hl-btn--ghost:hover { background: #eef2f7; color: #475569; border: 1px solid #cbd5e1; }
+.ke-org-dash .ke-org-hl-btn--primary { background: var(--kep-accent-grad); color: #fff; border: 0; }
+.ke-org-dash .ke-org-hl-btn--primary:hover,
+.ke-org-dash .ke-org-hl-btn--primary:focus,
+.ke-org-dash .ke-org-hl-btn--primary:active,
+.ke-org-dash .ke-org-hl-btn--primary:focus-visible { background: var(--kep-accent-grad); color: #fff; border: 0; }
+.ke-org-dash .ke-org-hl-btn:focus-visible { outline: 2px solid rgba(var(--kep-accent-rgb), 0.5); outline-offset: 2px; }
+.ke-org-hl-error { color: #b91c1c; font-size: 13px; margin: 0; }
+.ke-org-hl-drawer-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 18px; border-top: 1px solid #e2e8f0; }
