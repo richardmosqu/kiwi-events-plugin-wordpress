@@ -191,15 +191,6 @@ jQuery(document).ready(function ($) {
                 showError('This event needs either ticket types or reservations enabled.', 3);
                 return false;
             }
-            // Birthday package: if enabled, all three fields are required.
-            if ($('#ke-birthday-enabled').is(':checked')) {
-                if (!$('#ke-birthday-title').val().trim() ||
-                    !$('#ke-birthday-description').val().trim() ||
-                    !$('#ke-birthday-link').val().trim()) {
-                    showError('Completa título, descripción y enlace del paquete de cumpleaños, o desactívalo.', 3);
-                    return false;
-                }
-            }
             let valid = true;
             cards.each(function () {
                 const name = $(this).find('.ke-tkt-name').val().trim();
@@ -512,11 +503,6 @@ jQuery(document).ready(function ($) {
     $(document).on('change', '#ke-hl-all', function () {
         var on = this.checked;
         $('#ke-hl-list').css({ opacity: on ? 0.5 : 1, 'pointer-events': on ? 'none' : '' });
-    });
-
-    // ─── Cumpleaños toggle ─────────────────────────────────────────────────
-    $(document).on('change', '#ke-birthday-enabled', function () {
-        $('#ke-birthday-fields').toggle(this.checked);
     });
 
     // ─── Ticket card rendering ─────────────────────────────────────────────
@@ -843,10 +829,6 @@ jQuery(document).ready(function ($) {
             show_highlights:       $('#ke-show-highlights').is(':checked') ? 1 : 0,
             highlights_all:        $('#ke-hl-all').is(':checked') ? 1 : 0,
             highlights:            $('.ke-hl-item:checked').map(function () { return parseInt(this.value, 10); }).get(),
-            birthday_enabled:      $('#ke-birthday-enabled').is(':checked') ? 1 : 0,
-            birthday_title:        $('#ke-birthday-title').val().trim(),
-            birthday_description:  $('#ke-birthday-description').val(),
-            birthday_link:         $('#ke-birthday-link').val().trim(),
             tickets:               tickets,
             extras:                collectExtras(),
             extra_fields:          collectExtraFields(),
@@ -915,6 +897,11 @@ jQuery(document).ready(function ($) {
                 const r = String($('#ke-addinfo-refundable').val() || '').toLowerCase();
                 config.refundable  = (r === 'yes' || r === 'no') ? r : '';
                 config.disclaimers = String($('#ke-addinfo-disclaimers').val() || '');
+            }
+            if (type === 'birthday') {
+                config.title       = String($('#ke-birthday-title').val() || '').trim();
+                config.description = String($('#ke-birthday-description').val() || '');
+                config.link        = String($('#ke-birthday-link').val() || '').trim();
             }
             extras.push({
                 type:    type,
@@ -1445,6 +1432,7 @@ jQuery(document).ready(function ($) {
         if (t === 'schedule')        updateScheduleEditorVisibility();
         if (t === 'faq')             updateFaqEditorVisibility();
         if (t === 'additional_info') updateAddInfoEditorVisibility();
+        if (t === 'birthday')        updateBirthdayEditorVisibility();
     });
 
     function updateAddInfoEditorVisibility() {
@@ -1464,6 +1452,22 @@ jQuery(document).ready(function ($) {
         $('#ke-addinfo-disclaimers').val(String(cfg.disclaimers || ''));
     })();
     updateAddInfoEditorVisibility();
+
+    // ─── Cumpleaños editor ─────────────────────────────────────────────────
+    function updateBirthdayEditorVisibility() {
+        const on = $('.ke-extra-toggle[data-type="birthday"]').is(':checked');
+        $('#ke-birthday-editor').toggle(on);
+    }
+    (function hydrateBirthday() {
+        if (!Array.isArray(window.keExistingExtras)) return;
+        const extra = window.keExistingExtras.find(function (e) { return e && e.type === 'birthday'; });
+        const cfg   = extra && extra.config ? extra.config : null;
+        if (!cfg) return;
+        $('#ke-birthday-title').val(String(cfg.title || ''));
+        $('#ke-birthday-description').val(String(cfg.description || ''));
+        $('#ke-birthday-link').val(String(cfg.link || ''));
+    })();
+    updateBirthdayEditorVisibility();
 
     // ─── Lineup editor ─────────────────────────────────────────────────────
     // Artists survive an off→on toggle: we keep the array in memory and in

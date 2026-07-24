@@ -146,11 +146,6 @@ $hl_selection       = $event_id ? get_post_meta( $event_id, '_ke_event_highlight
 $hl_mode_all        = ( $hl_selection === 'all' );
 $hl_selected_ids    = is_array( $hl_selection ) ? array_map( 'intval', $hl_selection ) : array();
 $org_highlights     = ( $assigned_org_id && class_exists( 'KE_Highlights' ) ) ? KE_Highlights::get_for_organizer( $assigned_org_id ) : array();
-// Cumpleaños (per-event birthday package CTA).
-$bday_enabled = ( $event_id && get_post_meta( $event_id, '_ke_birthday_enabled', true ) === '1' );
-$bday_title   = $event_id ? (string) get_post_meta( $event_id, '_ke_birthday_title', true ) : '';
-$bday_desc    = $event_id ? (string) get_post_meta( $event_id, '_ke_birthday_description', true ) : '';
-$bday_link    = $event_id ? (string) get_post_meta( $event_id, '_ke_birthday_link', true ) : '';
 $maps_embed    = ke_get_meta_val( $meta, '_ke_event_maps_embed' );
 $service_fee_id = ke_get_meta_val( $meta, '_ke_event_service_fee_id' );
 $social_instagram = ke_get_meta_val( $meta, '_ke_social_instagram' );
@@ -778,6 +773,7 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                         'faq'             => array( '❓', 'FAQ',                      'Accordion of common questions.' ),
                         'menu_faq'        => array( '🍔', 'Menu / FAQ',              'Collapsible custom sections.' ),
                         'additional_info' => array( 'ℹ️', 'Additional Information', 'Refundable status + important notes.' ),
+                        'birthday'        => array( '🎂', 'Cumpleaños',             'Paquete de cumpleaños con enlace para pedir info.' ),
                     );
                     foreach ( $extras_catalog as $slug => $spec ) :
                         list( $icon, $label, $desc ) = $spec;
@@ -931,6 +927,28 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                 </div>
             </div>
 
+            <!-- ── CUMPLEAÑOS EDITOR (shown only when the extra is enabled) ── -->
+            <div class="ke-form-group ke-birthday-editor" id="ke-birthday-editor" style="display:none;">
+                <h3 class="ke-subsection-title">🎂 Cumpleaños</h3>
+                <p class="ke-hint" style="margin-top:0;">
+                    Se muestra como una sección propia (widget) en la página del evento, con los beneficios y un enlace para pedir información.
+                </p>
+                <div class="ke-form-row" style="margin-top:10px;">
+                    <label class="ke-label" for="ke-birthday-title">Título</label>
+                    <input type="text" id="ke-birthday-title" class="ke-input" maxlength="120" placeholder="¿Cumples este mes?">
+                </div>
+                <div class="ke-form-row" style="margin-top:14px;">
+                    <label class="ke-label" for="ke-birthday-description">Descripción del paquete</label>
+                    <textarea id="ke-birthday-description" class="ke-textarea" rows="5" placeholder="Un beneficio por línea…"></textarea>
+                    <p class="ke-hint" style="margin-top:6px;">Un beneficio por línea; se conservan los saltos de línea. No se permite HTML.</p>
+                </div>
+                <div class="ke-form-row" style="margin-top:14px;">
+                    <label class="ke-label" for="ke-birthday-link">Enlace para más información</label>
+                    <input type="url" id="ke-birthday-link" class="ke-input" placeholder="https://wa.me/507XXXXXXXX">
+                    <p class="ke-hint" style="margin-top:6px;">WhatsApp, formulario o página. Se abre en una pestaña nueva.</p>
+                </div>
+            </div>
+
             <div class="ke-divider"></div>
 
             <!-- ── EXTRA FIELDS (per-attendee checkout questions) ── -->
@@ -1081,32 +1099,6 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                 <div class="ke-empty-tickets" id="ke-no-tickets">
                     <span>🎟️</span>
                     <p>No tickets configured. Add ticket types above <strong>OR</strong> enable reservations below to let customers attend this event.</p>
-                </div>
-            </div>
-
-            <!-- ══ Cumpleaños (birthday package CTA) ══ -->
-            <div class="ke-divider"></div>
-            <div class="ke-form-group">
-                <label class="ke-toggle-wrap">
-                    <input type="checkbox" id="ke-birthday-enabled" <?php checked( $bday_enabled ); ?>>
-                    <span class="ke-toggle-slider"></span>
-                    <span class="ke-toggle-label">🎂 <?php esc_html_e( 'Activar paquete de cumpleaños', 'kiwi-events' ); ?></span>
-                </label>
-                <div class="ke-birthday-fields" id="ke-birthday-fields" style="margin-top:12px;<?php echo $bday_enabled ? '' : 'display:none;'; ?>">
-                    <div class="ke-form-group">
-                        <label class="ke-label"><?php esc_html_e( 'Título', 'kiwi-events' ); ?> <span class="ke-required">*</span></label>
-                        <input type="text" id="ke-birthday-title" class="ke-input" maxlength="120" placeholder="<?php esc_attr_e( '¿Cumples este mes?', 'kiwi-events' ); ?>" value="<?php echo esc_attr( $bday_title ); ?>">
-                    </div>
-                    <div class="ke-form-group">
-                        <label class="ke-label"><?php esc_html_e( 'Descripción del paquete', 'kiwi-events' ); ?> <span class="ke-required">*</span></label>
-                        <textarea id="ke-birthday-description" class="ke-textarea" rows="5" placeholder="<?php esc_attr_e( 'Un beneficio por línea…', 'kiwi-events' ); ?>"><?php echo esc_textarea( $bday_desc ); ?></textarea>
-                        <p class="ke-hint"><?php esc_html_e( 'Escribe un beneficio por línea; los saltos de línea se conservan. No se permite HTML.', 'kiwi-events' ); ?></p>
-                    </div>
-                    <div class="ke-form-group">
-                        <label class="ke-label"><?php esc_html_e( 'Enlace para más información', 'kiwi-events' ); ?> <span class="ke-required">*</span></label>
-                        <input type="url" id="ke-birthday-link" class="ke-input" placeholder="https://wa.me/507XXXXXXXX" value="<?php echo esc_attr( $bday_link ); ?>">
-                        <p class="ke-hint"><?php esc_html_e( 'Puede ser un enlace de WhatsApp, un formulario o una página. Se abre en una pestaña nueva.', 'kiwi-events' ); ?></p>
-                    </div>
                 </div>
             </div>
 

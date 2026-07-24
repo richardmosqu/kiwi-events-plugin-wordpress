@@ -1900,24 +1900,6 @@ class KE_Rest_API {
             }
         }
 
-        // Cumpleaños — per-event birthday package CTA. Content is per-event by
-        // design (no global default / no reuse). Description keeps line breaks
-        // via sanitize_textarea_field (no HTML); link is URL-validated. The
-        // fields persist across toggling so content isn't lost; the public
-        // renderer only shows the CTA when enabled AND all three are non-empty.
-        if ( array_key_exists( 'birthday_enabled', $params ) ) {
-            update_post_meta( $event_id, '_ke_birthday_enabled', filter_var( $params['birthday_enabled'], FILTER_VALIDATE_BOOLEAN ) ? '1' : '0' );
-        }
-        if ( array_key_exists( 'birthday_title', $params ) ) {
-            update_post_meta( $event_id, '_ke_birthday_title', sanitize_text_field( $params['birthday_title'] ) );
-        }
-        if ( array_key_exists( 'birthday_description', $params ) ) {
-            update_post_meta( $event_id, '_ke_birthday_description', sanitize_textarea_field( $params['birthday_description'] ) );
-        }
-        if ( array_key_exists( 'birthday_link', $params ) ) {
-            update_post_meta( $event_id, '_ke_birthday_link', esc_url_raw( $params['birthday_link'] ) );
-        }
-
         // ── Simple meta fields (sanitize_text_field) ──────────────────────
         $text_meta = array(
             'event_start'    => '_ke_event_date_start',
@@ -2022,7 +2004,7 @@ class KE_Rest_API {
             $allowed_types = array(
                 'sold_out_bar', 'countdown', 'lineup', 'gallery',
                 'testimonials', 'schedule', 'menu_faq', 'faq',
-                'additional_info',
+                'additional_info', 'birthday',
             );
             $clean = array();
             foreach ( $params['extras'] as $extra ) {
@@ -2717,6 +2699,14 @@ class KE_Rest_API {
                 $out['refundable'] = in_array( $refundable, array( 'yes', 'no' ), true ) ? $refundable : '';
                 // Disclaimers: free-form rich text, restricted to post-safe HTML.
                 $out['disclaimers'] = wp_kses_post( (string) ( $config['disclaimers'] ?? '' ) );
+                break;
+            case 'birthday':
+                // Per-event birthday package widget. NO raw HTML in the body —
+                // sanitize_textarea_field keeps line breaks, the template renders
+                // it via nl2br(esc_html()). Link is URL-validated.
+                $out['title']       = sanitize_text_field( $config['title'] ?? '' );
+                $out['description'] = sanitize_textarea_field( $config['description'] ?? '' );
+                $out['link']        = esc_url_raw( $config['link'] ?? '' );
                 break;
         }
         return $out;
