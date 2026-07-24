@@ -138,6 +138,14 @@ $max_tickets   = ke_get_meta_val( $meta, '_ke_event_max_tickets_per_person', 10 
 $hero_bg_id    = (int) ke_get_meta_val( $meta, '_ke_event_hero_bg_id', 0 );
 $hero_bg_url   = $hero_bg_id ? wp_get_attachment_image_url( $hero_bg_id, 'ke_hero_bg' ) : '';
 if ( ! $hero_bg_url && $hero_bg_id ) { $hero_bg_url = wp_get_attachment_image_url( $hero_bg_id, 'large' ); }
+// Historias Destacadas — the assigned organizer's highlights (checklist source).
+$assigned_org_terms = $event_id ? wp_get_object_terms( $event_id, 'ke_organizer', array( 'fields' => 'ids' ) ) : array();
+$assigned_org_id    = ( ! is_wp_error( $assigned_org_terms ) && ! empty( $assigned_org_terms ) ) ? (int) $assigned_org_terms[0] : 0;
+$show_highlights    = ( $event_id && get_post_meta( $event_id, '_ke_event_show_highlights', true ) === '1' );
+$hl_selection       = $event_id ? get_post_meta( $event_id, '_ke_event_highlights', true ) : '';
+$hl_mode_all        = ( $hl_selection === 'all' );
+$hl_selected_ids    = is_array( $hl_selection ) ? array_map( 'intval', $hl_selection ) : array();
+$org_highlights     = ( $assigned_org_id && class_exists( 'KE_Highlights' ) ) ? KE_Highlights::get_for_organizer( $assigned_org_id ) : array();
 $maps_embed    = ke_get_meta_val( $meta, '_ke_event_maps_embed' );
 $service_fee_id = ke_get_meta_val( $meta, '_ke_event_service_fee_id' );
 $social_instagram = ke_get_meta_val( $meta, '_ke_social_instagram' );
@@ -681,6 +689,38 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                     </div>
                 </div>
                 <p class="ke-hint"><?php esc_html_e( 'Imagen de fondo para la cabecera del evento. Se aplica un oscurecimiento automático para que el texto siga siendo legible. Tamaño recomendado: 2400 × 1350 px (16:9), mínimo 1920 × 1080, JPG o WebP, máximo 2 MB. Vacío = fondo actual.', 'kiwi-events' ); ?></p>
+            </div>
+
+            <div class="ke-form-group">
+                <label class="ke-toggle-wrap">
+                    <input type="checkbox" id="ke-show-highlights" <?php checked( $show_highlights ); ?>>
+                    <span class="ke-toggle-slider"></span>
+                    <span class="ke-toggle-label"><?php esc_html_e( 'Mostrar historias destacadas en este evento', 'kiwi-events' ); ?></span>
+                </label>
+                <div class="ke-hl-picker" id="ke-hl-picker" style="margin-top:10px;<?php echo $show_highlights ? '' : 'display:none;'; ?>">
+                    <?php if ( ! $assigned_org_id ) : ?>
+                        <p class="ke-hint"><?php esc_html_e( 'Asigna un organizador a este evento (en Información general) para poder elegir sus historias destacadas.', 'kiwi-events' ); ?></p>
+                    <?php elseif ( empty( $org_highlights ) ) : ?>
+                        <p class="ke-hint"><?php esc_html_e( 'Este organizador aún no tiene historias destacadas. Créalas desde su panel: /organizer/su-slug.', 'kiwi-events' ); ?></p>
+                    <?php else : ?>
+                        <label class="ke-hl-check ke-hl-check--all">
+                            <input type="checkbox" id="ke-hl-all" <?php checked( $hl_mode_all ); ?>>
+                            <span><?php esc_html_e( 'Mostrar todas', 'kiwi-events' ); ?></span>
+                        </label>
+                        <div class="ke-hl-list" id="ke-hl-list" style="<?php echo $hl_mode_all ? 'opacity:.5;pointer-events:none;' : ''; ?>">
+                            <?php foreach ( $org_highlights as $hp ) :
+                                $hid       = (int) $hp->ID;
+                                $is_checked = $hl_mode_all || in_array( $hid, $hl_selected_ids, true );
+                            ?>
+                                <label class="ke-hl-check">
+                                    <input type="checkbox" class="ke-hl-item" value="<?php echo esc_attr( $hid ); ?>" <?php checked( $is_checked ); ?>>
+                                    <span><?php echo esc_html( $hp->post_title ); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <p class="ke-hint"><?php esc_html_e( 'Se muestran como círculos debajo de los botones de compartir en la página del evento. Si cambias el organizador, solo se mostrarán las historias del organizador actual.', 'kiwi-events' ); ?></p>
             </div>
 
             <div class="ke-form-group">

@@ -496,6 +496,15 @@ jQuery(document).ready(function ($) {
         $(this).hide();
     });
 
+    // ─── Historias Destacadas selector ─────────────────────────────────────
+    $(document).on('change', '#ke-show-highlights', function () {
+        $('#ke-hl-picker').toggle(this.checked);
+    });
+    $(document).on('change', '#ke-hl-all', function () {
+        var on = this.checked;
+        $('#ke-hl-list').css({ opacity: on ? 0.5 : 1, 'pointer-events': on ? 'none' : '' });
+    });
+
     // ─── Ticket card rendering ─────────────────────────────────────────────
     function renderTicketCard(data, idx) {
         const isPaid          = (data.ticket_type || 'free') === 'paid';
@@ -817,6 +826,9 @@ jQuery(document).ready(function ($) {
             service_fee_id:        $('#ke-service-fee-id').val() || '',
             banner_id:             parseInt($('#ke-banner-id').val(), 10) || 0,
             hero_bg_id:            parseInt($('#ke-herobg-id').val(), 10) || 0,
+            show_highlights:       $('#ke-show-highlights').is(':checked') ? 1 : 0,
+            highlights_all:        $('#ke-hl-all').is(':checked') ? 1 : 0,
+            highlights:            $('.ke-hl-item:checked').map(function () { return parseInt(this.value, 10); }).get(),
             tickets:               tickets,
             extras:                collectExtras(),
             extra_fields:          collectExtraFields(),

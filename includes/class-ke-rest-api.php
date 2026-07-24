@@ -1877,6 +1877,29 @@ class KE_Rest_API {
             }
         }
 
+        // Historias Destacadas — whether to show the row and which highlights.
+        // Stored as '_ke_event_show_highlights' (1/0) and '_ke_event_highlights'
+        // ('all' or an array of highlight IDs). The public renderer intersects
+        // the stored selection with the event's CURRENT organizer at render
+        // time, so a later organizer change / deleted highlight just drops out.
+        if ( array_key_exists( 'show_highlights', $params ) ) {
+            update_post_meta( $event_id, '_ke_event_show_highlights', filter_var( $params['show_highlights'], FILTER_VALIDATE_BOOLEAN ) ? '1' : '0' );
+        }
+        if ( array_key_exists( 'highlights_all', $params ) || array_key_exists( 'highlights', $params ) ) {
+            if ( ! empty( $params['highlights_all'] ) && filter_var( $params['highlights_all'], FILTER_VALIDATE_BOOLEAN ) ) {
+                update_post_meta( $event_id, '_ke_event_highlights', 'all' );
+            } else {
+                $hl_ids = ( isset( $params['highlights'] ) && is_array( $params['highlights'] ) )
+                    ? array_values( array_unique( array_filter( array_map( 'absint', $params['highlights'] ) ) ) )
+                    : array();
+                if ( ! empty( $hl_ids ) ) {
+                    update_post_meta( $event_id, '_ke_event_highlights', $hl_ids );
+                } else {
+                    delete_post_meta( $event_id, '_ke_event_highlights' );
+                }
+            }
+        }
+
         // ── Simple meta fields (sanitize_text_field) ──────────────────────
         $text_meta = array(
             'event_start'    => '_ke_event_date_start',
