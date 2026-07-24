@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'KE_VERSION', '2.1.0' );
+define( 'KE_VERSION', '2.1.1' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -39,7 +39,7 @@ define( 'KE_SCANNER_ASSETS_VER', '0.10.2' );
 // KE_VERSION moves slowly; the builder assets churn faster, and stale
 // versions on WordPress.com edge cache cause the wizard's step
 // indicators to lose their active/accent styling.
-define( 'KE_BUILDER_ASSETS_VER', '0.12.0' );
+define( 'KE_BUILDER_ASSETS_VER', '0.12.1' );
 
 // Admin design-token stylesheet (Kiwi brand: cream + green + glass).
 // Loads BEFORE every other KE admin CSS so subsequent rules can reference

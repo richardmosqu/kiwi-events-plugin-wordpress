@@ -1900,6 +1900,24 @@ class KE_Rest_API {
             }
         }
 
+        // Cumpleaños — per-event birthday package CTA. Content is per-event by
+        // design (no global default / no reuse). Description keeps line breaks
+        // via sanitize_textarea_field (no HTML); link is URL-validated. The
+        // fields persist across toggling so content isn't lost; the public
+        // renderer only shows the CTA when enabled AND all three are non-empty.
+        if ( array_key_exists( 'birthday_enabled', $params ) ) {
+            update_post_meta( $event_id, '_ke_birthday_enabled', filter_var( $params['birthday_enabled'], FILTER_VALIDATE_BOOLEAN ) ? '1' : '0' );
+        }
+        if ( array_key_exists( 'birthday_title', $params ) ) {
+            update_post_meta( $event_id, '_ke_birthday_title', sanitize_text_field( $params['birthday_title'] ) );
+        }
+        if ( array_key_exists( 'birthday_description', $params ) ) {
+            update_post_meta( $event_id, '_ke_birthday_description', sanitize_textarea_field( $params['birthday_description'] ) );
+        }
+        if ( array_key_exists( 'birthday_link', $params ) ) {
+            update_post_meta( $event_id, '_ke_birthday_link', esc_url_raw( $params['birthday_link'] ) );
+        }
+
         // ── Simple meta fields (sanitize_text_field) ──────────────────────
         $text_meta = array(
             'event_start'    => '_ke_event_date_start',

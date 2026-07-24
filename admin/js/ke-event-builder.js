@@ -191,6 +191,15 @@ jQuery(document).ready(function ($) {
                 showError('This event needs either ticket types or reservations enabled.', 3);
                 return false;
             }
+            // Birthday package: if enabled, all three fields are required.
+            if ($('#ke-birthday-enabled').is(':checked')) {
+                if (!$('#ke-birthday-title').val().trim() ||
+                    !$('#ke-birthday-description').val().trim() ||
+                    !$('#ke-birthday-link').val().trim()) {
+                    showError('Completa título, descripción y enlace del paquete de cumpleaños, o desactívalo.', 3);
+                    return false;
+                }
+            }
             let valid = true;
             cards.each(function () {
                 const name = $(this).find('.ke-tkt-name').val().trim();
@@ -503,6 +512,11 @@ jQuery(document).ready(function ($) {
     $(document).on('change', '#ke-hl-all', function () {
         var on = this.checked;
         $('#ke-hl-list').css({ opacity: on ? 0.5 : 1, 'pointer-events': on ? 'none' : '' });
+    });
+
+    // ─── Cumpleaños toggle ─────────────────────────────────────────────────
+    $(document).on('change', '#ke-birthday-enabled', function () {
+        $('#ke-birthday-fields').toggle(this.checked);
     });
 
     // ─── Ticket card rendering ─────────────────────────────────────────────
@@ -829,6 +843,10 @@ jQuery(document).ready(function ($) {
             show_highlights:       $('#ke-show-highlights').is(':checked') ? 1 : 0,
             highlights_all:        $('#ke-hl-all').is(':checked') ? 1 : 0,
             highlights:            $('.ke-hl-item:checked').map(function () { return parseInt(this.value, 10); }).get(),
+            birthday_enabled:      $('#ke-birthday-enabled').is(':checked') ? 1 : 0,
+            birthday_title:        $('#ke-birthday-title').val().trim(),
+            birthday_description:  $('#ke-birthday-description').val(),
+            birthday_link:         $('#ke-birthday-link').val().trim(),
             tickets:               tickets,
             extras:                collectExtras(),
             extra_fields:          collectExtraFields(),

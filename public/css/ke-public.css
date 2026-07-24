@@ -3367,3 +3367,87 @@ body.ke-hlv-lock { overflow: hidden; }
 .ke-hlv .ke-hlv-next { right: 0; width: 68%; }
 .ke-hlv .ke-hlv-nav:focus-visible { outline: none; }
 
+/* ══════════════ Cumpleaños CTA + modal ══════════════
+ * CTA card below the ticket section. Every state declares its own bg/border/
+ * color (WP.com magenta guard); accent from --kep-* tokens; subtle pulse that
+ * honors prefers-reduced-motion. The modal reuses the .ke-sheet component. */
+.ke-bday { padding-top: 4px; }
+.ke-bday .ke-bday-cta,
+.ke-bday .ke-bday-cta:hover,
+.ke-bday .ke-bday-cta:focus,
+.ke-bday .ke-bday-cta:focus-visible,
+.ke-bday .ke-bday-cta:active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 56px;
+    padding: 16px 20px;
+    border: 1px solid rgba(var(--kep-accent-rgb, 99,102,241), 0.35);
+    border-radius: 16px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--kep-accent-1, #6366f1), var(--kep-accent-2, #8b5cf6));
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(var(--kep-accent-rgb, 99,102,241), 0.28);
+    animation: ke-bday-pulse 2.6s ease-in-out infinite;
+}
+.ke-bday .ke-bday-cta:hover { transform: translateY(-1px); }
+.ke-bday .ke-bday-cta:focus-visible { outline: 2px solid var(--kep-accent-1, #6366f1); outline-offset: 2px; }
+.ke-bday-cta-icon { font-size: 22px; line-height: 1; }
+@keyframes ke-bday-pulse {
+    0%, 100% { box-shadow: 0 8px 24px rgba(var(--kep-accent-rgb, 99,102,241), 0.28); }
+    50%      { box-shadow: 0 10px 34px rgba(var(--kep-accent-rgb, 99,102,241), 0.5); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ke-bday .ke-bday-cta { animation: none; }
+}
+
+/* Modal: reuse .ke-sheet; add visibility so the off-screen sheet isn't
+   focusable/tabbable when closed (transform alone leaves it in the a11y tree). */
+.ke-bday-sheet {
+    visibility: hidden;
+    transition: transform 0.42s var(--kep-ease), visibility 0s 0.42s;
+}
+.ke-bday-sheet.active {
+    visibility: visible;
+    transition: transform 0.42s var(--kep-ease), visibility 0s 0s;
+}
+.ke-bday-body { padding: 4px 22px 22px; }
+.ke-bday-desc { color: #1f2430; font-size: 15px; line-height: 1.6; margin: 0 0 18px; }
+.ke-bday-sheet .ke-bday-link,
+.ke-bday-sheet .ke-bday-link:hover,
+.ke-bday-sheet .ke-bday-link:focus,
+.ke-bday-sheet .ke-bday-link:focus-visible,
+.ke-bday-sheet .ke-bday-link:active {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 15px 18px;
+    border: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--kep-accent-1, #6366f1), var(--kep-accent-2, #8b5cf6));
+    font-weight: 700;
+    font-size: 15px;
+    text-decoration: none;
+    box-shadow: 0 6px 18px rgba(var(--kep-accent-rgb, 99,102,241), 0.3);
+}
+.ke-bday-sheet .ke-bday-link:hover { transform: translateY(-1px); }
+.ke-bday-sheet .ke-bday-link:focus-visible { outline: 2px solid var(--kep-accent-1, #6366f1); outline-offset: 2px; }
+.ke-bday-sheet .ke-bday-close,
+.ke-bday-sheet .ke-bday-close:hover,
+.ke-bday-sheet .ke-bday-close:focus,
+.ke-bday-sheet .ke-bday-close:active {
+    background: transparent;
+    border: 0;
+    color: #1f2430;
+}
+.ke-bday-sheet .ke-bday-close:focus-visible { outline: 2px solid var(--kep-accent-1, #6366f1); outline-offset: 2px; }
+@media (max-width: 767px) {
+    .ke-bday-sheet { max-width: 100%; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+
