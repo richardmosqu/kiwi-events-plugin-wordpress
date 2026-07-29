@@ -2,7 +2,8 @@
 
 Plugin de WordPress para gestión completa de eventos y venta de boletos: crea eventos, vende boletos (gratis o de pago vía WooCommerce), genera boletos con código QR, escanéalos en la puerta, gestiona asistentes, reservaciones y promotores, y consulta dashboards de ventas.
 
-- **Versión del plugin:** 2.0.3 (`KE_VERSION`)
+- **Versión del plugin:** 2.2.0 (cabecera `Version:` y `KE_VERSION` — mantenlas iguales)
+- **Versión de esquema:** 2.6.0 (`KE_DB_VERSION`)
 - **Requiere:** WordPress 6.0+, PHP 8.0+
 - **Licencia:** GPL-2.0+
 - **Text domain:** `kiwi-events`
@@ -79,6 +80,18 @@ vendor/                  Dependencias Composer (TCPDF, php-qrcode) — se despli
 | `KE_PORTAL_ASSETS_VER` | Portal del promotor |
 | `KE_WALLET_ASSETS_VER` | Wallet de boletos |
 | `KE_BOARD_ASSETS_VER` | Board comunitario |
+
+## Changelog
+
+### 2.2.0
+- **Extras de cumpleaños** como widget de extras del evento (antes era un CTA en el paso 3 + modal), renderizado justo debajo de los boletos.
+- **Highlights** (stories del evento): CPT `ke_highlight`, CRUD REST con validación de propiedad del organizador, uploads endurecidos, selector en el event builder, fila de héroe pública y visor a pantalla completa.
+- **Board comunitario**: flush de rewrites centralizado y con auto-reparación, notificaciones por email y rediseño de la cola de moderación.
+- **Scanner**: acceso público con contraseña por organizador, flujo de estados secuencial y cámara persistente.
+- **Testimonios**: nonce REST refrescado para que los comentarios sobrevivan al caché de página.
+- **Herramienta de auditoría de ventas** (`plugins/ke-sold-audit`) — solo lectura, diagnóstico de vendidos vs. asistentes.
+- **Eliminado `uninstall.php`**: borraba todas las tablas y metadatos al eliminar el plugin. Despliega con *Reemplazar*, nunca con *Eliminar*.
+- Cabecera `Version:` alineada con `KE_VERSION` (estaba congelada en 1.0.0 mientras el código iba en 2.x).
 
 ## Notas para desarrollo
 
