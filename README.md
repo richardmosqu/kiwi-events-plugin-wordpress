@@ -31,6 +31,7 @@ A complete event management and ticketing plugin for WordPress. Create events, s
 13. [Troubleshooting](#troubleshooting)
 14. [Companion plugins](#companion-plugins)
 15. [Changelog](#changelog)
+16. [Support](#support)
 
 ---
 
@@ -379,6 +380,21 @@ Then in wp-admin → Plugins → Add New → Upload Plugin, choose the ZIP and *
 ### 2.0.x
 - Community board `[kiwi_board]` / `[kiwi_create_board]` with moderation.
 - Composer dependencies vendored: TCPDF 6.11.3 + chillerlan/php-qrcode 5.0.5.
+
+## Support
+
+Questions, bug reports, feature ideas or anything else about the plugin — get in touch:
+
+**Richard Mosqueda** · [remosquedaf@gmail.com](mailto:remosquedaf@gmail.com)
+
+Before writing in, it helps to include:
+
+- Your WordPress and PHP versions, and the plugin version (`KE_VERSION`).
+- Whether WooCommerce is active.
+- The relevant entry from your PHP error log, if there is one.
+- The steps that reproduce the problem.
+
+Worth checking [Troubleshooting](#troubleshooting) first — the most common issues (missing `vendor/`, stale edge cache, unflushed rewrite rules) are covered there with fixes.
 
 ## License
 
