@@ -16,5 +16,8 @@ class KE_Deactivator {
         if ( class_exists( 'KE_Reservations_Cron' ) ) {
             KE_Reservations_Cron::deactivate();
         }
+        if ( class_exists( 'KE_Waitlist_Cron' ) ) {
+            KE_Waitlist_Cron::deactivate();
+        }
     }
 }

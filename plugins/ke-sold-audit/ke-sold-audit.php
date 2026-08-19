@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Kiwi Events — Sold vs Attendees Diagnostic
  * Plugin URI:  https://campuslifepa.com
- * Description: READ-ONLY diagnostic. Reconciles the organizer dashboard "Sold" count (SUM of ke_ticket_types.quantity_sold) against the admin attendee list (COUNT of live ke_tickets rows) for any event, and attributes every discrepancy to a cause: cancelled/refunded rows, archived ticket types, orphaned ticket-type IDs, or counter drift. Does NOT write, update, delete, or repair anything.
- * Version:     1.0.0
+ * Description: READ-ONLY diagnostic. Reconciles the organizer dashboard "Sold" count (SUM of ke_ticket_types.quantity_sold) against the admin attendee list (COUNT of live ke_tickets rows) for any event, and attributes every discrepancy to a cause: cancelled/refunded rows, archived ticket types, orphaned ticket-type IDs, or counter drift. v1.1 adds an incident report: real oversell vs counter drift, orders processed twice, concurrency fingerprints, the burst timeline, ticket PDF/QR health, and the WooCommerce status behind every ticket. Does NOT write, update, delete, or repair anything.
+ * Version:     1.1.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author:      Campus Life Panama
@@ -235,6 +235,288 @@ class KE_Sold_Audit {
         );
     }
 
+
+    /* ──────────────────────────────────────────────────────────────
+     *  Incident analysis — added 2026-08-19 after a flash sale showed
+     *  "71 sold" against a capacity of 50, missing ticket emails, and
+     *  WooCommerce cancelling paid orders hours later.
+     *
+     *  Everything here is SELECT-only. It answers, with data instead of
+     *  theory: did we really issue more tickets than the capacity, or did
+     *  the counter drift? Was any order processed twice? Did the QR/PDF
+     *  step fail during the burst? Which orders are cancelled?
+     * ────────────────────────────────────────────────────────────── */
+
+    /** True when WooCommerce stores orders in its own tables (HPOS). */
+    private function hpos_table() {
+        global $wpdb;
+        $t = $wpdb->prefix . 'wc_orders';
+        return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) === $t ? $t : '';
+    }
+
+    private function analyze_incident( $event_id ) {
+        global $wpdb;
+        $event_id = (int) $event_id;
+        $tk = $this->t( 'tickets' );
+        $tt = $this->t( 'ticket_types' );
+        $or = $this->t( 'orders' );
+
+        $out = array();
+
+        // 1. Capacity vs counter vs real rows, per ticket type. This is the
+        //    question the owner is actually asking.
+        $out['capacity'] = $wpdb->get_results( $wpdb->prepare(
+            "SELECT tt.id, tt.name, tt.capacity_type, tt.quantity_total AS capacity,
+                    tt.quantity_sold AS counter,
+                    (SELECT COUNT(*) FROM {$tk} t WHERE t.ticket_type_id = tt.id) AS rows_all,
+                    (SELECT COUNT(*) FROM {$tk} t WHERE t.ticket_type_id = tt.id AND t.status <> 'cancelled') AS rows_live
+               FROM {$tt} tt
+              WHERE tt.event_id = %d
+           ORDER BY tt.id", $event_id ) );
+
+        // 2. THE double-fire fingerprint: on_payment_complete creates one KE
+        //    order per run, and there is no unique index on wc_order_id, so
+        //    two rows behind one WooCommerce order can only mean it ran twice.
+        $out['dup_orders'] = $wpdb->get_results( $wpdb->prepare(
+            "SELECT o.wc_order_id, COUNT(*) AS ke_orders,
+                    SUM(o.ticket_quantity) AS claimed_qty,
+                    GROUP_CONCAT(o.id ORDER BY o.id) AS ke_order_ids,
+                    MIN(o.created_at) AS first_run, MAX(o.created_at) AS last_run
+               FROM {$or} o
+              WHERE o.event_id = %d AND o.wc_order_id > 0
+           GROUP BY o.wc_order_id
+             HAVING COUNT(*) > 1
+           ORDER BY ke_orders DESC, o.wc_order_id DESC
+              LIMIT 100", $event_id ) );
+
+        // 3. Two concurrent generate() calls read the same COUNT(*) for
+        //    numbering, so a repeated attendee_number is a fingerprint of
+        //    real concurrency (as opposed to a sequential double-fire).
+        $out['dup_numbers'] = $wpdb->get_results( $wpdb->prepare(
+            "SELECT attendee_number, COUNT(*) AS c, GROUP_CONCAT(id ORDER BY id) AS ticket_ids
+               FROM {$tk}
+              WHERE event_id = %d AND status <> 'cancelled'
+           GROUP BY attendee_number
+             HAVING COUNT(*) > 1
+           ORDER BY c DESC, attendee_number
+              LIMIT 50", $event_id ) );
+
+        // 4. Buyers holding more tickets than their order says it bought.
+        $out['dup_buyers'] = $wpdb->get_results( $wpdb->prepare(
+            "SELECT o.buyer_email, o.wc_order_id, o.ticket_quantity AS claimed,
+                    COUNT(t.id) AS actual, GROUP_CONCAT(t.ticket_code SEPARATOR ' ') AS codes
+               FROM {$or} o JOIN {$tk} t ON t.order_id = o.id
+              WHERE o.event_id = %d
+           GROUP BY o.id, o.buyer_email, o.wc_order_id, o.ticket_quantity
+             HAVING COUNT(t.id) <> o.ticket_quantity
+           ORDER BY actual DESC
+              LIMIT 50", $event_id ) );
+
+        // 5. The burst. If ~everything lands inside one or two minutes, the
+        //    unreserved add-to-cart window (checked once, incremented only at
+        //    payment) is enough on its own to explain the overshoot.
+        $out['timeline'] = $wpdb->get_results( $wpdb->prepare(
+            "SELECT DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') AS minute, COUNT(*) AS tickets
+               FROM {$tk}
+              WHERE event_id = %d
+           GROUP BY minute
+           ORDER BY tickets DESC, minute
+              LIMIT 12", $event_id ) );
+
+        // 6. PDF/QR health. pdf_path is persisted ONLY when the qrserver.com
+        //    download succeeded and the QR embedded, so a high empty share in
+        //    the sale window is direct evidence that the blocking HTTP fetch
+        //    inside the payment request was failing — the same fetch that
+        //    swallows the ticket email when it times out.
+        $out['pdf'] = $wpdb->get_row( $wpdb->prepare(
+            "SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN pdf_path IS NULL OR pdf_path = '' THEN 1 ELSE 0 END) AS no_pdf,
+                    SUM(CASE WHEN qr_code_path IS NULL OR qr_code_path = '' THEN 1 ELSE 0 END) AS no_qr
+               FROM {$tk} WHERE event_id = %d", $event_id ) );
+
+        // 7. What WooCommerce thinks of the orders behind these tickets.
+        //    A ticket attached to a cancelled/failed/pending order is a
+        //    customer who may have been told their order was cancelled while
+        //    still holding a valid ticket — and KiwiEvents never hooks
+        //    woocommerce_order_status_cancelled, so nothing rolled back.
+        $hpos = $this->hpos_table();
+        $out['hpos'] = (bool) $hpos;
+        if ( $hpos ) {
+            $out['wc_status'] = $wpdb->get_results( $wpdb->prepare(
+                "SELECT wo.status AS wc_status, COUNT(DISTINCT o.id) AS ke_orders, COUNT(t.id) AS tickets
+                   FROM {$or} o
+                   JOIN {$hpos} wo ON wo.id = o.wc_order_id
+              LEFT JOIN {$tk} t ON t.order_id = o.id
+                  WHERE o.event_id = %d AND o.wc_order_id > 0
+               GROUP BY wo.status ORDER BY tickets DESC", $event_id ) );
+        } else {
+            $out['wc_status'] = $wpdb->get_results( $wpdb->prepare(
+                "SELECT p.post_status AS wc_status, COUNT(DISTINCT o.id) AS ke_orders, COUNT(t.id) AS tickets
+                   FROM {$or} o
+                   JOIN {$wpdb->posts} p ON p.ID = o.wc_order_id
+              LEFT JOIN {$tk} t ON t.order_id = o.id
+                  WHERE o.event_id = %d AND o.wc_order_id > 0
+               GROUP BY p.post_status ORDER BY tickets DESC", $event_id ) );
+        }
+
+        // 8. Was the scheduled-sales countdown live for this event, and when
+        //    did it open? Ties the burst timeline to a known instant.
+        $sched = get_post_meta( $event_id, '_ke_event_sales_schedule', true );
+        $out['schedule'] = is_array( $sched ) ? $sched : null;
+
+        return $out;
+    }
+
+    /** Render the incident report. Read-only, like everything else here. */
+    private function render_incident( $event_id ) {
+        $i = $this->analyze_incident( $event_id );
+
+        echo '<h3 class="kesa-h3">Incident report — capacity, duplicates, and delivery</h3>';
+
+        /* -- capacity -- */
+        echo '<p class="kesa-p">The number shown on the ticket card in the event builder is '
+           . '<code>quantity_sold</code>, a counter — not a count of tickets. These two columns '
+           . 'disagreeing is the difference between “we sold too many seats” and “the counter lies”.</p>';
+        echo '<table class="widefat kesa-table"><thead><tr>'
+           . '<th>Type</th><th>Capacity</th><th>Counter (shown in admin)</th>'
+           . '<th>Ticket rows</th><th>Live rows</th><th>Verdict</th></tr></thead><tbody>';
+        foreach ( (array) $i['capacity'] as $c ) {
+            $unlimited = ( $c->capacity_type === 'unlimited' );
+            $over_rows = ( ! $unlimited && (int) $c->rows_live > (int) $c->capacity );
+            $over_cnt  = ( ! $unlimited && (int) $c->counter  > (int) $c->capacity );
+            $drift     = ( (int) $c->counter !== (int) $c->rows_live );
+
+            if ( $unlimited )      { $verdict = 'unlimited — no capacity to exceed'; $tone = ''; }
+            elseif ( $over_rows )  { $verdict = 'REAL OVERSELL — more live tickets exist than seats'; $tone = 'bad'; }
+            elseif ( $over_cnt )   { $verdict = 'counter only — no extra tickets were issued'; $tone = 'warn'; }
+            elseif ( $drift )      { $verdict = 'counter drifted from the ticket rows'; $tone = 'warn'; }
+            else                   { $verdict = 'consistent'; $tone = 'good'; }
+
+            printf(
+                '<tr class="%s"><td>%s <span class="kesa-muted">#%d</span></td><td>%s</td><td><strong>%d</strong></td><td>%d</td><td>%d</td><td>%s</td></tr>',
+                esc_attr( $tone ? 'kesa-row-' . $tone : '' ),
+                esc_html( $c->name ),
+                (int) $c->id,
+                $unlimited ? '∞' : (int) $c->capacity,
+                (int) $c->counter,
+                (int) $c->rows_all,
+                (int) $c->rows_live,
+                esc_html( $verdict )
+            );
+        }
+        echo '</tbody></table>';
+
+        /* -- duplicate processing -- */
+        $dups = (array) $i['dup_orders'];
+        echo '<h4 class="kesa-h4">Was any order processed twice?</h4>';
+        if ( empty( $dups ) ) {
+            echo '<p class="kesa-p kesa-ok">No WooCommerce order produced more than one KiwiEvents order. '
+               . 'Duplicate ticket generation is ruled out — the overshoot came from the unreserved '
+               . 'window between add-to-cart and payment, not from double processing.</p>';
+        } else {
+            echo '<p class="kesa-p kesa-badtext">' . count( $dups ) . ' WooCommerce order(s) were processed more than once. '
+               . 'Each extra run inserted another set of tickets and incremented the counter again.</p>';
+            echo '<table class="widefat kesa-table"><thead><tr><th>WC order</th><th>Times processed</th>'
+               . '<th>KE orders</th><th>First run</th><th>Last run</th></tr></thead><tbody>';
+            foreach ( $dups as $d ) {
+                printf(
+                    '<tr><td>#%d</td><td><strong>%d</strong></td><td>%s</td><td>%s</td><td>%s</td></tr>',
+                    (int) $d->wc_order_id, (int) $d->ke_orders,
+                    esc_html( (string) $d->ke_order_ids ),
+                    esc_html( (string) $d->first_run ), esc_html( (string) $d->last_run )
+                );
+            }
+            echo '</tbody></table>';
+        }
+
+        /* -- concurrency fingerprint -- */
+        $nums = (array) $i['dup_numbers'];
+        echo '<h4 class="kesa-h4">Concurrency fingerprint</h4>';
+        if ( empty( $nums ) ) {
+            echo '<p class="kesa-p kesa-ok">Attendee numbers are unique — no two ticket batches were generated at the same instant.</p>';
+        } else {
+            echo '<p class="kesa-p kesa-badtext">' . count( $nums ) . ' attendee number(s) are used by more than one ticket. '
+               . 'Ticket numbering is derived from a COUNT(*) taken just before insert, so a repeat means two purchases '
+               . 'were generated concurrently — direct evidence of the race.</p>';
+            echo '<table class="widefat kesa-table"><thead><tr><th>Attendee #</th><th>Tickets sharing it</th><th>Ticket IDs</th></tr></thead><tbody>';
+            foreach ( $nums as $n ) {
+                printf( '<tr><td>%d</td><td><strong>%d</strong></td><td class="kesa-muted">%s</td></tr>',
+                    (int) $n->attendee_number, (int) $n->c, esc_html( (string) $n->ticket_ids ) );
+            }
+            echo '</tbody></table>';
+        }
+
+        /* -- buyers holding the wrong count -- */
+        $buyers = (array) $i['dup_buyers'];
+        echo '<h4 class="kesa-h4">Buyers whose ticket count does not match their order</h4>';
+        if ( empty( $buyers ) ) {
+            echo '<p class="kesa-p kesa-ok">Every order holds exactly the number of tickets it paid for.</p>';
+        } else {
+            echo '<table class="widefat kesa-table"><thead><tr><th>Buyer</th><th>WC order</th>'
+               . '<th>Paid for</th><th>Holds</th><th>Codes</th></tr></thead><tbody>';
+            foreach ( $buyers as $b ) {
+                printf( '<tr class="%s"><td>%s</td><td>#%d</td><td>%d</td><td><strong>%d</strong></td><td class="kesa-muted">%s</td></tr>',
+                    (int) $b->actual > (int) $b->claimed ? 'kesa-row-bad' : 'kesa-row-warn',
+                    esc_html( (string) $b->buyer_email ), (int) $b->wc_order_id,
+                    (int) $b->claimed, (int) $b->actual, esc_html( (string) $b->codes ) );
+            }
+            echo '</tbody></table>';
+            echo '<p class="kesa-muted">These are the people to contact. Nothing here is changed automatically.</p>';
+        }
+
+        /* -- burst -- */
+        echo '<h4 class="kesa-h4">Busiest minutes</h4>';
+        echo '<table class="widefat kesa-table"><thead><tr><th>Minute</th><th>Tickets created</th></tr></thead><tbody>';
+        foreach ( (array) $i['timeline'] as $t ) {
+            printf( '<tr><td>%s</td><td><strong>%d</strong></td></tr>', esc_html( (string) $t->minute ), (int) $t->tickets );
+        }
+        echo '</tbody></table>';
+        if ( ! empty( $i['schedule']['enabled'] ) && ! empty( $i['schedule']['open_at'] ) ) {
+            echo '<p class="kesa-p">Scheduled sale opening for this event: <code>'
+               . esc_html( (string) $i['schedule']['open_at'] ) . '</code> ('
+               . esc_html( (string) ( $i['schedule']['timezone'] ?: 'site timezone' ) ) . '). '
+               . 'Compare it to the busiest minute above — everyone arriving in the same instant is what turns '
+               . 'the unreserved checkout window into an overshoot.</p>';
+        }
+
+        /* -- delivery health -- */
+        $p = $i['pdf'];
+        if ( $p ) {
+            $total  = (int) $p->total;
+            $no_pdf = (int) $p->no_pdf;
+            $pct    = $total > 0 ? round( $no_pdf * 100 / $total ) : 0;
+            echo '<h4 class="kesa-h4">Ticket PDF / QR health</h4>';
+            echo '<p class="kesa-p">A ticket only stores <code>pdf_path</code> when its PDF was built AND the QR image '
+               . 'was successfully downloaded from the external QR service. <strong>' . $no_pdf . ' of ' . $total
+               . '</strong> tickets (' . $pct . '%) have no stored PDF.</p>';
+            if ( $pct >= 30 ) {
+                echo '<p class="kesa-p kesa-badtext">That is high. The QR download runs inside the payment request with a '
+                   . '15-second timeout per ticket, so when it stalls the request can die before the ticket email is sent — '
+                   . 'which is the same failure the buyers reported as “no me llegó el correo”.</p>';
+            }
+        }
+
+        /* -- WooCommerce statuses -- */
+        echo '<h4 class="kesa-h4">WooCommerce status behind these tickets</h4>';
+        echo '<p class="kesa-p kesa-muted">Order storage detected: <code>' . ( $i['hpos'] ? 'HPOS (wc_orders table)' : 'legacy (posts table)' ) . '</code></p>';
+        $rows = (array) $i['wc_status'];
+        if ( empty( $rows ) ) {
+            echo '<p class="kesa-p kesa-muted">No WooCommerce orders linked to this event (free tickets only, or the link is missing).</p>';
+        } else {
+            echo '<table class="widefat kesa-table"><thead><tr><th>WC status</th><th>KE orders</th><th>Tickets</th></tr></thead><tbody>';
+            foreach ( $rows as $r ) {
+                $bad = in_array( (string) $r->wc_status, array( 'wc-cancelled', 'cancelled', 'wc-failed', 'failed', 'wc-pending', 'pending' ), true );
+                printf( '<tr class="%s"><td>%s</td><td>%d</td><td><strong>%d</strong></td></tr>',
+                    $bad ? 'kesa-row-bad' : '',
+                    esc_html( (string) $r->wc_status ), (int) $r->ke_orders, (int) $r->tickets );
+            }
+            echo '</tbody></table>';
+            echo '<p class="kesa-p">Tickets sitting behind a <code>cancelled</code> or <code>failed</code> order are still marked valid: '
+               . 'KiwiEvents does not hook <code>woocommerce_order_status_cancelled</code>, so a cancellation never rolls back '
+               . 'the ticket rows or the sold counter. Those tickets still occupy capacity in the counter above.</p>';
+        }
+    }
+
     /* ──────────────────────────────────────────────────────────────
      *  Render
      * ────────────────────────────────────────────────────────────── */
@@ -387,6 +669,9 @@ class KE_Sold_Audit {
         }
         echo '</div>';
 
+        /* ---- Incident report (capacity / duplicates / delivery) ---- */
+        $this->render_incident( $event_id );
+
         echo '<p class="kesa-muted">All figures produced by SELECT queries. Nothing on this page modifies data.</p>';
         echo '</div>';
     }
@@ -451,6 +736,14 @@ class KE_Sold_Audit {
         .ke-sold-audit .kesa-table .num { text-align: right; font-variant-numeric: tabular-nums; }
         .ke-sold-audit .kesa-table td, .ke-sold-audit .kesa-table th { color: var(--c-text); }
         .ke-sold-audit .kesa-rowbad td { background: rgba(var(--kiwi-red-rgb, 185,28,28), .08) !important; }
+        /* Incident report (v1.1) */
+        .ke-sold-audit .kesa-h4 { margin: 20px 0 6px; font-size: 14px; font-weight: 700; }
+        .ke-sold-audit .kesa-p { max-width: 900px; }
+        .ke-sold-audit .kesa-ok { color: var(--c-good); font-weight: 600; }
+        .ke-sold-audit .kesa-badtext { color: var(--c-bad); font-weight: 600; }
+        .ke-sold-audit .kesa-row-bad td  { background: rgba(var(--kiwi-red-rgb, 185,28,28), .10) !important; }
+        .ke-sold-audit .kesa-row-warn td { background: rgba(var(--kiwi-orange-rgb, 217,119,6), .10) !important; }
+        .ke-sold-audit .kesa-row-good td { background: rgba(var(--kiwi-green-rgb, 21,128,61), .08) !important; }
         .ke-sold-audit .kesa-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
             font-weight: 600; background: var(--kiwi-surface-muted, #eef2f7); color: var(--c-muted); }
         .ke-sold-audit .kesa-badge.bad { background: rgba(var(--kiwi-red-rgb, 185,28,28), .15); color: var(--c-bad); }

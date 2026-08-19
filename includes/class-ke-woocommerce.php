@@ -22,6 +22,14 @@ class KE_WooCommerce {
         add_action( 'woocommerce_order_status_processing', array( $this, 'on_payment_complete' ) );
         add_action( 'woocommerce_order_status_completed',  array( $this, 'on_payment_complete' ) );
         add_action( 'woocommerce_order_status_refunded',   array( $this, 'handle_order_refunded' ) );
+        // Cancelled orders used to be ignored entirely: the tickets stayed
+        // 'valid' and quantity_sold kept counting them, so every cancellation
+        // silently inflated the sold figure and ate capacity that was never
+        // sold. WooCommerce cancels unpaid orders on its own schedule (the
+        // "Hold stock (minutes)" cron), so this fires on its own in normal
+        // operation — it is not only an admin action.
+        add_action( 'woocommerce_order_status_cancelled',  array( $this, 'handle_order_cancelled' ) );
+        add_action( 'woocommerce_order_status_failed',     array( $this, 'handle_order_cancelled' ) );
 
         // Cart validation — enforce ticket limits
         add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validate_add_to_cart' ), 10, 5 );
@@ -153,6 +161,16 @@ class KE_WooCommerce {
             return new WP_Error( 'sold_out', 'Not enough tickets available.' );
         }
 
+        // Event-level scheduled opening. Mirrors the free-checkout guard in
+        // KE_Rest_API::_do_checkout so a crafted add-to-cart can't jump the
+        // queue while the public page still shows the countdown. The event is
+        // read off the ticket-type row, never from the $event_id argument, so
+        // the gate holds even if a future caller passes the wrong one.
+        $owner_event_id = (int) $ticket_type->event_id;
+        if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $owner_event_id ) ) {
+            return new WP_Error( 'sales_not_open', KE_Sales_Schedule::closed_message( $owner_event_id ) );
+        }
+
         // Per-ticket-type sales cutoff. Independent of stock — a ticket type
         // with capacity left but a past sale_end is still closed.
         if ( KE_Ticket_Types::is_sales_closed( $ticket_type ) ) {
@@ -203,6 +221,72 @@ class KE_WooCommerce {
     }
 
     /**
+     * Mirror a ticket type's remaining capacity onto its WooCommerce product.
+     *
+     * The KiwiEvents counter stays the source of truth; WooCommerce stock is a
+     * mirror of `quantity_total - quantity_sold`, re-synced (absolutely, never
+     * by increments) every time that counter moves. Because the value is
+     * absolute it cannot drift out of step with WooCommerce's own stock
+     * reduction at payment: both end up describing the same remaining seats.
+     *
+     * What this buys is the missing piece of the oversell: capacity used to be
+     * checked once at add-to-cart against a counter that only advanced at
+     * payment, so every buyer in flight during the gateway round trip saw the
+     * same free seats. WooCommerce's reservation covers exactly that window.
+     *
+     * An unlimited ticket type turns stock management back off.
+     */
+    public static function sync_product_stock( $ticket_type, $event_id = 0 ) {
+        if ( ! function_exists( 'wc_get_product' ) ) {
+            return;
+        }
+        if ( is_numeric( $ticket_type ) ) {
+            $handler     = new KE_Ticket_Types();
+            $ticket_type = $handler->get( (int) $ticket_type );
+        }
+        if ( ! $ticket_type || empty( $ticket_type->id ) ) {
+            return;
+        }
+        $event_id = (int) ( $event_id ?: ( $ticket_type->event_id ?? 0 ) );
+        if ( $event_id <= 0 ) {
+            return;
+        }
+
+        $product_id = (int) get_post_meta( $event_id, '_ke_wc_product_' . $ticket_type->id, true );
+        if ( $product_id <= 0 ) {
+            return; // No product yet — creation will set the stock itself.
+        }
+        $product = wc_get_product( $product_id );
+        if ( ! $product ) {
+            return;
+        }
+
+        if ( ( $ticket_type->capacity_type ?? 'limited' ) === 'unlimited' ) {
+            if ( $product->get_manage_stock() ) {
+                $product->set_manage_stock( false );
+                $product->save();
+            }
+            return;
+        }
+
+        $remaining = max( 0, (int) $ticket_type->quantity_total - (int) $ticket_type->quantity_sold );
+
+        // Nothing to write when the product already agrees — this runs on
+        // every sale, so avoid a pointless save.
+        if ( $product->get_manage_stock()
+            && (int) $product->get_stock_quantity() === $remaining
+            && $product->get_backorders() === 'no' ) {
+            return;
+        }
+
+        $product->set_manage_stock( true );
+        $product->set_backorders( 'no' );
+        $product->set_stock_quantity( $remaining );
+        $product->set_stock_status( $remaining > 0 ? 'instock' : 'outofstock' );
+        $product->save();
+    }
+
+    /**
      * Get or create a virtual WooCommerce product for a ticket type.
      * Product price = base ticket price + service fee so WooCommerce
      * charges the correct total without any double-counting.
@@ -224,6 +308,10 @@ class KE_WooCommerce {
                 $product->set_regular_price( $base_price );
                 $product->save();
             }
+            // Products created before stock management was introduced have
+            // manage_stock off and would still oversell, so bring them in line
+            // here rather than requiring a manual re-save of every event.
+            self::sync_product_stock( $ticket_type, $event_id );
             return $existing_product_id;
         }
 
@@ -237,7 +325,13 @@ class KE_WooCommerce {
         $product->set_regular_price( $base_price );
         $product->set_virtual( true );
         $product->set_sold_individually( false );
-        $product->set_manage_stock( false );
+        // Stock management is what actually stops an oversell. WooCommerce
+        // reserves stock for the duration of checkout (wp_wc_reserved_stock,
+        // held for the "Hold stock (minutes)" setting) and refuses the buyer
+        // who arrives once the seats are spoken for — which is precisely the
+        // gap the KE counter cannot cover, because it only moves once payment
+        // completes. See sync_product_stock() for the mirroring rule.
+        $product->set_backorders( 'no' );
         $product->set_description( 'Ticket for ' . $event_title );
         $product->set_short_description( $ticket_type->name . ' — ' . $event_title );
 
@@ -255,6 +349,9 @@ class KE_WooCommerce {
 
         // Store the mapping
         update_post_meta( $event_id, '_ke_wc_product_' . $ticket_type->id, $product_id );
+
+        // Seed the stock now that the mapping exists.
+        self::sync_product_stock( $ticket_type, $event_id );
         update_post_meta( $product_id, '_ke_event_id', $event_id );
         update_post_meta( $product_id, '_ke_ticket_type_id', $ticket_type->id );
 
@@ -313,8 +410,9 @@ class KE_WooCommerce {
             return;
         }
 
-        $tt_handler = null;
-        $seen       = array();
+        $tt_handler  = null;
+        $seen        = array();
+        $seen_events = array();
         foreach ( WC()->cart->get_cart() as $cart_item ) {
             $tt_id = isset( $cart_item['ke_ticket_type_id'] ) ? (int) $cart_item['ke_ticket_type_id'] : 0;
             if ( $tt_id <= 0 || isset( $seen[ $tt_id ] ) ) continue;
@@ -329,6 +427,17 @@ class KE_WooCommerce {
                     sprintf( __( 'Las ventas para %s ya cerraron.', 'kiwi-events' ), $tt->name ),
                     'error'
                 );
+            }
+
+            // Same re-check for a scheduled opening: a cart built before the
+            // schedule was pushed back must not survive to payment. Deduped
+            // per event so a cart with several types of one event only
+            // produces one notice.
+            $ev_id = $tt ? (int) $tt->event_id : (int) ( $cart_item['ke_event_id'] ?? 0 );
+            if ( $ev_id > 0 && ! isset( $seen_events[ $ev_id ] )
+                && class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $ev_id ) ) {
+                $seen_events[ $ev_id ] = true;
+                wc_add_notice( KE_Sales_Schedule::closed_message( $ev_id ), 'error' );
             }
         }
     }
@@ -396,7 +505,43 @@ class KE_WooCommerce {
      * The _ke_tickets_generated flag prevents duplicate generation when multiple hooks fire.
      */
     public function on_payment_complete( $order_id ) {
+        global $wpdb;
+        $order_id = (int) $order_id;
+
         // Prevent duplicate generation — checked before loading the order object
+        if ( get_post_meta( $order_id, '_ke_tickets_generated', true ) ) {
+            return;
+        }
+
+        // Three hooks point at this handler (payment_complete,
+        // status_processing, status_completed) and an async gateway can retry
+        // its callback while the first run is still working. The flag alone is
+        // a check-then-set: it used to be written at the very END of this
+        // method, after ticket generation AND after a synchronous email that
+        // can take tens of seconds, so any second entrant in that window
+        // generated a whole extra set of tickets and incremented the sold
+        // counter again. A per-order MySQL lock closes the window; MySQL frees
+        // it automatically if the request dies, so it can never wedge.
+        $lock_name = 'ke_tickets_gen_' . $order_id;
+        $got_lock  = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $lock_name, 0 ) );
+        if ( $got_lock !== 1 ) {
+            // Someone else is generating this order right now.
+            return;
+        }
+
+        try {
+            $this->generate_for_order( $order_id );
+        } finally {
+            $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+        }
+    }
+
+    /**
+     * Ticket generation for one paid WooCommerce order. Always called with the
+     * per-order lock held (see on_payment_complete).
+     */
+    private function generate_for_order( $order_id ) {
+        // Re-check inside the lock: the previous holder may have just finished.
         if ( get_post_meta( $order_id, '_ke_tickets_generated', true ) ) {
             return;
         }
@@ -423,6 +568,7 @@ class KE_WooCommerce {
         $email_handler   = new KE_Email();
 
         $all_ticket_codes = array();
+        $pending_emails   = array();
 
         foreach ( $order->get_items() as $item ) {
             $event_id       = $item->get_meta( '_ke_event_id' );
@@ -533,13 +679,12 @@ class KE_WooCommerce {
                 ) );
             }
 
-            // Send confirmation email (non-fatal)
-            try {
-                $email_handler->send_ticket_email( $order_result['order_id'] );
-                error_log( 'KiwiEvents: email sent for KE order ' . $order_result['order_id'] . ' (WC order ' . $order_id . ')' );
-            } catch ( \Throwable $e ) {
-                error_log( 'KiwiEvents email error for KE order ' . $order_result['order_id'] . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
-            }
+            // Queue the confirmation for AFTER the guard flag is written.
+            // Sending it here used to be what killed the flag: the mail path
+            // builds one PDF per ticket and each PDF fetched its QR over the
+            // network, so a slow request could die before the flag was
+            // persisted and the next hook would regenerate everything.
+            $pending_emails[] = (int) $order_result['order_id'];
 
             // Collect ticket codes for the thank-you page
             foreach ( $ticket_ids as $ticket_id ) {
@@ -550,12 +695,114 @@ class KE_WooCommerce {
             }
         }
 
-        // Persist ticket codes and mark as processed
+        // Mark as processed BEFORE the slow part. Everything that can lose
+        // money — the KE order rows, the tickets, the sold counter — is
+        // already committed at this point, so if the request dies during the
+        // email below, a retry must NOT regenerate any of it.
         update_post_meta( $order_id, '_ke_tickets_generated', true );
         if ( ! empty( $all_ticket_codes ) ) {
             $order->update_meta_data( '_ke_ticket_codes', $all_ticket_codes );
             $order->save();
         }
+
+        // Now the confirmation emails. send_ticket_email() returns a WP_Error
+        // on failure — a WP_Error is NOT a Throwable, so the old try/catch
+        // swallowed every failed send without a trace. Record failures on the
+        // order so "no me llegó el correo" is answerable and re-sendable
+        // instead of invisible.
+        foreach ( $pending_emails as $ke_order_id ) {
+            try {
+                $sent = $email_handler->send_ticket_email( $ke_order_id );
+                if ( is_wp_error( $sent ) ) {
+                    add_post_meta( $order_id, '_ke_ticket_email_failed', $ke_order_id );
+                    error_log( sprintf(
+                        'KiwiEvents: ticket email FAILED for KE order %d (WC order %d): %s',
+                        $ke_order_id, $order_id, $sent->get_error_message()
+                    ) );
+                } else {
+                    error_log( 'KiwiEvents: email sent for KE order ' . $ke_order_id . ' (WC order ' . $order_id . ')' );
+                }
+            } catch ( \Throwable $e ) {
+                add_post_meta( $order_id, '_ke_ticket_email_failed', $ke_order_id );
+                error_log( 'KiwiEvents email error for KE order ' . $ke_order_id . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+            }
+        }
+    }
+
+    /**
+     * Roll back a cancelled or failed order: cancel its tickets, which also
+     * returns their seats to the sold counter (KE_Tickets::update_status
+     * decrements quantity_sold on the valid → cancelled transition).
+     *
+     * Without this, every cancellation left valid tickets behind and kept
+     * counting them as sold — capacity permanently consumed by an order that
+     * was never paid.
+     */
+    public function handle_order_cancelled( $wc_order_id ) {
+        global $wpdb;
+
+        // NEVER void the tickets of somebody who actually paid.
+        //
+        // The Yappy gateway's callback handler cancels unconditionally —
+        // `elseif ('C' == $status || 'R' == $status) { $order->update_status('cancelled'); }`
+        // with no check for an order it already approved and no idempotency.
+        // A late or duplicate C/R callback from Banco General therefore
+        // cancels a paid order hours after the fact, which is exactly the
+        // "Pedido cancelado" mystery. Rolling tickets back on that signal
+        // would turn a bogus status change into a real loss of access for a
+        // paying customer, so a captured payment vetoes the rollback and asks
+        // a human to look instead.
+        $order = wc_get_order( $wc_order_id );
+        if ( $order ) {
+            $paid = $order->get_date_paid()
+                 || $order->get_transaction_id()
+                 || $order->get_meta( 'confirmationNumber' );
+            if ( $paid ) {
+                error_log( sprintf(
+                    'KiwiEvents: WC order %d was cancelled but carries a payment — tickets left VALID on purpose. Review this order manually.',
+                    (int) $wc_order_id
+                ) );
+                return;
+            }
+        }
+
+        $orders_table  = $wpdb->prefix . 'ke_orders';
+        $tickets_table = $wpdb->prefix . 'ke_tickets';
+
+        $ke_orders = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id FROM {$orders_table} WHERE wc_order_id = %d",
+            (int) $wc_order_id
+        ) );
+        if ( empty( $ke_orders ) ) {
+            return;
+        }
+
+        $tickets_handler = new KE_Tickets();
+        $orders_handler  = new KE_Orders();
+
+        foreach ( $ke_orders as $ke_order ) {
+            $tickets = $wpdb->get_results( $wpdb->prepare(
+                "SELECT id FROM {$tickets_table} WHERE order_id = %d AND status = 'valid'",
+                $ke_order->id
+            ) );
+            foreach ( $tickets as $ticket ) {
+                $tickets_handler->cancel( $ticket->id );
+            }
+            $orders_handler->update_status( $ke_order->id, 'cancelled' );
+        }
+
+        // Let a reinstated order mint tickets again. The guard flag is what
+        // makes generation one-shot, so leaving it set would mean an order
+        // that is cancelled and then paid (a late gateway confirmation, an
+        // admin putting it back to processing) ends up with no valid tickets
+        // at all. The tickets just cancelled stay cancelled; a new set is
+        // issued, and the counter nets out correctly.
+        delete_post_meta( (int) $wc_order_id, '_ke_tickets_generated' );
+
+        error_log( sprintf(
+            'KiwiEvents: WC order %d cancelled — released %d KE order(s) and their tickets.',
+            (int) $wc_order_id, count( $ke_orders )
+        ) );
     }
 
     /**

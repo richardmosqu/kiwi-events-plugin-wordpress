@@ -432,6 +432,16 @@ class KE_Admin {
             array( $this, 'render_reservations_page' )
         );
 
+        // Ticket-sales waitlist (people awaiting a scheduled sale opening)
+        add_submenu_page(
+            'kiwi-events',
+            'Waitlist',
+            'Waitlist',
+            'manage_kiwi_events',
+            'kiwi-events-waitlist',
+            array( $this, 'render_waitlist_page' )
+        );
+
         // Community board moderation queue — hidden entirely when the board
         // system is disabled in Settings → Board. The pending-count bubble
         // reuses core's awaiting-mod classes so it looks native.
@@ -508,6 +518,7 @@ class KE_Admin {
             'toplevel_page_kiwi-events',
             'kiwievents_page_kiwi-events-attendees',
             'kiwievents_page_kiwi-events-reservations',
+            'kiwievents_page_kiwi-events-waitlist',
             'admin_page_ke-events-list',        // null-parent → admin_page_ prefix
             'kiwievents_page_ke-event-builder', // event builder was missing entirely
             'kiwievents_page_ke-categories',
@@ -615,6 +626,24 @@ class KE_Admin {
             ) );
         }
 
+        // Waitlist admin page — read-only listing, so it only needs the
+        // shared table chrome plus the reservations status-pill styles it
+        // borrows for the Waiting / Notified / Cancelled pills. No JS.
+        if ( $hook === 'kiwievents_page_kiwi-events-waitlist' ) {
+            wp_enqueue_style(
+                'ke-attendees-css',
+                KE_PLUGIN_URL . 'admin/css/ke-attendees.css',
+                array( 'ke-admin-css' ),
+                $ke_admin_css_ver
+            );
+            wp_enqueue_style(
+                'ke-admin-reservations-css',
+                KE_PLUGIN_URL . 'admin/css/ke-admin-reservations.css',
+                array( 'ke-attendees-css' ),
+                $ke_admin_css_ver
+            );
+        }
+
         // Reservations admin page — reuses ke-attendees.css for table/modal
         // chrome and layers a thin reservations stylesheet on top for the
         // status pills and contact subtext.
@@ -692,6 +721,12 @@ class KE_Admin {
             return;
         }
 
+        if ( $page === 'kiwi-events-waitlist'
+            && isset( $_GET['ke_export_csv'] ) && $_GET['ke_export_csv'] === '1' ) {
+            ( new KE_Admin_Waitlist() )->export_csv(); // streams + exits
+            return;
+        }
+
         if ( $page === 'kiwi-events-reservations' ) {
             if ( isset( $_GET['ke_export_csv'] ) && $_GET['ke_export_csv'] === '1' ) {
                 ( new KE_Admin_Reservations() )->export_csv(); // streams + exits
@@ -710,6 +745,14 @@ class KE_Admin {
     public function render_attendees_page() {
         $attendees = new KE_Admin_Attendees();
         $attendees->render();
+    }
+
+    /**
+     * Render the ticket-sales waitlist page
+     */
+    public function render_waitlist_page() {
+        $waitlist = new KE_Admin_Waitlist();
+        $waitlist->render();
     }
 
     /**

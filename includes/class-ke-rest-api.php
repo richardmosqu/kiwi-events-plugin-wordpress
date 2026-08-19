@@ -347,6 +347,29 @@ class KE_Rest_API {
             'permission_callback' => '__return_true',
         ) );
 
+        /* ─── Scheduled ticket sales + waitlist ─────────────────────────
+         * Both routes are public and unauthenticated on purpose: the notice
+         * is rendered on edge-cached pages for logged-out visitors, so the
+         * form cannot rely on a baked nonce (a stale one would be rejected
+         * outright — see the fresh-nonce comment in KE_Public). Abuse control
+         * is the per-IP rate limit inside the handler plus the UNIQUE index
+         * on the waitlist table.
+         * ─────────────────────────────────────────────────────────────── */
+
+        // Public: live open/closed state for the countdown to re-check.
+        register_rest_route( $this->namespace, '/events/(?P<id>\d+)/sale-status', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_sale_status' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // Public: join the ticket-sales waitlist.
+        register_rest_route( $this->namespace, '/events/(?P<id>\d+)/waitlist', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'process_join_waitlist' ),
+            'permission_callback' => '__return_true',
+        ) );
+
         /* ─── Organizer self-service dashboard ──────────────────────────
          * Public routes guarded by an HTTP-only cookie session. Auth issues
          * the cookie; subsequent endpoints validate the cookie's bound
@@ -801,6 +824,150 @@ class KE_Rest_API {
     /**
      * POST /checkout — process free ticket order
      */
+    /* ─────────────────────────────────────────────────────────────────
+     * SCHEDULED SALES + WAITLIST
+     * ────────────────────────────────────────────────────────────── */
+
+    /**
+     * GET /events/{id}/sale-status — advisory open/closed snapshot.
+     *
+     * The public page renders its gate server-side, but that HTML can be
+     * served from an edge cache minutes after the sale opened. The countdown
+     * hits this (never-cached) endpoint when it reaches zero and reloads only
+     * once the server agrees sales are live.
+     */
+    public function get_sale_status( WP_REST_Request $request ) {
+        $event_id = absint( $request->get_param( 'id' ) );
+        $event    = get_post( $event_id );
+
+        if ( ! $event || $event->post_type !== 'ke_event' ) {
+            return new WP_Error( 'event_not_found', __( 'Evento no encontrado.', 'kiwi-events' ), array( 'status' => 404 ) );
+        }
+        if ( ! class_exists( 'KE_Sales_Schedule' ) ) {
+            return rest_ensure_response( array( 'open' => true, 'opensAt' => '', 'waitlist' => false ) );
+        }
+
+        $cfg     = KE_Sales_Schedule::get_config( $event_id );
+        $pending = KE_Sales_Schedule::is_pending( $event_id, $cfg );
+
+        return rest_ensure_response( array(
+            'open'     => ! $pending,
+            'opensAt'  => KE_Sales_Schedule::open_iso( $event_id, $cfg ),
+            'waitlist' => (bool) ( $pending && ! empty( $cfg['waitlist_enabled'] ) ),
+        ) );
+    }
+
+    /**
+     * POST /events/{id}/waitlist — "avísame cuando abran los boletos".
+     * Outer wrapper keeps a Throwable from WSODing a public page.
+     */
+    public function process_join_waitlist( WP_REST_Request $request ) {
+        try {
+            return $this->_do_join_waitlist( $request );
+        } catch ( \Throwable $e ) {
+            error_log( 'KiwiEvents waitlist join error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+            return new WP_Error(
+                'fatal_error',
+                __( 'No pudimos guardarte en la lista. Intenta de nuevo.', 'kiwi-events' ),
+                array( 'status' => 500 )
+            );
+        }
+    }
+
+    private function _do_join_waitlist( WP_REST_Request $request ) {
+        $event_id = absint( $request->get_param( 'id' ) );
+        $email    = sanitize_email( (string) $request->get_param( 'email' ) );
+        $name     = sanitize_text_field( (string) $request->get_param( 'name' ) );
+
+        $event = get_post( $event_id );
+        if ( ! $event || $event->post_type !== 'ke_event' ) {
+            return new WP_Error( 'event_not_found', __( 'Evento no encontrado.', 'kiwi-events' ), array( 'status' => 404 ) );
+        }
+
+        if ( $email === '' || ! is_email( $email ) ) {
+            return new WP_Error( 'invalid_email', __( 'Escribe un correo electrónico válido.', 'kiwi-events' ), array( 'status' => 400 ) );
+        }
+        if ( ! class_exists( 'KE_Sales_Schedule' ) || ! class_exists( 'KE_Waitlist' ) ) {
+            return new WP_Error( 'unavailable', __( 'La lista de espera no está disponible.', 'kiwi-events' ), array( 'status' => 503 ) );
+        }
+
+        $cfg = KE_Sales_Schedule::get_config( $event_id );
+
+        // Sale already open (or never scheduled) → nothing to wait for. The
+        // JS treats this code as "reload, the tickets are live".
+        if ( ! KE_Sales_Schedule::is_pending( $event_id, $cfg ) ) {
+            return new WP_Error(
+                'sales_already_open',
+                __( '¡Los boletos ya están a la venta! Recarga la página para comprarlos.', 'kiwi-events' ),
+                array( 'status' => 409 )
+            );
+        }
+        if ( empty( $cfg['waitlist_enabled'] ) ) {
+            return new WP_Error( 'waitlist_disabled', __( 'La lista de espera está desactivada para este evento.', 'kiwi-events' ), array( 'status' => 403 ) );
+        }
+
+        // One reply for every outcome below. The response must NOT reveal
+        // whether the address was already on the list: this endpoint is
+        // unauthenticated, so a different answer for "added" vs "already"
+        // would turn it into a membership oracle — probe any address and
+        // learn whether that person signed up for this event.
+        $labels  = KE_Sales_Schedule::labels( $event_id, $cfg );
+        $confirm = $labels['full'] !== ''
+            ? sprintf(
+                /* translators: %s: formatted date and time when ticket sales open. */
+                __( '¡Listo! Te avisaremos por correo cuando abran los boletos (%s).', 'kiwi-events' ),
+                $labels['full']
+            )
+            : __( '¡Listo! Te avisaremos por correo cuando abran los boletos.', 'kiwi-events' );
+
+        // Honeypot: the form ships an off-screen field no human fills, named
+        // so no browser autofill heuristic targets it. Answer exactly as a
+        // real signup would — telling a bot it was caught only teaches it to
+        // skip the field next time.
+        if ( trim( (string) $request->get_param( 'ke_hp' ) ) !== '' ) {
+            return rest_ensure_response( array( 'success' => true, 'message' => $confirm ) );
+        }
+
+        // Rate limit, two buckets:
+        //   1. per client IP — stops the naive script. Best-effort only:
+        //      KE_Scanner_Password::get_request_ip() trusts the leftmost
+        //      X-Forwarded-For entry, which a caller can forge.
+        //   2. per event — the spoof-proof backstop. Set well above any real
+        //      sale so a genuine rush never trips it, but low enough that a
+        //      rotating-header flood can't stuff the list (and, worse, our
+        //      outbound mail) without bound.
+        // Both pre-increment so concurrent POSTs can't all slip through.
+        $ip     = class_exists( 'KE_Scanner_Password' ) ? KE_Scanner_Password::get_request_ip() : '0.0.0.0';
+        $rl_key = 'ke_wl_rl_' . hash_hmac( 'sha256', $ip, wp_salt( 'auth' ) );
+        $count  = (int) get_transient( $rl_key );
+        if ( $count >= 5 ) {
+            return new WP_Error(
+                'rate_limited',
+                __( 'Demasiados intentos. Espera un minuto e intenta de nuevo.', 'kiwi-events' ),
+                array( 'status' => 429 )
+            );
+        }
+        set_transient( $rl_key, $count + 1, MINUTE_IN_SECONDS );
+
+        $ev_key   = 'ke_wl_rl_ev_' . $event_id;
+        $ev_count = (int) get_transient( $ev_key );
+        if ( $ev_count >= 100 ) {
+            return new WP_Error(
+                'rate_limited',
+                __( 'Hay mucho tráfico en este momento. Intenta de nuevo en un minuto.', 'kiwi-events' ),
+                array( 'status' => 429 )
+            );
+        }
+        set_transient( $ev_key, $ev_count + 1, MINUTE_IN_SECONDS );
+
+        $result = KE_Waitlist::join( $event_id, $email, $name, $ip );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return rest_ensure_response( array( 'success' => true, 'message' => $confirm ) );
+    }
+
     public function process_checkout( WP_REST_Request $request ) {
         try {
             return $this->_do_checkout( $request );
@@ -886,6 +1053,32 @@ class KE_Rest_API {
             return new WP_Error( 'invalid_ticket', 'Ticket type not found.', array( 'status' => 404 ) );
         }
 
+        // The event id arrives on the wire; the ticket type row is the
+        // authority on which event it belongs to. Without this check a
+        // crafted request could name event A (no restrictions) while buying
+        // a ticket type that belongs to event B — every per-event rule below
+        // and downstream (sales window, order + ticket rows) would then be
+        // evaluated against the wrong event.
+        if ( (int) $ticket_type->event_id !== $event_id ) {
+            return new WP_Error(
+                'ticket_event_mismatch',
+                'That ticket type does not belong to this event.',
+                array( 'status' => 400 )
+            );
+        }
+
+        // Scheduled sales opening. Checked BEFORE the paid/free fork so both
+        // paths are covered — the WooCommerce branch guards itself again in
+        // add_to_cart() and on cart re-validation, but the free branch has no
+        // second chance.
+        if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $event_id ) ) {
+            return new WP_Error(
+                'sales_not_open',
+                KE_Sales_Schedule::closed_message( $event_id ),
+                array( 'status' => 409 )
+            );
+        }
+
         // If paid ticket, redirect to WooCommerce
         if ( $ticket_type->price > 0 ) {
             if ( ! class_exists( 'WooCommerce' ) ) {
@@ -946,9 +1139,24 @@ class KE_Rest_API {
             return new WP_Error( 'limit_exceeded', $can_purchase->get_error_message(), array( 'status' => 400 ) );
         }
 
+        // Serialise "is there room?" with "issue the tickets".
+        //
+        // Read and write used to be several statements apart with nothing in
+        // between: the counter only moves inside generate(), so two free
+        // checkouts landing together both saw the same remaining count and
+        // both succeeded. The paid path is covered by WooCommerce's stock
+        // reservation; this is the free path's equivalent. Released on every
+        // exit below, and MySQL drops it anyway if the request dies.
+        $ke_cap_lock = 'ke_capacity_' . (int) $ticket_type_id;
+        $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT GET_LOCK(%s, %d)', $ke_cap_lock, 5 ) );
+        $ke_release_lock = static function () use ( $ke_cap_lock ) {
+            $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT RELEASE_LOCK(%s)', $ke_cap_lock ) );
+        };
+
         // Check availability
         $remaining = $ticket_types->get_remaining( $ticket_type_id );
         if ( $quantity > $remaining ) {
+            $ke_release_lock();
             return new WP_Error( 'sold_out', 'Not enough tickets available.', array( 'status' => 400 ) );
         }
 
@@ -965,6 +1173,7 @@ class KE_Rest_API {
         ) );
 
         if ( is_wp_error( $order_result ) ) {
+            $ke_release_lock();
             return new WP_Error( 'order_failed', 'Could not create order.', array( 'status' => 500 ) );
         }
 
@@ -975,6 +1184,9 @@ class KE_Rest_API {
             $ticket_type_id,
             $attendees
         );
+
+        // The counter has moved by now, so the next contender reads the truth.
+        $ke_release_lock();
 
         if ( is_wp_error( $ticket_ids ) ) {
             return new WP_Error( 'ticket_failed', 'Could not generate tickets.', array( 'status' => 500 ) );
@@ -2049,6 +2261,15 @@ class KE_Rest_API {
         if ( array_key_exists( 'reservations', $params ) && is_array( $params['reservations'] ) && class_exists( 'KE_Reservations' ) ) {
             $clean_resv = KE_Reservations::sanitize_config( $params['reservations'] );
             update_post_meta( $event_id, KE_Reservations::META_KEY, $clean_resv );
+        }
+
+        // Scheduled ticket sales — "la venta abre el día X". Sanitisation
+        // (including the wall-clock + IANA timezone contract) lives on the
+        // helper class so the builder, the public gate and both checkout
+        // paths all read the same shape.
+        if ( array_key_exists( 'sales_schedule', $params ) && is_array( $params['sales_schedule'] ) && class_exists( 'KE_Sales_Schedule' ) ) {
+            $clean_sched = KE_Sales_Schedule::sanitize_config( $params['sales_schedule'] );
+            update_post_meta( $event_id, KE_Sales_Schedule::META_KEY, $clean_sched );
         }
 
         // Promoter assignments — full-set replace via the dedicated helper.

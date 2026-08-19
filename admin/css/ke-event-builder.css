@@ -2027,6 +2027,13 @@ hr {
 /* ─── Reservations section ─────────────────────────────────────────── */
 .ke-resv-section { margin-top: 8px; }
 
+/* Scheduled ticket sales panel — same class-based show/hide contract as
+ * #ke-resv-body below (always rendered, CSS toggles .is-open) so an unrelated
+ * JS error can never leave the panel stuck closed. */
+.ke-sched-section { margin-top: 8px; }
+#ke-sales-body { display: none; }
+#ke-sales-body.is-open { display: block; }
+
 /* Class-based show/hide for the reservations config panel.
  * Always rendered server-side; CSS toggles visibility via .is-open. Avoids a
  * production-only failure where an unrelated JS error could leave the inline

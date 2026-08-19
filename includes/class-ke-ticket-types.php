@@ -199,6 +199,10 @@ class KE_Ticket_Types {
             array( '%d' )
         );
 
+        // An edited capacity has to reach the WooCommerce product too, or the
+        // seats it holds during checkout keep describing the old number.
+        self::after_counter_change( $id );
+
         return $result !== false;
     }
 
@@ -286,10 +290,12 @@ class KE_Ticket_Types {
      */
     public function increment_sold( $id, $quantity = 1 ) {
         global $wpdb;
-        return $wpdb->query( $wpdb->prepare(
+        $result = $wpdb->query( $wpdb->prepare(
             "UPDATE {$this->table_name} SET quantity_sold = quantity_sold + %d WHERE id = %d",
             absint( $quantity ), absint( $id )
         ) );
+        self::after_counter_change( $id );
+        return $result;
     }
 
     /**
@@ -297,10 +303,58 @@ class KE_Ticket_Types {
      */
     public function decrement_sold( $id, $quantity = 1 ) {
         global $wpdb;
-        return $wpdb->query( $wpdb->prepare(
+        $result = $wpdb->query( $wpdb->prepare(
             "UPDATE {$this->table_name} SET quantity_sold = GREATEST(0, quantity_sold - %d) WHERE id = %d",
             absint( $quantity ), absint( $id )
         ) );
+        self::after_counter_change( $id );
+        return $result;
+    }
+
+    /**
+     * Every move of quantity_sold or quantity_total has to be reflected in the
+     * WooCommerce product's stock, because that stock — not this counter — is
+     * what holds seats during checkout and refuses the buyer who arrives too
+     * late. Kept here so no caller can change the capacity and forget.
+     *
+     * Also the one place that notices the counter passing the capacity. It
+     * cannot refuse the sale (the money is already taken by the time tickets
+     * are generated), but silence is what let 71 tickets exist against 50
+     * seats without anyone finding out until afterwards.
+     */
+    public static function after_counter_change( $id ) {
+        $id = absint( $id );
+        if ( ! $id ) {
+            return;
+        }
+        $handler = new self();
+        $type    = $handler->get( $id );
+        if ( ! $type ) {
+            return;
+        }
+
+        if ( class_exists( 'KE_WooCommerce' ) ) {
+            KE_WooCommerce::sync_product_stock( $type );
+        }
+
+        if ( ( $type->capacity_type ?? 'limited' ) !== 'unlimited'
+            && (int) $type->quantity_sold > (int) $type->quantity_total ) {
+            error_log( sprintf(
+                'KiwiEvents OVERSOLD: ticket type %d ("%s") on event %d is at %d sold against a capacity of %d.',
+                $id,
+                (string) $type->name,
+                (int) $type->event_id,
+                (int) $type->quantity_sold,
+                (int) $type->quantity_total
+            ) );
+            update_post_meta( (int) $type->event_id, '_ke_oversold_notice', array(
+                'ticket_type_id' => $id,
+                'name'           => (string) $type->name,
+                'sold'           => (int) $type->quantity_sold,
+                'capacity'       => (int) $type->quantity_total,
+                'seen_at'        => current_time( 'mysql' ),
+            ) );
+        }
     }
 
     /**

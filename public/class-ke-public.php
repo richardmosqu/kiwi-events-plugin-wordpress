@@ -158,12 +158,44 @@ class KE_Public {
                 $cfg['fields'] = KE_Event_Extra_Fields::get_fields_for( $post->ID, 'tickets' );
                 $localize['extraFields'] = $cfg;
             }
+
+            // Scheduled-sales notice + waitlist form. Only loaded while the
+            // sale is actually pending, so a normal event page carries no
+            // extra bytes. public/views/sales-waitlist.php re-enqueues the
+            // same handles as a late fallback for the [kiwi_event] shortcode
+            // path, where this hook has already run.
+            if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $post->ID ) ) {
+                self::enqueue_waitlist_assets();
+            }
         }
 
         wp_localize_script( 'ke-checkout-js', 'kePublic', $localize );
 
         // Append custom color overrides AFTER the stylesheet so they always win
         $this->inject_color_vars();
+    }
+
+    /**
+     * Enqueue the scheduled-sales notice assets. Idempotent — WordPress
+     * ignores a second enqueue of the same handle — so the view can call it
+     * again on the shortcode path without double-loading.
+     */
+    public static function enqueue_waitlist_assets() {
+        $ver = defined( 'KE_WAITLIST_ASSETS_VER' ) ? KE_WAITLIST_ASSETS_VER : KE_VERSION;
+
+        wp_enqueue_style(
+            'ke-waitlist-css',
+            KE_PLUGIN_URL . 'public/css/ke-waitlist.css',
+            array( 'ke-public-css' ),
+            $ver
+        );
+        wp_enqueue_script(
+            'ke-waitlist-js',
+            KE_PLUGIN_URL . 'public/js/ke-waitlist.js',
+            array(),
+            $ver,
+            true
+        );
     }
 
     /**
