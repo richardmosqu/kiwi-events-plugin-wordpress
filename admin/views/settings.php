@@ -1,11 +1,15 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+// KE_ADMIN_JS_VER and not KE_VERSION: this file changes far more often than
+// the plugin version does, and a stale copy means a settings button that
+// silently does nothing when clicked. Bump that constant whenever this script
+// changes.
 wp_enqueue_script(
     'ke-settings-js',
     KE_PLUGIN_URL . 'admin/js/ke-settings.js',
     array( 'jquery' ),
-    KE_VERSION,
+    defined( 'KE_ADMIN_JS_VER' ) ? KE_ADMIN_JS_VER : KE_VERSION,
     true
 );
 wp_localize_script( 'ke-settings-js', 'keSettings', array(
@@ -722,8 +726,8 @@ $ke_settings_tabs = array(
         <div class="ke-section-card ke-settings-card">
             <div class="ke-settings-card-header">
                 <div>
-                    <h2 class="ke-settings-title"><?php esc_html_e( 'Asistentes de emergencia', 'kiwi-events' ); ?></h2>
-                    <p class="ke-settings-desc"><?php esc_html_e( 'Para reparar una venta que salió mal: genera un boleto real sin que cuente como venta.', 'kiwi-events' ); ?></p>
+                    <h2 class="ke-settings-title"><?php esc_html_e( 'Emergency attendees', 'kiwi-events' ); ?></h2>
+                    <p class="ke-settings-desc"><?php esc_html_e( 'For repairing a sale that went wrong: issue a real ticket that never counts as a sale.', 'kiwi-events' ); ?></p>
                 </div>
             </div>
 
@@ -734,12 +738,12 @@ $ke_settings_tabs = array(
                         <span class="ke-toggle-slider"></span>
                     </label>
                     <div>
-                        <label class="ke-form-label" style="margin-bottom:2px; display:block;"><?php esc_html_e( 'Permitir generar asistentes sin registro de venta', 'kiwi-events' ); ?></label>
+                        <label class="ke-form-label" style="margin-bottom:2px; display:block;"><?php esc_html_e( 'Allow attendees to be issued without recording a sale', 'kiwi-events' ); ?></label>
                         <p class="ke-form-hint" style="margin:0;">
-                            <?php esc_html_e( 'Añade la opción “Ticket error” al crear un asistente. El boleto se genera completo —código QR, correo al asistente, válido en la puerta— pero no aparece en el panel del organizador, no suma a sus ventas ni a sus ingresos, y no requiere que haya cupo libre: si el evento está 50/50, el asistente se crea igual.', 'kiwi-events' ); ?>
+                            <?php esc_html_e( 'Adds a “Ticket error” option when creating an attendee. The ticket is issued in full — QR code, email to the attendee, valid at the door — but it never reaches the organizer\'s dashboard, adds nothing to their sales or revenue, and does not need free capacity: if the event is at 50/50, the attendee is still created.', 'kiwi-events' ); ?>
                         </p>
                         <p class="ke-form-hint" style="margin:6px 0 0;">
-                            <?php esc_html_e( 'Solo las cuentas de administrador ven esta opción y pueden usarla.', 'kiwi-events' ); ?>
+                            <?php esc_html_e( 'Only administrator accounts can see or use this option.', 'kiwi-events' ); ?>
                         </p>
                     </div>
                 </div>
@@ -747,7 +751,7 @@ $ke_settings_tabs = array(
 
             <div class="ke-settings-card-footer" style="margin-top: 24px; text-align: right;">
                 <div id="ke-error-tickets-msg" class="ke-settings-msg" style="display:none; max-width: 400px; margin: 0 auto 16px auto; text-align: center;"></div>
-                <button type="button" class="ke-btn ke-btn-primary" id="ke-save-error-tickets-btn"><?php esc_html_e( 'Guardar', 'kiwi-events' ); ?></button>
+                <button type="button" class="ke-btn ke-btn-primary" id="ke-save-error-tickets-btn"><?php esc_html_e( 'Save Emergency Attendees', 'kiwi-events' ); ?></button>
             </div>
         </div>
         <?php endif; ?>

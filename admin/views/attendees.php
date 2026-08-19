@@ -227,7 +227,7 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                                     <span class="ke-type-empty">—</span>
                                 <?php endif; ?>
                                 <?php if ( ! empty( $a->is_error ) ) : ?>
-                                    <span class="ke-type-pill ke-type-pill--error" title="<?php esc_attr_e( 'Boleto de emergencia: válido en la puerta, pero invisible para el organizador y fuera del conteo de ventas.', 'kiwi-events' ); ?>">Ticket error</span>
+                                    <span class="ke-type-pill ke-type-pill--error" title="<?php esc_attr_e( 'Emergency ticket — valid at the door, but invisible to the organizer and outside the sales count.', 'kiwi-events' ); ?>">Ticket error</span>
                                 <?php elseif ( ! empty( $a->is_courtesy ) ) : ?>
                                     <span class="ke-type-pill ke-type-pill--courtesy" title="<?php esc_attr_e( 'Courtesy attendee — does not contribute to net revenue.', 'kiwi-events' ); ?>">Cortesía</span>
                                 <?php endif; ?>
@@ -394,9 +394,9 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                     </div>
                     <?php if ( class_exists( 'KE_Tickets' ) && KE_Tickets::can_issue_error_tickets() ) : ?>
                         <p class="ke-muted" style="margin:8px 0 0; font-size:12px;">
-                            <strong>Ticket error</strong>: para reparar una venta que salió mal. El boleto se genera completo
-                            y le llega al asistente, pero no aparece en el panel del organizador ni suma a sus ventas,
-                            y se puede crear aunque el evento esté agotado.
+                            <strong>Ticket error</strong>: for repairing a sale that went wrong. The ticket is issued in full
+                            and reaches the attendee, but it never shows in the organizer's dashboard and adds nothing to
+                            their sales — and it can be created even when the ticket type is sold out.
                         </p>
                     <?php endif; ?>
                 </div>

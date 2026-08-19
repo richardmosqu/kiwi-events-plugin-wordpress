@@ -399,8 +399,8 @@ jQuery(document).ready(function($) {
         e.stopPropagation();
 
         const $btn = $(this);
-        $btn.prop('disabled', true).html('<span class="ke-spinner"></span> Guardando...');
-        showMsg('#ke-error-tickets-msg', 'hide');
+        $btn.prop('disabled', true).html('<span class="ke-spinner"></span> Saving...');
+        showMsg('#ke-error-tickets-msg', '', 'hide');
 
         $.ajax({
             url:         API + 'settings/error-tickets',
@@ -411,19 +411,19 @@ jQuery(document).ready(function($) {
             success: function(resp) {
                 showMsg('#ke-error-tickets-msg',
                     resp && resp.enabled
-                        ? 'Guardado. La opción “Ticket error” ya aparece al crear un asistente.'
-                        : 'Guardado. La opción “Ticket error” queda oculta.',
+                        ? 'Saved. The “Ticket error” option now appears when creating an attendee.'
+                        : 'Saved. The “Ticket error” option is now hidden.',
                     'success');
             },
             error: function(xhr) {
-                let msg = (xhr.responseJSON && xhr.responseJSON.message) || 'No se pudo guardar.';
+                let msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not save the setting.';
                 if (xhr.status === 401 || xhr.status === 403) {
-                    msg = 'Permiso denegado: esta opción es solo para administradores.';
+                    msg = 'Permission denied — this setting is for administrators only.';
                 }
                 showMsg('#ke-error-tickets-msg', msg, 'error');
             },
             complete: function() {
-                $btn.prop('disabled', false).text('Guardar');
+                $btn.prop('disabled', false).text('Save Emergency Attendees');
             }
         });
     });

@@ -3,7 +3,7 @@
  * Plugin Name: KiwiEvents
  * Plugin URI:  https://kiwievents.com
  * Description: A complete event management and ticketing solution for WordPress. Create events, sell tickets (free & paid via WooCommerce), generate QR code tickets, scan at the door, track attendees, and view sales dashboards.
- * Version:     2.2.0
+ * Version:     2.3.0
  * Author:      KiwiEvents
  * Author URI:  https://kiwievents.com
  * License:     GPL-2.0+
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // header for the plugins list and update checks, while KE_VERSION is what
 // asset enqueues and schema guards use. They drifted before (header stuck at
 // 1.0.0 while the code shipped 2.x); bump both together.
-define( 'KE_VERSION', '2.2.0' );
+define( 'KE_VERSION', '2.3.0' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -67,7 +67,7 @@ define( 'KE_PORTAL_ASSETS_VER', '0.6.0' );
 // reads --kiwi-* tokens at chart-render time). Bump when admin JS changes so
 // dashboard chart colors track the dark-mode token bumps without users having
 // to hard-reload past the edge cache.
-define( 'KE_ADMIN_JS_VER', '0.2.0' );
+define( 'KE_ADMIN_JS_VER', '0.3.0' );
 
 // Cache-bust for the customer ticket-wallet assets (ke-tickets-wallet.css,
 // ke-tickets-wallet.js — the [kiwi_tickets_purchase] shortcode). Bump when
