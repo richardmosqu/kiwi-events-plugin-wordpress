@@ -512,12 +512,21 @@ jQuery(document).ready(function ($) {
         const showRem         = (data.show_remaining || 'yes') === 'yes';
         const ticketTypeId    = parseInt(data.id, 10) || 0;
         const sold            = parseInt(data.quantity_sold, 10) || 0;
+        const errorCount      = parseInt(data.error_count, 10) || 0;
         const totalQty        = parseInt(data.qty, 10) || 0;
         const isActive        = (data.status || 'active') === 'active';
         // Sold counter only renders for saved ticket types (have a DB id).
         const soldDenominator = isLimited && totalQty > 0 ? `/${totalQty}` : '';
+        // Emergency "Ticket error" attendees hold a real seat at the door but
+        // are not sales, so they are added on top of the counter here — this
+        // card is admin-only. A sold-out type with one of them reads 51/50 on
+        // purpose; the organizer's own dashboard still says 50.
+        const headCount       = sold + errorCount;
+        const soldTitle       = errorCount > 0
+            ? `${sold} vendidos + ${errorCount} de emergencia (no cuentan como venta y el organizador no los ve)`
+            : 'Tickets sold';
         const soldHtml        = ticketTypeId > 0
-            ? `<span class="ke-tkt-sold" title="Tickets sold">Sold: <strong>${sold}</strong>${soldDenominator}</span>`
+            ? `<span class="ke-tkt-sold" title="${escAttr(soldTitle)}">Sold: <strong>${headCount}</strong>${soldDenominator}${errorCount > 0 ? ` <span class="ke-tkt-sold-error">(+${errorCount})</span>` : ''}</span>`
             : '';
         // Active toggle only renders for saved ticket types; unsaved cards
         // have no DB row to toggle against.

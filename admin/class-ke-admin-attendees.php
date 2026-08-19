@@ -25,10 +25,13 @@ class KE_Admin_Attendees {
         $page_num       = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
         $per_page       = 25;
 
-        // Resolve courtesy filter from the tri-state UI value.
+        // Resolve the attendee-type filter. "Real" means a real sale, so it
+        // excludes both courtesy gifts and emergency error tickets.
         $is_courtesy = null;
-        if ( $attendee_type === 'real' )     $is_courtesy = 0;
-        if ( $attendee_type === 'courtesy' ) $is_courtesy = 1;
+        $is_error    = null;
+        if ( $attendee_type === 'real' )     { $is_courtesy = 0; $is_error = 0; }
+        if ( $attendee_type === 'courtesy' ) { $is_courtesy = 1; }
+        if ( $attendee_type === 'error' )    { $is_error = 1; }
 
         // Get events for filter dropdown
         $events = get_posts( array(
@@ -51,6 +54,7 @@ class KE_Admin_Attendees {
                 'status'         => $status_filter,
                 'ticket_type_id' => $type_filter,
                 'is_courtesy'    => $is_courtesy,
+                'is_error'       => $is_error,
                 'search'         => $search,
                 'limit'          => $per_page,
                 'offset'         => ( $page_num - 1 ) * $per_page,

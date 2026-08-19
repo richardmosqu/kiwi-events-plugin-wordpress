@@ -2031,6 +2031,10 @@ hr {
  * #ke-resv-body below (always rendered, CSS toggles .is-open) so an unrelated
  * JS error can never leave the panel stuck closed. */
 .ke-sched-section { margin-top: 8px; }
+/* Head-count annotation on the sold counter: "(+1)" for emergency attendees
+   that hold a seat but are not sales. Admin-only surface. */
+.ke-tkt-sold-error { color: var(--kiwi-legacy-red-500, #b91c1c); font-weight: 700; }
+
 #ke-sales-body { display: none; }
 #ke-sales-body.is-open { display: block; }
 

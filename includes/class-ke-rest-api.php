@@ -291,6 +291,15 @@ class KE_Rest_API {
         ) );
 
         // Settings: test notification
+        // Admin-only: the emergency "Ticket error" switch. Its own permission
+        // callback because manage_kiwi_events is not enough — see
+        // KE_Tickets::can_issue_error_tickets().
+        register_rest_route( $this->namespace, '/settings/error-tickets', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'save_error_tickets_setting' ),
+            'permission_callback' => static function () { return current_user_can( 'manage_options' ); },
+        ) );
+
         register_rest_route( $this->namespace, '/settings/test-notification', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'send_test_admin_notification' ),
@@ -1480,18 +1489,23 @@ class KE_Rest_API {
         $tickets = new KE_Tickets();
         $event_id = (int) $request['id'];
 
-        // Tri-state courtesy filter: 'real' (is_courtesy=0), 'courtesy' (is_courtesy=1),
-        // or '' / 'all' / missing → no filter.
+        // Attendee-type filter: 'real' (a real sale — neither a courtesy gift
+        // nor an emergency error ticket), 'courtesy', 'error', or '' / 'all' /
+        // missing → no filter. This is an admin endpoint, so error tickets are
+        // visible here; the organizer's own endpoints exclude them outright.
         $type_param  = (string) $request->get_param( 'attendee_type' );
         $is_courtesy = null;
-        if ( $type_param === 'real' )     $is_courtesy = 0;
-        if ( $type_param === 'courtesy' ) $is_courtesy = 1;
+        $is_error    = null;
+        if ( $type_param === 'real' )     { $is_courtesy = 0; $is_error = 0; }
+        if ( $type_param === 'courtesy' ) { $is_courtesy = 1; }
+        if ( $type_param === 'error' )    { $is_error = 1; }
 
         $attendees = $tickets->get_attendees( $event_id, array(
             'status'         => $request->get_param( 'status' ) ?: '',
             'ticket_type_id' => $request->get_param( 'ticket_type_id' ) ?: 0,
             'search'         => $request->get_param( 'search' ) ?: '',
             'is_courtesy'    => $is_courtesy,
+            'is_error'       => $is_error,
             'limit'          => $request->get_param( 'per_page' ) ?: 50,
             'offset'         => ( ( $request->get_param( 'page' ) ?: 1 ) - 1 ) * ( $request->get_param( 'per_page' ) ?: 50 ),
         ) );
@@ -1501,6 +1515,7 @@ class KE_Rest_API {
             'ticket_type_id' => $request->get_param( 'ticket_type_id' ) ?: 0,
             'search'         => $request->get_param( 'search' ) ?: '',
             'is_courtesy'    => $is_courtesy,
+            'is_error'       => $is_error,
         ) );
 
         // Resolve raw JSON in extra_fields_data → labelled array using the
@@ -1541,6 +1556,24 @@ class KE_Rest_API {
         $is_courtesy    = filter_var( $request->get_param( 'is_courtesy' ), FILTER_VALIDATE_BOOLEAN ) ? 1 : 0;
         $extra_fields   = $request->get_param( 'extra_fields' );
 
+        // Emergency "Ticket error" attendee. Gated twice: the feature has to be
+        // switched on in Settings, and the caller has to be a site
+        // administrator — manage_kiwi_events is not enough, because staff and
+        // organizers can hold that and this ticket exists precisely to stay out
+        // of the organizer's view.
+        $wants_error = filter_var( $request->get_param( 'is_error' ), FILTER_VALIDATE_BOOLEAN );
+        $is_error    = ( $wants_error && KE_Tickets::can_issue_error_tickets() ) ? 1 : 0;
+        if ( $wants_error && ! $is_error ) {
+            return new WP_Error(
+                'error_tickets_unavailable',
+                __( 'Error tickets are disabled, or your account cannot issue them.', 'kiwi-events' ),
+                array( 'status' => 403 )
+            );
+        }
+        if ( $is_error ) {
+            $is_courtesy = 0; // Mutually exclusive: a repair is not a gift.
+        }
+
         if ( ! $event_id || ! $ticket_type_id || $name === '' || ! is_email( $email ) ) {
             return new WP_Error( 'missing_fields', __( 'Name, email, and ticket type are required.', 'kiwi-events' ), array( 'status' => 400 ) );
         }
@@ -1552,9 +1585,15 @@ class KE_Rest_API {
         }
 
         // Capacity check applies to courtesy too — they occupy seats.
-        $remaining = $ticket_types->get_remaining( $ticket_type_id );
-        if ( $remaining < 1 ) {
-            return new WP_Error( 'sold_out', __( 'No remaining capacity on this ticket type.', 'kiwi-events' ), array( 'status' => 400 ) );
+        // Error tickets are the deliberate exception: they exist to repair a
+        // sale that already happened, so a sold-out type must not block one.
+        // They never increment quantity_sold either, so issuing one cannot
+        // take a seat away from anybody.
+        if ( ! $is_error ) {
+            $remaining = $ticket_types->get_remaining( $ticket_type_id );
+            if ( $remaining < 1 ) {
+                return new WP_Error( 'sold_out', __( 'No remaining capacity on this ticket type.', 'kiwi-events' ), array( 'status' => 400 ) );
+            }
         }
 
         // Validate per-attendee extra fields against the event's saved config.
@@ -1572,7 +1611,7 @@ class KE_Rest_API {
         // order total so dashboards see it as a paid sale.
         // Courtesy: order total is $0 — admin gift, no revenue.
         $price        = (float) $type->price;
-        $order_total  = $is_courtesy ? 0.0 : $price;
+        $order_total  = ( $is_courtesy || $is_error ) ? 0.0 : $price;
 
         $orders_handler = new KE_Orders();
         $order_result   = $orders_handler->create( array(
@@ -1582,7 +1621,9 @@ class KE_Rest_API {
             'buyer_email'     => $email,
             'total_amount'    => $order_total,
             'ticket_quantity' => 1,
-            'payment_method'  => 'admin',
+            // A distinct method so the organizer's activity feed can drop it
+            // without having to inspect the tickets behind every order.
+            'payment_method'  => $is_error ? 'admin_error' : 'admin',
             'payment_status'  => 'completed',
         ) );
 
@@ -1594,6 +1635,7 @@ class KE_Rest_API {
             'name'         => $name,
             'email'        => $email,
             'is_courtesy'  => $is_courtesy,
+            'is_error'     => $is_error,
             'extra_fields' => $clean_extras,
         ) );
 
@@ -1620,6 +1662,7 @@ class KE_Rest_API {
             'order_id'     => (int) $order_result['order_id'],
             'order_number' => $order_result['order_number'],
             'is_courtesy'  => (bool) $is_courtesy,
+            'is_error'     => (bool) $is_error,
             'email_sent'   => ! is_wp_error( $email_sent ),
         ) );
     }
@@ -2662,6 +2705,25 @@ class KE_Rest_API {
      * When require_login flips ON, also force-enable WooCommerce's
      * "Users must be logged in to purchase" (belt-and-suspenders).
      */
+    /**
+     * POST /settings/error-tickets — toggle the emergency attendee feature.
+     *
+     * Kept as a standalone option rather than folded into a settings group so
+     * that reading it costs nothing on the hot paths that check it (every
+     * add-attendee call and every render of the attendees screen).
+     */
+    public function save_error_tickets_setting( WP_REST_Request $request ) {
+        $params  = $request->get_json_params() ?: array();
+        $enabled = ! empty( $params['enabled'] ) && rest_sanitize_boolean( $params['enabled'] );
+
+        update_option( 'ke_error_tickets_enabled', $enabled ? '1' : '0' );
+
+        return rest_ensure_response( array(
+            'success' => true,
+            'enabled' => $enabled,
+        ) );
+    }
+
     public function save_access_settings( WP_REST_Request $request ) {
         $params  = $request->get_json_params() ?: array();
         $current = get_option( 'ke_access_settings', array() );
@@ -3681,7 +3743,9 @@ class KE_Rest_API {
 
         global $wpdb;
         $placeholders = implode( ',', array_fill( 0, count( $scoped_ids ), '%d' ) );
-        $where  = "WHERE t.event_id IN ($placeholders)";
+        // Emergency "Ticket error" attendees are invisible to the organizer by
+        // design — see KE_Tickets::exclude_error_sql().
+        $where  = "WHERE t.event_id IN ($placeholders)" . KE_Tickets::exclude_error_sql( 't' );
         $params = $scoped_ids;
         if ( $search !== '' ) {
             $where .= ' AND ( t.attendee_name LIKE %s OR t.attendee_email LIKE %s )';
@@ -3770,6 +3834,7 @@ class KE_Rest_API {
              FROM {$wpdb->prefix}ke_orders o
              LEFT JOIN {$wpdb->posts} p ON p.ID = o.event_id
              WHERE o.payment_status = 'completed' AND o.event_id IN ($placeholders)
+               AND o.payment_method != 'admin_error'
              ORDER BY o.created_at DESC
              LIMIT 10",
             $event_ids
@@ -3818,6 +3883,7 @@ class KE_Rest_API {
              FROM {$wpdb->prefix}ke_tickets t
              LEFT JOIN {$wpdb->posts} p ON p.ID = t.event_id
              WHERE t.event_id IN ($placeholders) AND t.status != 'cancelled'
+               AND t.is_error = 0
              ORDER BY t.created_at DESC",
             $scoped
         ) );

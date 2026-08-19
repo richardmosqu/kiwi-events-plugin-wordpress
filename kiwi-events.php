@@ -27,7 +27,7 @@ define( 'KE_VERSION', '2.2.0' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-define( 'KE_DB_VERSION', '2.7.0' );
+define( 'KE_DB_VERSION', '2.8.0' );
 
 // Diagnostic logging for promoter attribution. Flip to true ONLY while
 // debugging a missing-commission report; leaves a banner in wp-admin while
@@ -43,7 +43,7 @@ define( 'KE_SCANNER_ASSETS_VER', '0.10.2' );
 // KE_VERSION moves slowly; the builder assets churn faster, and stale
 // versions on WordPress.com edge cache cause the wizard's step
 // indicators to lose their active/accent styling.
-define( 'KE_BUILDER_ASSETS_VER', '0.13.0' );
+define( 'KE_BUILDER_ASSETS_VER', '0.14.0' );
 
 // Admin design-token stylesheet (Kiwi brand: cream + green + glass).
 // Loads BEFORE every other KE admin CSS so subsequent rules can reference
@@ -55,7 +55,7 @@ define( 'KE_TOKENS_ASSETS_VER', '0.9.2' );
 // ke-admin-reservations.css). KE_VERSION moves with the plugin code; admin
 // styling iterates faster during the Kiwi-brand rollout, so it gets its own
 // version line. Bump whenever any of those CSS files change.
-define( 'KE_ADMIN_CSS_VER', '0.16.0' );
+define( 'KE_ADMIN_CSS_VER', '0.17.0' );
 
 // Cache-bust for the promoter portal assets (ke-promoter-portal.css,
 // ke-promoter-login.js). Bump when either file changes so WordPress.com edge

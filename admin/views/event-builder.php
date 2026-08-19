@@ -39,6 +39,9 @@ if ( $event_id > 0 ) {
         $ticket_types = new KE_Ticket_Types();
         $tickets_raw  = $ticket_types->get_by_event( $event_id );
         $tickets_arr  = array();
+        // This view is included from inside KE_Admin::render_event_builder(),
+        // so $wpdb is not in scope unless we ask for it.
+        global $wpdb;
         foreach ( $tickets_raw as $t ) {
             // sale_end is the per-ticket-type sales cutoff (nullable). The
             // datetime-local input wants "Y-m-d\TH:i", and is_closed is
@@ -59,6 +62,15 @@ if ( $event_id > 0 ) {
                 'show_remaining' => $t->show_remaining ?? 'yes',
                 'sale_end'       => KE_Ticket_Types::format_sale_end_for_input( $t->sale_end ?? '' ),
                 'is_closed'      => KE_Ticket_Types::is_sales_closed( $t ),
+                // Emergency attendees are not sales and never touch
+                // quantity_sold, so the organizer's figures stay clean. The
+                // admin still needs the real head count for the door, which is
+                // why the card adds them back on top of the counter.
+                'error_count'    => (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets
+                      WHERE ticket_type_id = %d AND is_error = 1 AND status != 'cancelled'",
+                    (int) $t->id
+                ) ),
             );
         }
         $tickets_json = wp_json_encode( $tickets_arr );

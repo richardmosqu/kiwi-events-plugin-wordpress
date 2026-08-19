@@ -67,6 +67,9 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                             <option value=""         <?php selected( $attendee_type, '' ); ?>>All</option>
                             <option value="real"     <?php selected( $attendee_type, 'real' ); ?>>Real</option>
                             <option value="courtesy" <?php selected( $attendee_type, 'courtesy' ); ?>>Cortesía</option>
+                            <?php if ( class_exists( 'KE_Tickets' ) && KE_Tickets::error_tickets_enabled() && current_user_can( 'manage_options' ) ) : ?>
+                                <option value="error" <?php selected( $attendee_type, 'error' ); ?>>Ticket error</option>
+                            <?php endif; ?>
                         </select>
                     </div>
 
@@ -186,6 +189,7 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                             'attendee_email'   => (string) $a->attendee_email,
                             'attendee_number'  => (int) $a->attendee_number,
                             'is_courtesy'      => ! empty( $a->is_courtesy ) ? 1 : 0,
+                            'is_error'         => ! empty( $a->is_error ) ? 1 : 0,
                             'status'           => (string) $a->status,
                             'checked_in_at'    => $a->checked_in_at,
                             'ticket_type_name' => (string) ( $a->ticket_type_name ?? '' ),
@@ -222,7 +226,9 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                                 <?php else : ?>
                                     <span class="ke-type-empty">—</span>
                                 <?php endif; ?>
-                                <?php if ( ! empty( $a->is_courtesy ) ) : ?>
+                                <?php if ( ! empty( $a->is_error ) ) : ?>
+                                    <span class="ke-type-pill ke-type-pill--error" title="<?php esc_attr_e( 'Boleto de emergencia: válido en la puerta, pero invisible para el organizador y fuera del conteo de ventas.', 'kiwi-events' ); ?>">Ticket error</span>
+                                <?php elseif ( ! empty( $a->is_courtesy ) ) : ?>
                                     <span class="ke-type-pill ke-type-pill--courtesy" title="<?php esc_attr_e( 'Courtesy attendee — does not contribute to net revenue.', 'kiwi-events' ); ?>">Cortesía</span>
                                 <?php endif; ?>
                             </td>
@@ -379,7 +385,20 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                             <input type="radio" name="ke-add-type" value="courtesy">
                             <span class="ke-segment-label">Cortesía</span>
                         </label>
+                        <?php if ( class_exists( 'KE_Tickets' ) && KE_Tickets::can_issue_error_tickets() ) : ?>
+                        <label class="ke-segment">
+                            <input type="radio" name="ke-add-type" value="error">
+                            <span class="ke-segment-label">Ticket error</span>
+                        </label>
+                        <?php endif; ?>
                     </div>
+                    <?php if ( class_exists( 'KE_Tickets' ) && KE_Tickets::can_issue_error_tickets() ) : ?>
+                        <p class="ke-muted" style="margin:8px 0 0; font-size:12px;">
+                            <strong>Ticket error</strong>: para reparar una venta que salió mal. El boleto se genera completo
+                            y le llega al asistente, pero no aparece en el panel del organizador ni suma a sus ventas,
+                            y se puede crear aunque el evento esté agotado.
+                        </p>
+                    <?php endif; ?>
                 </div>
 
                 <div class="ke-form-field">
@@ -479,6 +498,7 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                 name: name,
                 email: email,
                 is_courtesy: typeChoice && typeChoice.value === 'courtesy',
+                is_error: typeChoice && typeChoice.value === 'error',
                 extra_fields: extras
             };
 

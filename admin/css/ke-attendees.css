@@ -65,6 +65,19 @@
     font-size: 10px;
     letter-spacing: 0.6px;
 }
+/* Emergency "Ticket error" variant — deliberately louder than courtesy: this
+   attendee is invisible to the organizer, so the admin should never confuse
+   one for a normal sale while scanning the list. */
+.ke-type-pill--error {
+    background: var(--kiwi-red-fill-medium, rgba(185, 28, 28, 0.12));
+    color: var(--kiwi-red-text, #b91c1c);
+    border-color: var(--kiwi-red-edge-medium, rgba(185, 28, 28, 0.28));
+    margin-left: 6px;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+
 .ke-radio-row { display: flex; gap: 18px; flex-wrap: wrap; }
 .ke-radio-row label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 

@@ -28,6 +28,11 @@ $accent   = ! empty( $ui['accent_color'] )   ? esc_attr( $ui['accent_color'] )  
 $subtitle = ! empty( $ui['subtitle_color'] ) ? esc_attr( $ui['subtitle_color'] ) : '#71717a';
 
 $access                 = get_option( 'ke_access_settings', array() );
+// Emergency "Ticket error" attendees. Only shown to true administrators —
+// organizers and staff can hold manage_kiwi_events, and this whole feature
+// exists to stay out of the organizer's view.
+$error_tickets_enabled  = get_option( 'ke_error_tickets_enabled', '0' ) === '1';
+$can_see_error_tickets  = current_user_can( 'manage_options' );
 $access_require_login   = ! empty( $access['require_login'] );
 $access_login_url       = isset( $access['login_url'] )       ? $access['login_url']       : wp_login_url();
 $access_register_url    = isset( $access['register_url'] )    ? $access['register_url']    : wp_registration_url();
@@ -711,6 +716,41 @@ $ke_settings_tabs = array(
                 <button type="button" class="ke-btn ke-btn-primary" id="ke-save-access-btn"><?php esc_html_e( 'Save Access Control', 'kiwi-events' ); ?></button>
             </div>
         </div>
+
+        <?php if ( $can_see_error_tickets ) : ?>
+        <!-- Emergency attendees (admin only) -->
+        <div class="ke-section-card ke-settings-card">
+            <div class="ke-settings-card-header">
+                <div>
+                    <h2 class="ke-settings-title"><?php esc_html_e( 'Asistentes de emergencia', 'kiwi-events' ); ?></h2>
+                    <p class="ke-settings-desc"><?php esc_html_e( 'Para reparar una venta que salió mal: genera un boleto real sin que cuente como venta.', 'kiwi-events' ); ?></p>
+                </div>
+            </div>
+
+            <div class="ke-settings-grid">
+                <div class="ke-form-group ke-mb-4" style="display: flex; align-items: center; gap: 12px;">
+                    <label class="ke-toggle">
+                        <input type="checkbox" id="ke-error-tickets-enabled" <?php checked( $error_tickets_enabled ); ?>>
+                        <span class="ke-toggle-slider"></span>
+                    </label>
+                    <div>
+                        <label class="ke-form-label" style="margin-bottom:2px; display:block;"><?php esc_html_e( 'Permitir generar asistentes sin registro de venta', 'kiwi-events' ); ?></label>
+                        <p class="ke-form-hint" style="margin:0;">
+                            <?php esc_html_e( 'Añade la opción “Ticket error” al crear un asistente. El boleto se genera completo —código QR, correo al asistente, válido en la puerta— pero no aparece en el panel del organizador, no suma a sus ventas ni a sus ingresos, y no requiere que haya cupo libre: si el evento está 50/50, el asistente se crea igual.', 'kiwi-events' ); ?>
+                        </p>
+                        <p class="ke-form-hint" style="margin:6px 0 0;">
+                            <?php esc_html_e( 'Solo las cuentas de administrador ven esta opción y pueden usarla.', 'kiwi-events' ); ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ke-settings-card-footer" style="margin-top: 24px; text-align: right;">
+                <div id="ke-error-tickets-msg" class="ke-settings-msg" style="display:none; max-width: 400px; margin: 0 auto 16px auto; text-align: center;"></div>
+                <button type="button" class="ke-btn ke-btn-primary" id="ke-save-error-tickets-btn"><?php esc_html_e( 'Guardar', 'kiwi-events' ); ?></button>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Check-in & Scanner -->
         <div class="ke-section-card ke-settings-card">

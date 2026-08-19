@@ -161,9 +161,14 @@ class KE_Sold_Audit {
             $type = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$tt} WHERE id = %d", $tid ) );
             $rows_all = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT COUNT(*) FROM {$tk} WHERE event_id = %d AND ticket_type_id = %d", $event_id, $tid ) );
+            // Emergency "Ticket error" attendees are real rows that were never
+            // counted as sold, by design. Counting them here would report every
+            // one of them as counter drift — a bug that isn't one.
             $rows_ok  = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$tk} WHERE event_id = %d AND ticket_type_id = %d AND status != 'cancelled'", $event_id, $tid ) );
-            $cancld   = $rows_all - $rows_ok;
+                "SELECT COUNT(*) FROM {$tk} WHERE event_id = %d AND ticket_type_id = %d AND status != 'cancelled' AND is_error = 0", $event_id, $tid ) );
+            $rows_err = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$tk} WHERE event_id = %d AND ticket_type_id = %d AND status != 'cancelled' AND is_error = 1", $event_id, $tid ) );
+            $cancld   = $rows_all - $rows_ok - $rows_err;
 
             $exists   = (bool) $type;
             $foreign  = $exists && (int) $type->event_id !== $event_id; // type belongs to a different event
@@ -204,6 +209,7 @@ class KE_Sold_Audit {
                 'price'    => $price,
                 'rows_all' => $rows_all,
                 'rows_ok'  => $rows_ok,
+                'rows_err' => $rows_err,
                 'cancld'   => $cancld,
                 'flag'     => $flag,
                 'in_dash'  => ( $exists && ! $archived && ! $foreign && $qsold > 0 ),
@@ -262,7 +268,8 @@ class KE_Sold_Audit {
             "SELECT tt.id, tt.name, tt.capacity_type, tt.quantity_total AS capacity,
                     tt.quantity_sold AS counter,
                     (SELECT COUNT(*) FROM {$tk} t WHERE t.ticket_type_id = tt.id) AS rows_all,
-                    (SELECT COUNT(*) FROM {$tk} t WHERE t.ticket_type_id = tt.id AND t.status <> 'cancelled') AS rows_live
+                    (SELECT COUNT(*) FROM {$tk} t WHERE t.ticket_type_id = tt.id AND t.status <> 'cancelled' AND t.is_error = 0) AS rows_live,
+                    (SELECT COUNT(*) FROM {$tk} t WHERE t.ticket_type_id = tt.id AND t.status <> 'cancelled' AND t.is_error = 1) AS rows_error
                FROM {$tt} tt
               WHERE tt.event_id = %d
            ORDER BY tt.id", $event_id ) );
@@ -400,7 +407,7 @@ class KE_Sold_Audit {
            . 'disagreeing is the difference between “we sold too many seats” and “the counter lies”.</p>';
         echo '<table class="widefat kesa-table"><thead><tr>'
            . '<th>Type</th><th>Capacity</th><th>Counter (shown in admin)</th>'
-           . '<th>Ticket rows</th><th>Live rows</th><th>Verdict</th></tr></thead><tbody>';
+           . '<th>Ticket rows</th><th>Live rows</th><th>Emergency</th><th>Verdict</th></tr></thead><tbody>';
         foreach ( (array) $i['capacity'] as $c ) {
             $unlimited = ( $c->capacity_type === 'unlimited' );
             $over_rows = ( ! $unlimited && (int) $c->rows_live > (int) $c->capacity );
@@ -414,7 +421,7 @@ class KE_Sold_Audit {
             else                   { $verdict = 'consistent'; $tone = 'good'; }
 
             printf(
-                '<tr class="%s"><td>%s <span class="kesa-muted">#%d</span></td><td>%s</td><td><strong>%d</strong></td><td>%d</td><td>%d</td><td>%s</td></tr>',
+                '<tr class="%s"><td>%s <span class="kesa-muted">#%d</span></td><td>%s</td><td><strong>%d</strong></td><td>%d</td><td>%d</td><td>%s</td><td>%s</td></tr>',
                 esc_attr( $tone ? 'kesa-row-' . $tone : '' ),
                 esc_html( $c->name ),
                 (int) $c->id,
@@ -422,6 +429,7 @@ class KE_Sold_Audit {
                 (int) $c->counter,
                 (int) $c->rows_all,
                 (int) $c->rows_live,
+                (int) $c->rows_error > 0 ? '<strong>' . (int) $c->rows_error . '</strong>' : '—',
                 esc_html( $verdict )
             );
         }

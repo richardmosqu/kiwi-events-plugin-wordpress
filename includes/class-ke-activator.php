@@ -101,6 +101,7 @@ class KE_Activator {
             attendee_number int(11) NOT NULL DEFAULT 0,
             status varchar(20) NOT NULL DEFAULT 'valid',
             is_courtesy tinyint(1) NOT NULL DEFAULT 0,
+            is_error tinyint(1) NOT NULL DEFAULT 0,
             qr_code_path varchar(500) DEFAULT NULL,
             pdf_path varchar(500) DEFAULT NULL,
             checked_in_at datetime DEFAULT NULL,
@@ -116,7 +117,8 @@ class KE_Activator {
             KEY attendee_email (attendee_email),
             KEY status (status),
             KEY ke_event_status_created (event_id, status, created_at),
-            KEY ke_event_courtesy (event_id, is_courtesy)
+            KEY ke_event_courtesy (event_id, is_courtesy),
+            KEY ke_event_error (event_id, is_error)
         ) $charset_collate;";
 
         // Reservations table — group/capacity bookings (parallel to ticket
@@ -387,6 +389,20 @@ class KE_Activator {
         ) );
         if ( ! $has_sale_end ) {
             $wpdb->query( "ALTER TABLE {$table_ticket_types} ADD COLUMN sale_end DATETIME DEFAULT NULL AFTER max_per_order" );
+        }
+
+        // is_error on ke_tickets: emergency "Ticket error" attendees, issued by an
+        // administrator to repair a botched sale. They are real, scannable
+        // tickets that never count as a sale, so every organizer-facing surface
+        // filters them out — see KE_Tickets::EXCLUDE_ERROR_SQL.
+        $has_is_error = $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = 'is_error'",
+            DB_NAME, $table_tickets
+        ) );
+        if ( ! $has_is_error ) {
+            $wpdb->query( "ALTER TABLE {$table_tickets} ADD COLUMN is_error TINYINT(1) NOT NULL DEFAULT 0 AFTER is_courtesy" );
+            $wpdb->query( "ALTER TABLE {$table_tickets} ADD KEY ke_event_error (event_id, is_error)" );
         }
 
         // ticket_type_snapshot on ke_tickets: captures the type name at sale time

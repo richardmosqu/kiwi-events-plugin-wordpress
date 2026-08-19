@@ -22,12 +22,44 @@ class KE_Tickets {
      * @param array  $attendees      Array of attendee objects (name, email)
      * @return array|WP_Error Array of ticket IDs or error
      */
+    /**
+     * SQL fragment every organizer-facing query must carry.
+     *
+     * "Ticket error" attendees are emergency tickets an administrator issues
+     * to repair a botched sale: real and scannable, but never a sale. The
+     * organizer must not see them in their dashboard, exports or head counts,
+     * so each of those queries appends this. Kept as one constant so a new
+     * organizer surface can grep for it instead of rediscovering the rule.
+     *
+     * @param string $alias Table alias used by the caller ('' for none).
+     */
+    public static function exclude_error_sql( $alias = 't' ) {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+        return " AND {$prefix}is_error = 0";
+    }
+
+    /** True when the admin-only emergency ticket feature is switched on. */
+    public static function error_tickets_enabled() {
+        return get_option( 'ke_error_tickets_enabled', '0' ) === '1';
+    }
+
+    /**
+     * True when the current user may issue one. Deliberately manage_options
+     * and not manage_kiwi_events: staff and organizers can hold the latter,
+     * and this ticket is invisible to the organizer by design — the person
+     * issuing it has to be the site administrator.
+     */
+    public static function can_issue_error_tickets() {
+        return self::error_tickets_enabled() && current_user_can( 'manage_options' );
+    }
+
     public function generate( $order_id, $event_id, $ticket_type_id, $attendees ) {
         global $wpdb;
 
         $ticket_ids = array();
         $qr_generator = new KE_QR_Generator();
-        $quantity = count( $attendees );
+        $quantity       = count( $attendees );
+        $sold_quantity  = 0;   // attendees that actually count as sold
 
         // Snapshot the ticket type name at sale time so the attendees list
         // survives later deletion/archival of the ticket_type row.
@@ -81,6 +113,14 @@ class KE_Tickets {
             // needed, even though the UI currently picks one mode at a time.
             $is_courtesy_row = ! empty( $attendee['is_courtesy'] ) ? 1 : 0;
 
+            // Emergency "Ticket error" rows: a real ticket that repairs a
+            // botched sale. It never counts as sold (see the increment below)
+            // and never reaches an organizer-facing query.
+            $is_error_row = ! empty( $attendee['is_error'] ) ? 1 : 0;
+            if ( ! $is_error_row ) {
+                $sold_quantity++;
+            }
+
             $insert_row = array(
                 'ticket_code'          => $ticket_code,
                 'order_id'             => absint( $order_id ),
@@ -92,9 +132,10 @@ class KE_Tickets {
                 'attendee_number'      => $attendee_number,
                 'status'               => 'valid',
                 'is_courtesy'          => $is_courtesy_row,
+                'is_error'             => $is_error_row,
                 'qr_code_path'         => $qr_path,
             );
-            $insert_format = array( '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%d', '%s', '%d', '%s' );
+            $insert_format = array( '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%d', '%s', '%d', '%d', '%s' );
 
             if ( $cf_data !== null ) {
                 $insert_row['custom_fields_data'] = $cf_data;
@@ -114,16 +155,26 @@ class KE_Tickets {
             $ticket_ids[] = $wpdb->insert_id;
         }
 
-        // Increment sold count on ticket type
+        // Increment sold count on ticket type — error tickets excluded on
+        // purpose. The counter is what the organizer's dashboard reads, and an
+        // emergency ticket is a repair, not a sale. Keeping it out here is
+        // also what lets one be issued against a sold-out type without
+        // inflating anyone's numbers.
         $ticket_types = new KE_Ticket_Types();
-        $ticket_types->increment_sold( $ticket_type_id, $quantity );
+        if ( $sold_quantity > 0 ) {
+            $ticket_types->increment_sold( $ticket_type_id, $sold_quantity );
+        }
 
         // Real-time sales beacon — single transient bump that the organizer
         // dashboard polls (cheap, transient-only read, no DB on the GET).
         // Covers BOTH free tickets (called from REST checkout) and paid
         // tickets (called from KE_WooCommerce::on_payment_complete) because
         // both flows reach this method.
-        $org_term_ids = wp_get_post_terms( $event_id, 'ke_organizer', array( 'fields' => 'ids' ) );
+        // Nothing was sold if every row was an emergency ticket, so the
+        // organizer's "new sale" beacon must stay quiet.
+        $org_term_ids = $sold_quantity > 0
+            ? wp_get_post_terms( $event_id, 'ke_organizer', array( 'fields' => 'ids' ) )
+            : array();
         if ( ! is_wp_error( $org_term_ids ) ) {
             foreach ( $org_term_ids as $org_term_id ) {
                 $org_term_id = (int) $org_term_id;
@@ -202,6 +253,7 @@ class KE_Tickets {
             'ticket_type_id' => 0,
             'search'         => '',
             'is_courtesy'    => null, // null = no filter; '0'/'1' = filter
+            'is_error'       => null, // null = no filter; '0' hides emergency tickets
             'limit'          => 50,
             'offset'         => 0,
             'orderby'        => 'attendee_number',
@@ -222,6 +274,10 @@ class KE_Tickets {
             $params[] = $args['ticket_type_id'];
         }
 
+        if ( $args['is_error'] !== null && $args['is_error'] !== '' ) {
+            $where   .= " AND t.is_error = %d";
+            $params[] = (int) ( $args['is_error'] ? 1 : 0 );
+        }
         if ( $args['is_courtesy'] !== null && $args['is_courtesy'] !== '' ) {
             $where   .= " AND t.is_courtesy = %d";
             $params[] = (int) ( $args['is_courtesy'] ? 1 : 0 );
@@ -279,6 +335,10 @@ class KE_Tickets {
             $params[] = $args['ticket_type_id'];
         }
 
+        if ( isset( $args['is_error'] ) && $args['is_error'] !== null && $args['is_error'] !== '' ) {
+            $where   .= " AND is_error = %d";
+            $params[] = (int) ( $args['is_error'] ? 1 : 0 );
+        }
         if ( isset( $args['is_courtesy'] ) && $args['is_courtesy'] !== null && $args['is_courtesy'] !== '' ) {
             $where   .= " AND is_courtesy = %d";
             $params[] = (int) ( $args['is_courtesy'] ? 1 : 0 );
@@ -415,11 +475,16 @@ class KE_Tickets {
             array( '%d' )
         );
 
+        // An error ticket never incremented the counter, so cancelling or
+        // restoring one must not move it either — otherwise the first
+        // cancellation would silently hand a seat back that was never taken.
         $ticket_types = new KE_Ticket_Types();
-        if ( $new_status === 'cancelled' && $old_status !== 'cancelled' ) {
-            $ticket_types->decrement_sold( $ticket->ticket_type_id, 1 );
-        } elseif ( $old_status === 'cancelled' && $new_status !== 'cancelled' ) {
-            $ticket_types->increment_sold( $ticket->ticket_type_id, 1 );
+        if ( empty( $ticket->is_error ) ) {
+            if ( $new_status === 'cancelled' && $old_status !== 'cancelled' ) {
+                $ticket_types->decrement_sold( $ticket->ticket_type_id, 1 );
+            } elseif ( $old_status === 'cancelled' && $new_status !== 'cancelled' ) {
+                $ticket_types->increment_sold( $ticket->ticket_type_id, 1 );
+            }
         }
 
         return $this->get( $ticket_id );
@@ -446,7 +511,9 @@ class KE_Tickets {
             return new WP_Error( 'db_error', 'Could not delete ticket.' );
         }
 
-        if ( $ticket->status !== 'cancelled' ) {
+        // Same reasoning as update_status(): an error ticket was never
+        // counted, so deleting it must not give a seat back.
+        if ( $ticket->status !== 'cancelled' && empty( $ticket->is_error ) ) {
             $ticket_types = new KE_Ticket_Types();
             $ticket_types->decrement_sold( $ticket->ticket_type_id, 1 );
         }

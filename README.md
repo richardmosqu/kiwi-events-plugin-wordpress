@@ -50,6 +50,18 @@ Ticket types carry a price, a quota and an active/inactive flag. Every individua
 - Ticket PDFs built with TCPDF, with the QR embedded.
 - Resend, cancel, or bulk-update tickets from the attendees screen.
 
+### Emergency attendees ("Ticket error")
+An admin-only switch in **Settings → Events → Asistentes de emergencia**. When it is on, the Add Attendee dialog gains a third type, **Ticket error**, for repairing a sale that went wrong.
+
+The ticket is issued in full — QR, PDF, email to the attendee, valid at the door — but it is not a sale:
+
+- It never increments `quantity_sold`, so it contributes nothing to the organizer's sold count, revenue, daily chart, check-in rate, activity feed, attendee list, CSV or PDF report. Every organizer-facing query carries `KE_Tickets::exclude_error_sql()`.
+- Capacity does not apply. A sold-out type still accepts one, because the sale it repairs already happened. The admin's own ticket card shows the true head count (`51/50` with a `(+1)` annotation); the organizer still sees `50`.
+- It is gated on `manage_options`, not `manage_kiwi_events` — staff and organizers can hold the latter, and this ticket exists precisely to stay out of the organizer's view.
+- Cancelling or deleting one does not hand a seat back, because it never took one.
+
+Rows carry `wp_ke_tickets.is_error`, and their synthetic order uses `payment_method = 'admin_error'`.
+
 ### Scheduled ticket sales & waitlist
 Each event can declare **when its ticket sales open** — a date, a time, and the **timezone that time is written in** (defaults to the event timezone, then the site timezone). Until that moment the public event page replaces the whole purchase block with a large *"Boletos disponibles a partir del (día) (hora)"* notice and a live countdown.
 
@@ -374,6 +386,7 @@ Then in wp-admin → Plugins → Add New → Upload Plugin, choose the ZIP and *
 ## Changelog
 
 ### Unreleased
+- **Emergency attendees ("Ticket error")**: admin-only switch in Settings → Events. Issues a complete, scannable ticket that never counts as a sale and is invisible to the organizer, and that can be issued against a sold-out ticket type. New `wp_ke_tickets.is_error` column (`KE_DB_VERSION` → 2.8.0).
 - **Scheduled ticket sales**: per-event opening date/time with its own timezone, configured in the event builder (step 3 → *Venta programada*). Stored in `_ke_event_sales_schedule` and owned by `KE_Sales_Schedule`.
 - **Waitlist**: public email capture on the pre-sale notice (`wp_ke_waitlist`), a 5-minute release sweep (`KE_Waitlist_Cron`, hook `ke_waitlist_release_sweep`), the `tickets_on_sale` email template, and a read-only **Waitlist** admin page with CSV export.
 - Purchase gating added to all three choke points: free checkout, `KE_WooCommerce::add_to_cart()`, and `woocommerce_check_cart_items`.

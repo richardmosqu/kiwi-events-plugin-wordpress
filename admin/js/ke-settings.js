@@ -392,6 +392,42 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // Emergency "Ticket error" attendees. The card only renders for
+    // administrators, so this handler simply never fires for anyone else.
+    $(document).on('click', '#ke-save-error-tickets-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="ke-spinner"></span> Guardando...');
+        showMsg('#ke-error-tickets-msg', 'hide');
+
+        $.ajax({
+            url:         API + 'settings/error-tickets',
+            method:      'POST',
+            beforeSend:  function(xhr) { xhr.setRequestHeader('X-WP-Nonce', NONCE); },
+            data:        JSON.stringify({ enabled: $('#ke-error-tickets-enabled').is(':checked') }),
+            contentType: 'application/json',
+            success: function(resp) {
+                showMsg('#ke-error-tickets-msg',
+                    resp && resp.enabled
+                        ? 'Guardado. La opción “Ticket error” ya aparece al crear un asistente.'
+                        : 'Guardado. La opción “Ticket error” queda oculta.',
+                    'success');
+            },
+            error: function(xhr) {
+                let msg = (xhr.responseJSON && xhr.responseJSON.message) || 'No se pudo guardar.';
+                if (xhr.status === 401 || xhr.status === 403) {
+                    msg = 'Permiso denegado: esta opción es solo para administradores.';
+                }
+                showMsg('#ke-error-tickets-msg', msg, 'error');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).text('Guardar');
+            }
+        });
+    });
+
     // Delegated so it survives any DOM re-render and binds even if the button is
     // rendered after jQuery(ready) fires. Also preventDefault guards against any
     // parent <form> submitting the page before the fetch completes.

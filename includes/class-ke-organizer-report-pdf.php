@@ -300,6 +300,7 @@ class KE_Organizer_Report_PDF {
              FROM {$wpdb->prefix}ke_tickets t
              LEFT JOIN {$wpdb->posts} p ON p.ID = t.event_id
              WHERE t.event_id IN ($placeholders) AND t.status != 'cancelled'
+               AND t.is_error = 0
              ORDER BY t.created_at DESC",
             $event_ids
         ) );

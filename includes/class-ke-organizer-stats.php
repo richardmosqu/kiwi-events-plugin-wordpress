@@ -155,6 +155,7 @@ class KE_Organizer_Stats {
                    FROM {$wpdb->prefix}ke_tickets
                   WHERE event_id IN ($placeholders)
                     AND status != 'cancelled'
+                    AND is_error = 0
                     AND is_courtesy = 1
                GROUP BY event_id, ticket_type_id",
                 $event_ids
@@ -171,7 +172,10 @@ class KE_Organizer_Stats {
         }
 
         // Date-windowed mode — fall back to counting actual ticket rows.
-        $where  = "WHERE t.event_id IN ($placeholders) AND t.status != 'cancelled'";
+        // Error tickets are excluded here as well. In lifetime mode they are
+        // invisible for free (they never touch quantity_sold), but this branch
+        // counts rows, so it has to say so explicitly.
+        $where  = "WHERE t.event_id IN ($placeholders) AND t.status != 'cancelled'" . KE_Tickets::exclude_error_sql( 't' );
         $params = $event_ids;
         if ( $start_sql ) { $where .= ' AND t.created_at >= %s'; $params[] = $start_sql; }
         if ( $end_sql )   { $where .= ' AND t.created_at <  %s'; $params[] = $end_sql;   }
@@ -307,6 +311,7 @@ class KE_Organizer_Stats {
             $prev_count = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets
                  WHERE event_id IN ($placeholders) AND status != 'cancelled'
+                   AND is_error = 0
                    AND created_at >= %s AND created_at < %s",
                 $prev_params
             ) );
@@ -321,11 +326,11 @@ class KE_Organizer_Stats {
 
         // Lifetime check-in rate (a check-in for an old ticket still counts).
         $checkin_total = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id IN ($placeholders) AND status != 'cancelled'",
+            "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id IN ($placeholders) AND status != 'cancelled' AND is_error = 0",
             $event_ids
         ) );
         $checkin_used = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id IN ($placeholders) AND status = 'used'",
+            "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id IN ($placeholders) AND status = 'used' AND is_error = 0",
             $event_ids
         ) );
         $checkin_rate = $checkin_total > 0 ? round( ( $checkin_used / $checkin_total ) * 100, 1 ) : 0.0;
@@ -364,6 +369,7 @@ class KE_Organizer_Stats {
 
         $where  = "WHERE event_id IN ($placeholders) AND status != 'cancelled'";
         $params = $event_ids;
+        $where .= ' AND is_error = 0';   // emergency tickets are not sales
         if ( $win['start'] ) { $where .= ' AND created_at >= %s'; $params[] = $win['start']; }
         if ( $win['end'] )   { $where .= ' AND created_at <  %s'; $params[] = $win['end'];   }
 
@@ -504,11 +510,11 @@ class KE_Organizer_Stats {
 
             // Lifetime check-in counts for the event (matches the headline card).
             $checkin_total = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id = %d AND status != 'cancelled'",
+                "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id = %d AND status != 'cancelled' AND is_error = 0",
                 $event_id
             ) );
             $checkin_used = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id = %d AND status = 'used'",
+                "SELECT COUNT(*) FROM {$wpdb->prefix}ke_tickets WHERE event_id = %d AND status = 'used' AND is_error = 0",
                 $event_id
             ) );
 
