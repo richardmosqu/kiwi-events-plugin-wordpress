@@ -22,6 +22,14 @@ class KE_WooCommerce {
         add_action( 'woocommerce_order_status_processing', array( $this, 'on_payment_complete' ) );
         add_action( 'woocommerce_order_status_completed',  array( $this, 'on_payment_complete' ) );
         add_action( 'woocommerce_order_status_refunded',   array( $this, 'handle_order_refunded' ) );
+        // Cancelled orders used to be ignored entirely: the tickets stayed
+        // 'valid' and quantity_sold kept counting them, so every cancellation
+        // silently inflated the sold figure and ate capacity that was never
+        // sold. WooCommerce cancels unpaid orders on its own schedule (the
+        // "Hold stock (minutes)" cron), so this fires on its own in normal
+        // operation — it is not only an admin action.
+        add_action( 'woocommerce_order_status_cancelled',  array( $this, 'handle_order_cancelled' ) );
+        add_action( 'woocommerce_order_status_failed',     array( $this, 'handle_order_cancelled' ) );
 
         // Cart validation — enforce ticket limits
         add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validate_add_to_cart' ), 10, 5 );
@@ -418,7 +426,43 @@ class KE_WooCommerce {
      * The _ke_tickets_generated flag prevents duplicate generation when multiple hooks fire.
      */
     public function on_payment_complete( $order_id ) {
+        global $wpdb;
+        $order_id = (int) $order_id;
+
         // Prevent duplicate generation — checked before loading the order object
+        if ( get_post_meta( $order_id, '_ke_tickets_generated', true ) ) {
+            return;
+        }
+
+        // Three hooks point at this handler (payment_complete,
+        // status_processing, status_completed) and an async gateway can retry
+        // its callback while the first run is still working. The flag alone is
+        // a check-then-set: it used to be written at the very END of this
+        // method, after ticket generation AND after a synchronous email that
+        // can take tens of seconds, so any second entrant in that window
+        // generated a whole extra set of tickets and incremented the sold
+        // counter again. A per-order MySQL lock closes the window; MySQL frees
+        // it automatically if the request dies, so it can never wedge.
+        $lock_name = 'ke_tickets_gen_' . $order_id;
+        $got_lock  = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $lock_name, 0 ) );
+        if ( $got_lock !== 1 ) {
+            // Someone else is generating this order right now.
+            return;
+        }
+
+        try {
+            $this->generate_for_order( $order_id );
+        } finally {
+            $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+        }
+    }
+
+    /**
+     * Ticket generation for one paid WooCommerce order. Always called with the
+     * per-order lock held (see on_payment_complete).
+     */
+    private function generate_for_order( $order_id ) {
+        // Re-check inside the lock: the previous holder may have just finished.
         if ( get_post_meta( $order_id, '_ke_tickets_generated', true ) ) {
             return;
         }
@@ -445,6 +489,7 @@ class KE_WooCommerce {
         $email_handler   = new KE_Email();
 
         $all_ticket_codes = array();
+        $pending_emails   = array();
 
         foreach ( $order->get_items() as $item ) {
             $event_id       = $item->get_meta( '_ke_event_id' );
@@ -555,13 +600,12 @@ class KE_WooCommerce {
                 ) );
             }
 
-            // Send confirmation email (non-fatal)
-            try {
-                $email_handler->send_ticket_email( $order_result['order_id'] );
-                error_log( 'KiwiEvents: email sent for KE order ' . $order_result['order_id'] . ' (WC order ' . $order_id . ')' );
-            } catch ( \Throwable $e ) {
-                error_log( 'KiwiEvents email error for KE order ' . $order_result['order_id'] . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
-            }
+            // Queue the confirmation for AFTER the guard flag is written.
+            // Sending it here used to be what killed the flag: the mail path
+            // builds one PDF per ticket and each PDF fetched its QR over the
+            // network, so a slow request could die before the flag was
+            // persisted and the next hook would regenerate everything.
+            $pending_emails[] = (int) $order_result['order_id'];
 
             // Collect ticket codes for the thank-you page
             foreach ( $ticket_ids as $ticket_id ) {
@@ -572,12 +616,89 @@ class KE_WooCommerce {
             }
         }
 
-        // Persist ticket codes and mark as processed
+        // Mark as processed BEFORE the slow part. Everything that can lose
+        // money — the KE order rows, the tickets, the sold counter — is
+        // already committed at this point, so if the request dies during the
+        // email below, a retry must NOT regenerate any of it.
         update_post_meta( $order_id, '_ke_tickets_generated', true );
         if ( ! empty( $all_ticket_codes ) ) {
             $order->update_meta_data( '_ke_ticket_codes', $all_ticket_codes );
             $order->save();
         }
+
+        // Now the confirmation emails. send_ticket_email() returns a WP_Error
+        // on failure — a WP_Error is NOT a Throwable, so the old try/catch
+        // swallowed every failed send without a trace. Record failures on the
+        // order so "no me llegó el correo" is answerable and re-sendable
+        // instead of invisible.
+        foreach ( $pending_emails as $ke_order_id ) {
+            try {
+                $sent = $email_handler->send_ticket_email( $ke_order_id );
+                if ( is_wp_error( $sent ) ) {
+                    add_post_meta( $order_id, '_ke_ticket_email_failed', $ke_order_id );
+                    error_log( sprintf(
+                        'KiwiEvents: ticket email FAILED for KE order %d (WC order %d): %s',
+                        $ke_order_id, $order_id, $sent->get_error_message()
+                    ) );
+                } else {
+                    error_log( 'KiwiEvents: email sent for KE order ' . $ke_order_id . ' (WC order ' . $order_id . ')' );
+                }
+            } catch ( \Throwable $e ) {
+                add_post_meta( $order_id, '_ke_ticket_email_failed', $ke_order_id );
+                error_log( 'KiwiEvents email error for KE order ' . $ke_order_id . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+            }
+        }
+    }
+
+    /**
+     * Roll back a cancelled or failed order: cancel its tickets, which also
+     * returns their seats to the sold counter (KE_Tickets::update_status
+     * decrements quantity_sold on the valid → cancelled transition).
+     *
+     * Without this, every cancellation left valid tickets behind and kept
+     * counting them as sold — capacity permanently consumed by an order that
+     * was never paid.
+     */
+    public function handle_order_cancelled( $wc_order_id ) {
+        global $wpdb;
+
+        $orders_table  = $wpdb->prefix . 'ke_orders';
+        $tickets_table = $wpdb->prefix . 'ke_tickets';
+
+        $ke_orders = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id FROM {$orders_table} WHERE wc_order_id = %d",
+            (int) $wc_order_id
+        ) );
+        if ( empty( $ke_orders ) ) {
+            return;
+        }
+
+        $tickets_handler = new KE_Tickets();
+        $orders_handler  = new KE_Orders();
+
+        foreach ( $ke_orders as $ke_order ) {
+            $tickets = $wpdb->get_results( $wpdb->prepare(
+                "SELECT id FROM {$tickets_table} WHERE order_id = %d AND status = 'valid'",
+                $ke_order->id
+            ) );
+            foreach ( $tickets as $ticket ) {
+                $tickets_handler->cancel( $ticket->id );
+            }
+            $orders_handler->update_status( $ke_order->id, 'cancelled' );
+        }
+
+        // Let a reinstated order mint tickets again. The guard flag is what
+        // makes generation one-shot, so leaving it set would mean an order
+        // that is cancelled and then paid (a late gateway confirmation, an
+        // admin putting it back to processing) ends up with no valid tickets
+        // at all. The tickets just cancelled stay cancelled; a new set is
+        // issued, and the counter nets out correctly.
+        delete_post_meta( (int) $wc_order_id, '_ke_tickets_generated' );
+
+        error_log( sprintf(
+            'KiwiEvents: WC order %d cancelled — released %d KE order(s) and their tickets.',
+            (int) $wc_order_id, count( $ke_orders )
+        ) );
     }
 
     /**
