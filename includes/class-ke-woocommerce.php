@@ -155,9 +155,12 @@ class KE_WooCommerce {
 
         // Event-level scheduled opening. Mirrors the free-checkout guard in
         // KE_Rest_API::_do_checkout so a crafted add-to-cart can't jump the
-        // queue while the public page still shows the countdown.
-        if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $event_id ) ) {
-            return new WP_Error( 'sales_not_open', KE_Sales_Schedule::closed_message( $event_id ) );
+        // queue while the public page still shows the countdown. The event is
+        // read off the ticket-type row, never from the $event_id argument, so
+        // the gate holds even if a future caller passes the wrong one.
+        $owner_event_id = (int) $ticket_type->event_id;
+        if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $owner_event_id ) ) {
+            return new WP_Error( 'sales_not_open', KE_Sales_Schedule::closed_message( $owner_event_id ) );
         }
 
         // Per-ticket-type sales cutoff. Independent of stock — a ticket type

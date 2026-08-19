@@ -884,17 +884,6 @@ class KE_Rest_API {
             return new WP_Error( 'event_not_found', __( 'Evento no encontrado.', 'kiwi-events' ), array( 'status' => 404 ) );
         }
 
-        // Honeypot: the form ships an off-screen "website" field that no
-        // human fills. Answer as if it worked — telling a bot it was caught
-        // just teaches it to skip the field next time.
-        if ( trim( (string) $request->get_param( 'website' ) ) !== '' ) {
-            return rest_ensure_response( array(
-                'success' => true,
-                'status'  => 'already',
-                'message' => __( '¡Listo! Te avisaremos por correo cuando abran los boletos.', 'kiwi-events' ),
-            ) );
-        }
-
         if ( $email === '' || ! is_email( $email ) ) {
             return new WP_Error( 'invalid_email', __( 'Escribe un correo electrónico válido.', 'kiwi-events' ), array( 'status' => 400 ) );
         }
@@ -917,9 +906,37 @@ class KE_Rest_API {
             return new WP_Error( 'waitlist_disabled', __( 'La lista de espera está desactivada para este evento.', 'kiwi-events' ), array( 'status' => 403 ) );
         }
 
-        // Rate limit: 5 signups per IP per minute. The IP is salted+hashed so
-        // the transient key never stores a raw address. Pre-increment so
-        // concurrent POSTs can't all slip through.
+        // One reply for every outcome below. The response must NOT reveal
+        // whether the address was already on the list: this endpoint is
+        // unauthenticated, so a different answer for "added" vs "already"
+        // would turn it into a membership oracle — probe any address and
+        // learn whether that person signed up for this event.
+        $labels  = KE_Sales_Schedule::labels( $event_id, $cfg );
+        $confirm = $labels['full'] !== ''
+            ? sprintf(
+                /* translators: %s: formatted date and time when ticket sales open. */
+                __( '¡Listo! Te avisaremos por correo cuando abran los boletos (%s).', 'kiwi-events' ),
+                $labels['full']
+            )
+            : __( '¡Listo! Te avisaremos por correo cuando abran los boletos.', 'kiwi-events' );
+
+        // Honeypot: the form ships an off-screen field no human fills, named
+        // so no browser autofill heuristic targets it. Answer exactly as a
+        // real signup would — telling a bot it was caught only teaches it to
+        // skip the field next time.
+        if ( trim( (string) $request->get_param( 'ke_hp' ) ) !== '' ) {
+            return rest_ensure_response( array( 'success' => true, 'message' => $confirm ) );
+        }
+
+        // Rate limit, two buckets:
+        //   1. per client IP — stops the naive script. Best-effort only:
+        //      KE_Scanner_Password::get_request_ip() trusts the leftmost
+        //      X-Forwarded-For entry, which a caller can forge.
+        //   2. per event — the spoof-proof backstop. Set well above any real
+        //      sale so a genuine rush never trips it, but low enough that a
+        //      rotating-header flood can't stuff the list (and, worse, our
+        //      outbound mail) without bound.
+        // Both pre-increment so concurrent POSTs can't all slip through.
         $ip     = class_exists( 'KE_Scanner_Password' ) ? KE_Scanner_Password::get_request_ip() : '0.0.0.0';
         $rl_key = 'ke_wl_rl_' . hash_hmac( 'sha256', $ip, wp_salt( 'auth' ) );
         $count  = (int) get_transient( $rl_key );
@@ -932,24 +949,23 @@ class KE_Rest_API {
         }
         set_transient( $rl_key, $count + 1, MINUTE_IN_SECONDS );
 
+        $ev_key   = 'ke_wl_rl_ev_' . $event_id;
+        $ev_count = (int) get_transient( $ev_key );
+        if ( $ev_count >= 100 ) {
+            return new WP_Error(
+                'rate_limited',
+                __( 'Hay mucho tráfico en este momento. Intenta de nuevo en un minuto.', 'kiwi-events' ),
+                array( 'status' => 429 )
+            );
+        }
+        set_transient( $ev_key, $ev_count + 1, MINUTE_IN_SECONDS );
+
         $result = KE_Waitlist::join( $event_id, $email, $name, $ip );
         if ( is_wp_error( $result ) ) {
             return $result;
         }
 
-        $labels = KE_Sales_Schedule::labels( $event_id, $cfg );
-
-        return rest_ensure_response( array(
-            'success' => true,
-            'status'  => $result['status'],
-            'message' => $result['status'] === 'already'
-                ? __( 'Ya estabas en la lista — te avisaremos por correo.', 'kiwi-events' )
-                : sprintf(
-                    /* translators: %s: formatted date and time when ticket sales open. */
-                    __( '¡Listo! Te avisaremos por correo cuando abran los boletos (%s).', 'kiwi-events' ),
-                    $labels['full']
-                ),
-        ) );
+        return rest_ensure_response( array( 'success' => true, 'message' => $confirm ) );
     }
 
     public function process_checkout( WP_REST_Request $request ) {
@@ -1035,6 +1051,20 @@ class KE_Rest_API {
 
         if ( ! $ticket_type ) {
             return new WP_Error( 'invalid_ticket', 'Ticket type not found.', array( 'status' => 404 ) );
+        }
+
+        // The event id arrives on the wire; the ticket type row is the
+        // authority on which event it belongs to. Without this check a
+        // crafted request could name event A (no restrictions) while buying
+        // a ticket type that belongs to event B — every per-event rule below
+        // and downstream (sales window, order + ticket rows) would then be
+        // evaluated against the wrong event.
+        if ( (int) $ticket_type->event_id !== $event_id ) {
+            return new WP_Error(
+                'ticket_event_mismatch',
+                'That ticket type does not belong to this event.',
+                array( 'status' => 400 )
+            );
         }
 
         // Scheduled sales opening. Checked BEFORE the paid/free fork so both

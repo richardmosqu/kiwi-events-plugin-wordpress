@@ -107,7 +107,16 @@ class KE_Sales_Schedule {
         $value = trim( (string) ( $value ?? '' ) );
         if ( $value === '' || strpos( $value, '0000-00-00' ) === 0 ) return '';
         $value = str_replace( 'T', ' ', $value );
-        if ( ! preg_match( '/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(:\d{2})?$/', $value ) ) {
+        if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(:\d{2})?$/', $value, $m ) ) {
+            return '';
+        }
+        // The regex only proves the shape. Without this, "2026-02-30 20:00"
+        // would survive and DateTimeImmutable would silently roll it to
+        // March 2 — a sale opening on a day nobody chose.
+        if ( ! checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) {
+            return '';
+        }
+        if ( (int) $m[4] > 23 || (int) $m[5] > 59 ) {
             return '';
         }
         if ( strlen( $value ) === 16 ) {

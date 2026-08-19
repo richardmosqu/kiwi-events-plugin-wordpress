@@ -85,7 +85,10 @@
 
         box.hidden = false;
         tick();
-        timer = setInterval(tick, 1000);
+        // A page that loads already past the opening moment (a stale
+        // edge-cached render — the case this whole block exists for) must not
+        // leave a 1s ticker running behind the re-check loop.
+        if (!expired) timer = setInterval(tick, 1000);
     }
 
     function setCells(cells, d, h, m, s) {
@@ -142,7 +145,7 @@
         if (!form) return;
 
         var input  = form.querySelector('#ke-sg-email');
-        var hp     = form.querySelector('#ke-sg-website');
+        var hp     = form.querySelector('#ke-sg-trap');
         var button = form.querySelector('#ke-sg-submit');
         var msg    = form.querySelector('#ke-sg-msg');
         var busy   = false;
@@ -180,7 +183,7 @@
                 credentials: 'omit',
                 body: JSON.stringify({
                     email: email,
-                    website: hp ? hp.value : ''
+                    ke_hp: hp ? hp.value : ''
                 })
             })
                 .then(function (r) {
@@ -220,9 +223,11 @@
 
     function showMsg(el, kind, text) {
         if (!el) return;
-        el.textContent = text;
+        // Unhide first: a live region that is still `hidden` when its text
+        // changes is not reliably announced by screen readers.
         el.className = 'ke-sg-msg ke-sg-msg--' + (kind === 'ok' ? 'ok' : 'error');
         el.hidden = false;
+        el.textContent = text;
     }
 
     function hideMsg(el) {

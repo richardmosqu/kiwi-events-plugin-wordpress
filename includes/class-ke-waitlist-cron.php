@@ -25,8 +25,16 @@ class KE_Waitlist_Cron {
     /** Seconds between queued messages, matching KE_Promoter_Notifications. */
     const STAGGER_SECS = 2;
 
-    /** Hard ceiling on messages queued per tick, across all events. */
-    const MAX_PER_TICK = 1000;
+    /**
+     * Hard ceiling on messages queued per tick, across all events.
+     *
+     * Deliberately MAX_PER_TICK * STAGGER_SECS ≈ the 300s tick interval: one
+     * tick's staggered sends finish right as the next tick starts, so the
+     * queue drains at a steady ~0.5 msg/s. A larger ceiling would schedule
+     * delay windows that overlap the following ticks and burst well past the
+     * rate the stagger is supposed to guarantee.
+     */
+    const MAX_PER_TICK = 150;
 
     /** Events inspected per tick. Each one costs a post + meta read. */
     const SCAN_LIMIT = 100;
@@ -76,42 +84,72 @@ class KE_Waitlist_Cron {
      * sweeps can never send the same person twice.
      */
     public function run() {
-        $stats = array( 'events' => 0, 'queued' => 0, 'waiting' => 0, 'cancelled' => 0, 'failed' => 0 );
+        $stats = array(
+            'events'    => 0,
+            'queued'    => 0,
+            'waiting'   => 0,
+            'skipped'   => 0,
+            'cancelled' => 0,
+            'failed'    => 0,
+        );
 
         if ( ! class_exists( 'KE_Waitlist' ) || ! class_exists( 'KE_Sales_Schedule' ) ) {
             return $stats;
         }
 
         // Walk the pending events in id order, resuming where the last tick
-        // stopped and wrapping around when the tail is reached. On a site
-        // with more simultaneous pre-sales than SCAN_LIMIT this is what stops
-        // the high-id events from being starved forever.
+        // stopped and wrapping around when the tail is reached. On a site with
+        // more simultaneous pre-sales than SCAN_LIMIT this is what stops the
+        // high-id events from being starved forever.
         $cursor    = (int) get_option( self::CURSOR_OPTION, 0 );
         $event_ids = KE_Waitlist::pending_event_ids( self::SCAN_LIMIT, $cursor );
         if ( empty( $event_ids ) && $cursor > 0 ) {
-            $cursor    = 0;
             $event_ids = KE_Waitlist::pending_event_ids( self::SCAN_LIMIT, 0 );
         }
-        update_option(
-            self::CURSOR_OPTION,
-            count( $event_ids ) < self::SCAN_LIMIT ? 0 : (int) end( $event_ids ),
-            false
-        );
 
-        $sent = 0;
+        $sent      = 0;
+        $last_seen = 0;
+        $walked    = true;
 
         foreach ( $event_ids as $event_id ) {
-            if ( $sent >= self::MAX_PER_TICK ) break;
+            // Out of budget. Leave the cursor on the last event we actually
+            // inspected so the next tick picks up exactly here — advancing
+            // past events this tick never looked at would skip them until the
+            // next full wrap-around.
+            if ( $sent >= self::MAX_PER_TICK ) {
+                $walked = false;
+                break;
+            }
+            $last_seen = $event_id;
 
             $post = get_post( $event_id );
-            if ( ! $post || $post->post_type !== 'ke_event' || $post->post_status === 'trash' ) {
+
+            // Post is gone for good — park the rows so the sweep stops
+            // rescanning an event that will never open.
+            if ( ! $post || $post->post_type !== 'ke_event' ) {
                 $stats['cancelled'] += KE_Waitlist::cancel_pending_for_event( $event_id );
+                continue;
+            }
+
+            // Trash is a SOFT delete in this plugin (DELETE /events/{id} calls
+            // wp_trash_post), so the rows stay pending and recover with the
+            // event instead of being cancelled behind the organizer's back.
+            if ( $post->post_status === 'trash' ) {
+                $stats['skipped']++;
                 continue;
             }
 
             $event_status = get_post_meta( $event_id, '_ke_event_status', true ) ?: 'active';
             if ( $event_status === 'cancelled' ) {
                 $stats['cancelled'] += KE_Waitlist::cancel_pending_for_event( $event_id );
+                continue;
+            }
+
+            // Not public yet: the email's whole point is a link to the event,
+            // and a draft/pending/private permalink 404s for the recipient.
+            // Hold the list until the organizer publishes.
+            if ( $post->post_status !== 'publish' ) {
+                $stats['skipped']++;
                 continue;
             }
 
@@ -126,10 +164,13 @@ class KE_Waitlist_Cron {
             $rows     = KE_Waitlist::get_pending( $event_id, KE_Waitlist::RELEASE_BATCH );
 
             foreach ( $rows as $row ) {
-                if ( $sent >= self::MAX_PER_TICK ) break;
+                if ( $sent >= self::MAX_PER_TICK ) {
+                    $walked = false;
+                    break;
+                }
 
-                // Claim first: if the mail queue throws afterwards we would
-                // rather drop one notification than send it twice.
+                // Claim first: if queueing blows up afterwards we would rather
+                // hand the row back explicitly than risk sending it twice.
                 if ( ! KE_Waitlist::claim( $row->id ) ) {
                     continue;
                 }
@@ -138,23 +179,41 @@ class KE_Waitlist_Cron {
                     'name' => (string) ( $row->name ?? '' ),
                 ) );
 
+                $queued = 0;
                 try {
                     if ( class_exists( 'KE_Email_Queue' ) ) {
-                        KE_Email_Queue::enqueue( 'tickets_on_sale', $row->email, $ctx, $sent * self::STAGGER_SECS );
-                        $stats['queued']++;
+                        $queued = (int) KE_Email_Queue::enqueue( 'tickets_on_sale', $row->email, $ctx, $sent * self::STAGGER_SECS );
                     }
                 } catch ( \Throwable $e ) {
-                    $stats['failed']++;
-                    error_log( 'KiwiEvents waitlist release failed for row ' . (int) $row->id . ': ' . $e->getMessage() );
+                    error_log( 'KiwiEvents waitlist release threw for row ' . (int) $row->id . ': ' . $e->getMessage() );
                 }
-                $sent++;
+
+                if ( $queued > 0 ) {
+                    $stats['queued']++;
+                    $sent++;   // only a real send consumes a stagger slot
+                    continue;
+                }
+
+                // enqueue() returns 0 without throwing (bad address, failed
+                // insert). Give the row back so the next tick retries —
+                // unless the address itself is undeliverable, which no amount
+                // of retrying fixes.
+                $stats['failed']++;
+                if ( is_email( $row->email ) ) {
+                    KE_Waitlist::release_claim( $row->id );
+                }
+                error_log( 'KiwiEvents waitlist release could not queue row ' . (int) $row->id );
             }
         }
 
+        // Wrap only when the whole page was walked AND it was the last page.
+        $next_cursor = ( $walked && count( $event_ids ) < self::SCAN_LIMIT ) ? 0 : $last_seen;
+        update_option( self::CURSOR_OPTION, $next_cursor, false );
+
         if ( $stats['queued'] || $stats['cancelled'] || $stats['failed'] ) {
             error_log( sprintf(
-                'KiwiEvents waitlist sweep: events=%d queued=%d waiting=%d cancelled=%d failed=%d',
-                $stats['events'], $stats['queued'], $stats['waiting'], $stats['cancelled'], $stats['failed']
+                'KiwiEvents waitlist sweep: events=%d queued=%d waiting=%d skipped=%d cancelled=%d failed=%d',
+                $stats['events'], $stats['queued'], $stats['waiting'], $stats['skipped'], $stats['cancelled'], $stats['failed']
             ) );
         }
 
@@ -206,6 +265,7 @@ class KE_Waitlist_Cron {
             . '<p>Events released: ' . (int) $stats['events'] . '</p>'
             . '<p>Emails queued: ' . (int) $stats['queued'] . '</p>'
             . '<p>Events still counting down: ' . (int) $stats['waiting'] . '</p>'
+            . '<p>Events skipped (trashed or not published yet): ' . (int) $stats['skipped'] . '</p>'
             . '<p>Rows parked (event cancelled/deleted): ' . (int) $stats['cancelled'] . '</p>'
             . '<p>Failures: ' . (int) $stats['failed'] . '</p>'
             . '<p><a href="' . esc_url( admin_url( 'admin.php?page=kiwi-events-waitlist' ) ) . '">← Waitlist</a></p>',

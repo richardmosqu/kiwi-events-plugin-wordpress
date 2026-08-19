@@ -97,10 +97,14 @@ $ke_sg_email  = ( $ke_sg_user && $ke_sg_user->ID ) ? $ke_sg_user->user_email : '
                     </button>
                 </div>
 
-                <!-- Honeypot: real people never see it, bots fill everything. -->
+                <!-- Honeypot: real people never see it, bots fill everything.
+                     The field is deliberately NOT called "website"/"url"/"phone"
+                     — browsers autofill those by name heuristic even with
+                     autocomplete="off", and a false positive would silently
+                     drop a real signup. -->
                 <div class="ke-sg-hp" aria-hidden="true">
-                    <label for="ke-sg-website"><?php echo esc_html__( 'Sitio web', 'kiwi-events' ); ?></label>
-                    <input type="text" id="ke-sg-website" name="website" tabindex="-1" autocomplete="off">
+                    <label for="ke-sg-trap"><?php echo esc_html__( 'Déjalo vacío', 'kiwi-events' ); ?></label>
+                    <input type="text" id="ke-sg-trap" name="ke_hp" tabindex="-1" autocomplete="off">
                 </div>
 
                 <p class="ke-sg-msg" id="ke-sg-msg" role="status" aria-live="polite" hidden></p>

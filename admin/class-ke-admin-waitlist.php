@@ -117,15 +117,36 @@ class KE_Admin_Waitlist {
 
         foreach ( $rows as $r ) {
             fputcsv( $output, array(
-                (string) $r->email,
-                (string) ( $r->name ?? '' ),
-                (string) ( $r->event_title ?? '' ),
-                (string) $r->status,
+                self::csv_cell( $r->email ),
+                self::csv_cell( $r->name ?? '' ),
+                self::csv_cell( $r->event_title ?? '' ),
+                self::csv_cell( $r->status ),
                 (string) $r->created_at,
                 (string) ( $r->notified_at ?? '' ),
             ) );
         }
         fclose( $output );
         exit;
+    }
+
+    /**
+     * Neutralise spreadsheet formula injection.
+     *
+     * The name and email columns come from an unauthenticated public form, so
+     * an anonymous visitor controls the first character of a cell an admin
+     * later opens in Excel or Sheets — where a leading =, +, -, @ (or a
+     * control character) is evaluated as a formula. Prefixing with an
+     * apostrophe forces the cell to be read as text; the value itself is
+     * unchanged for anything that parses the CSV programmatically.
+     */
+    private static function csv_cell( $value ) {
+        $value = (string) $value;
+        if ( $value === '' ) {
+            return $value;
+        }
+        if ( strpos( "=+-@\t\r", $value[0] ) !== false ) {
+            return "'" . $value;
+        }
+        return $value;
     }
 }

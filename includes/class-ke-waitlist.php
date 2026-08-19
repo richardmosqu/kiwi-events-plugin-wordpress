@@ -81,8 +81,8 @@ class KE_Waitlist {
             "INSERT INTO {$table} ( event_id, email, name, status, ip_hash, created_at )
              VALUES ( %d, %s, %s, %s, %s, %s )
              ON DUPLICATE KEY UPDATE
-                name       = VALUES(name),
-                status     = %s,
+                name        = IF( VALUES(name) = '', name, VALUES(name) ),
+                status      = %s,
                 notified_at = NULL",
             $event_id,
             $email,
@@ -124,6 +124,25 @@ class KE_Waitlist {
             self::STATUS_PENDING
         ) );
         return (int) $rows === 1;
+    }
+
+    /**
+     * Hand a claimed row back to the pending pool.
+     *
+     * Used when the mail never actually got queued: the claim already burned
+     * the row, and the sweep only ever re-reads pending rows, so without this
+     * a transient queue failure would silently drop somebody's notification
+     * forever.
+     */
+    public static function release_claim( $row_id ) {
+        global $wpdb;
+        $table = self::table();
+        return (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table} SET status = %s, notified_at = NULL WHERE id = %d AND status = %s",
+            self::STATUS_PENDING,
+            (int) $row_id,
+            self::STATUS_NOTIFIED
+        ) ) === 1;
     }
 
     /** Park every pending row for an event (deleted / cancelled events). */

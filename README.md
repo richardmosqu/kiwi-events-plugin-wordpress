@@ -377,6 +377,7 @@ Then in wp-admin → Plugins → Add New → Upload Plugin, choose the ZIP and *
 - **Scheduled ticket sales**: per-event opening date/time with its own timezone, configured in the event builder (step 3 → *Venta programada*). Stored in `_ke_event_sales_schedule` and owned by `KE_Sales_Schedule`.
 - **Waitlist**: public email capture on the pre-sale notice (`wp_ke_waitlist`), a 5-minute release sweep (`KE_Waitlist_Cron`, hook `ke_waitlist_release_sweep`), the `tickets_on_sale` email template, and a read-only **Waitlist** admin page with CSV export.
 - Purchase gating added to all three choke points: free checkout, `KE_WooCommerce::add_to_cart()`, and `woocommerce_check_cart_items`.
+- `POST /checkout` now rejects a ticket type that does not belong to the posted `event_id` (`ticket_event_mismatch`). The request body used to decide every per-event rule; the ticket-type row is the authority.
 - `KE_DB_VERSION` → 2.7.0 (creates `wp_ke_waitlist`).
 
 ### 2.2.0
