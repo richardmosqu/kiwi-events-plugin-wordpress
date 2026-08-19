@@ -221,6 +221,72 @@ class KE_WooCommerce {
     }
 
     /**
+     * Mirror a ticket type's remaining capacity onto its WooCommerce product.
+     *
+     * The KiwiEvents counter stays the source of truth; WooCommerce stock is a
+     * mirror of `quantity_total - quantity_sold`, re-synced (absolutely, never
+     * by increments) every time that counter moves. Because the value is
+     * absolute it cannot drift out of step with WooCommerce's own stock
+     * reduction at payment: both end up describing the same remaining seats.
+     *
+     * What this buys is the missing piece of the oversell: capacity used to be
+     * checked once at add-to-cart against a counter that only advanced at
+     * payment, so every buyer in flight during the gateway round trip saw the
+     * same free seats. WooCommerce's reservation covers exactly that window.
+     *
+     * An unlimited ticket type turns stock management back off.
+     */
+    public static function sync_product_stock( $ticket_type, $event_id = 0 ) {
+        if ( ! function_exists( 'wc_get_product' ) ) {
+            return;
+        }
+        if ( is_numeric( $ticket_type ) ) {
+            $handler     = new KE_Ticket_Types();
+            $ticket_type = $handler->get( (int) $ticket_type );
+        }
+        if ( ! $ticket_type || empty( $ticket_type->id ) ) {
+            return;
+        }
+        $event_id = (int) ( $event_id ?: ( $ticket_type->event_id ?? 0 ) );
+        if ( $event_id <= 0 ) {
+            return;
+        }
+
+        $product_id = (int) get_post_meta( $event_id, '_ke_wc_product_' . $ticket_type->id, true );
+        if ( $product_id <= 0 ) {
+            return; // No product yet — creation will set the stock itself.
+        }
+        $product = wc_get_product( $product_id );
+        if ( ! $product ) {
+            return;
+        }
+
+        if ( ( $ticket_type->capacity_type ?? 'limited' ) === 'unlimited' ) {
+            if ( $product->get_manage_stock() ) {
+                $product->set_manage_stock( false );
+                $product->save();
+            }
+            return;
+        }
+
+        $remaining = max( 0, (int) $ticket_type->quantity_total - (int) $ticket_type->quantity_sold );
+
+        // Nothing to write when the product already agrees — this runs on
+        // every sale, so avoid a pointless save.
+        if ( $product->get_manage_stock()
+            && (int) $product->get_stock_quantity() === $remaining
+            && $product->get_backorders() === 'no' ) {
+            return;
+        }
+
+        $product->set_manage_stock( true );
+        $product->set_backorders( 'no' );
+        $product->set_stock_quantity( $remaining );
+        $product->set_stock_status( $remaining > 0 ? 'instock' : 'outofstock' );
+        $product->save();
+    }
+
+    /**
      * Get or create a virtual WooCommerce product for a ticket type.
      * Product price = base ticket price + service fee so WooCommerce
      * charges the correct total without any double-counting.
@@ -242,6 +308,10 @@ class KE_WooCommerce {
                 $product->set_regular_price( $base_price );
                 $product->save();
             }
+            // Products created before stock management was introduced have
+            // manage_stock off and would still oversell, so bring them in line
+            // here rather than requiring a manual re-save of every event.
+            self::sync_product_stock( $ticket_type, $event_id );
             return $existing_product_id;
         }
 
@@ -255,7 +325,13 @@ class KE_WooCommerce {
         $product->set_regular_price( $base_price );
         $product->set_virtual( true );
         $product->set_sold_individually( false );
-        $product->set_manage_stock( false );
+        // Stock management is what actually stops an oversell. WooCommerce
+        // reserves stock for the duration of checkout (wp_wc_reserved_stock,
+        // held for the "Hold stock (minutes)" setting) and refuses the buyer
+        // who arrives once the seats are spoken for — which is precisely the
+        // gap the KE counter cannot cover, because it only moves once payment
+        // completes. See sync_product_stock() for the mirroring rule.
+        $product->set_backorders( 'no' );
         $product->set_description( 'Ticket for ' . $event_title );
         $product->set_short_description( $ticket_type->name . ' — ' . $event_title );
 
@@ -273,6 +349,9 @@ class KE_WooCommerce {
 
         // Store the mapping
         update_post_meta( $event_id, '_ke_wc_product_' . $ticket_type->id, $product_id );
+
+        // Seed the stock now that the mapping exists.
+        self::sync_product_stock( $ticket_type, $event_id );
         update_post_meta( $product_id, '_ke_event_id', $event_id );
         update_post_meta( $product_id, '_ke_ticket_type_id', $ticket_type->id );
 

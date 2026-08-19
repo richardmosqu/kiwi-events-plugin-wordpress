@@ -1139,9 +1139,24 @@ class KE_Rest_API {
             return new WP_Error( 'limit_exceeded', $can_purchase->get_error_message(), array( 'status' => 400 ) );
         }
 
+        // Serialise "is there room?" with "issue the tickets".
+        //
+        // Read and write used to be several statements apart with nothing in
+        // between: the counter only moves inside generate(), so two free
+        // checkouts landing together both saw the same remaining count and
+        // both succeeded. The paid path is covered by WooCommerce's stock
+        // reservation; this is the free path's equivalent. Released on every
+        // exit below, and MySQL drops it anyway if the request dies.
+        $ke_cap_lock = 'ke_capacity_' . (int) $ticket_type_id;
+        $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT GET_LOCK(%s, %d)', $ke_cap_lock, 5 ) );
+        $ke_release_lock = static function () use ( $ke_cap_lock ) {
+            $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT RELEASE_LOCK(%s)', $ke_cap_lock ) );
+        };
+
         // Check availability
         $remaining = $ticket_types->get_remaining( $ticket_type_id );
         if ( $quantity > $remaining ) {
+            $ke_release_lock();
             return new WP_Error( 'sold_out', 'Not enough tickets available.', array( 'status' => 400 ) );
         }
 
@@ -1158,6 +1173,7 @@ class KE_Rest_API {
         ) );
 
         if ( is_wp_error( $order_result ) ) {
+            $ke_release_lock();
             return new WP_Error( 'order_failed', 'Could not create order.', array( 'status' => 500 ) );
         }
 
@@ -1168,6 +1184,9 @@ class KE_Rest_API {
             $ticket_type_id,
             $attendees
         );
+
+        // The counter has moved by now, so the next contender reads the truth.
+        $ke_release_lock();
 
         if ( is_wp_error( $ticket_ids ) ) {
             return new WP_Error( 'ticket_failed', 'Could not generate tickets.', array( 'status' => 500 ) );
