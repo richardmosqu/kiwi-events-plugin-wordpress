@@ -662,6 +662,31 @@ class KE_WooCommerce {
     public function handle_order_cancelled( $wc_order_id ) {
         global $wpdb;
 
+        // NEVER void the tickets of somebody who actually paid.
+        //
+        // The Yappy gateway's callback handler cancels unconditionally —
+        // `elseif ('C' == $status || 'R' == $status) { $order->update_status('cancelled'); }`
+        // with no check for an order it already approved and no idempotency.
+        // A late or duplicate C/R callback from Banco General therefore
+        // cancels a paid order hours after the fact, which is exactly the
+        // "Pedido cancelado" mystery. Rolling tickets back on that signal
+        // would turn a bogus status change into a real loss of access for a
+        // paying customer, so a captured payment vetoes the rollback and asks
+        // a human to look instead.
+        $order = wc_get_order( $wc_order_id );
+        if ( $order ) {
+            $paid = $order->get_date_paid()
+                 || $order->get_transaction_id()
+                 || $order->get_meta( 'confirmationNumber' );
+            if ( $paid ) {
+                error_log( sprintf(
+                    'KiwiEvents: WC order %d was cancelled but carries a payment — tickets left VALID on purpose. Review this order manually.',
+                    (int) $wc_order_id
+                ) );
+                return;
+            }
+        }
+
         $orders_table  = $wpdb->prefix . 'ke_orders';
         $tickets_table = $wpdb->prefix . 'ke_tickets';
 
