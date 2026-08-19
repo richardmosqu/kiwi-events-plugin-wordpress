@@ -50,6 +50,14 @@ Ticket types carry a price, a quota and an active/inactive flag. Every individua
 - Ticket PDFs built with TCPDF, with the QR embedded.
 - Resend, cancel, or bulk-update tickets from the attendees screen.
 
+### Scheduled ticket sales & waitlist
+Each event can declare **when its ticket sales open** — a date, a time, and the **timezone that time is written in** (defaults to the event timezone, then the site timezone). Until that moment the public event page replaces the whole purchase block with a large *"Boletos disponibles a partir del (día) (hora)"* notice and a live countdown.
+
+- Visitors can leave their email to be notified. When the moment arrives, a cron sweep queues one *"ya están a la venta"* email per person with a link straight to the event.
+- The gate is enforced on all three purchase paths — free checkout, WooCommerce add-to-cart, and the cart re-validation before payment — so the notice is never merely cosmetic.
+- Sign-ups are deduped by a unique `(event, email)` index, rate-limited per IP, and protected by a honeypot field. They are listed and exportable from **Kiwi Events → Waitlist**.
+- The open/closed decision is computed at render time, never from cron, so tickets appear on their own the first time the page is built after the opening moment. The countdown re-checks the server before reloading, so an edge-cached page can't strand a buyer.
+
 ### Customer ticket wallet
 The `[kiwi_tickets_purchase]` shortcode renders a logged-in user's tickets grouped by event across **Upcoming / Past / Cancelled** tabs, with a QR modal and a per-ticket PDF download. The PDF endpoint re-verifies ownership against `wp_ke_orders.user_id` on the server — the nonce establishes identity, never authorization.
 
@@ -188,6 +196,7 @@ These rely on rewrite rules. `register_post_type()` only adds rules in memory �
 | `wp_ke_orders` | Orders, including `user_id` — the authorization source of truth |
 | `wp_ke_tickets` | One row per individual ticket (unique code, status, check-in) |
 | `wp_ke_reservations` | Group/table reservations |
+| `wp_ke_waitlist` | Ticket-sales waitlist sign-ups (unique index per event+email) |
 | `wp_ke_event_slug_history` | Previous slugs, powering 301 redirects |
 | `wp_ke_email_log` | Email queue and send log |
 | `wp_ke_board_likes` | Board likes (unique index per user+post) |
@@ -219,6 +228,8 @@ GET    /events/{id}/checkin-stats
 POST   /events/{id}/ticket-types/{type_id}/toggle-active
 GET    /calendar-events
 POST   /checkout
+GET    /events/{id}/sale-status      # public: is the scheduled sale open yet
+POST   /events/{id}/waitlist         # public: join the waitlist (rate-limited)
 GET    /tickets/{id}
 POST   /tickets/{id}/update-status
 POST   /tickets/{id}/resend-email
@@ -311,6 +322,7 @@ vendor/                  Composer dependencies (TCPDF, php-qrcode) — deployed
 | `KE_PORTAL_ASSETS_VER` | Promoter portal |
 | `KE_WALLET_ASSETS_VER` | Customer ticket wallet |
 | `KE_BOARD_ASSETS_VER` | Community board |
+| `KE_WAITLIST_ASSETS_VER` | Scheduled-sales notice + waitlist form |
 | `KE_REWRITE_VERSION` | Rewrite rules (triggers a one-time flush) |
 
 There is also `KE_PROMOTER_DEBUG` — diagnostic logging for promoter attribution. Flip it to `true` **only** while investigating a missing-commission report; while enabled it leaves a banner in wp-admin so it can't be forgotten.
@@ -360,6 +372,12 @@ Then in wp-admin → Plugins → Add New → Upload Plugin, choose the ZIP and *
 ---
 
 ## Changelog
+
+### Unreleased
+- **Scheduled ticket sales**: per-event opening date/time with its own timezone, configured in the event builder (step 3 → *Venta programada*). Stored in `_ke_event_sales_schedule` and owned by `KE_Sales_Schedule`.
+- **Waitlist**: public email capture on the pre-sale notice (`wp_ke_waitlist`), a 5-minute release sweep (`KE_Waitlist_Cron`, hook `ke_waitlist_release_sweep`), the `tickets_on_sale` email template, and a read-only **Waitlist** admin page with CSV export.
+- Purchase gating added to all three choke points: free checkout, `KE_WooCommerce::add_to_cart()`, and `woocommerce_check_cart_items`.
+- `KE_DB_VERSION` → 2.7.0 (creates `wp_ke_waitlist`).
 
 ### 2.2.0
 - **Birthday extras** reworked as an event extras widget (previously a step-3 CTA plus modal), rendering directly below the tickets.

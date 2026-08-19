@@ -507,11 +507,23 @@ $allowed_iframe = array(
         // publish an info-only event page without the booking area looking
         // like a missing/broken section.
         $has_tickets      = ! empty( $types );
-        $has_booking_area = $has_tickets || $resv_active;
+
+        // Scheduled ticket sales: while the configured opening moment is still
+        // in the future the whole purchase block is replaced by the
+        // "Boletos disponibles a partir de …" notice + waitlist form. The
+        // check runs at render time (never from cron) so the tickets appear on
+        // their own the first time the page is built after the moment passes.
+        // Reservations are deliberately NOT gated by this — an event can take
+        // table bookings while ticket sales are still pending.
+        $sales_pending    = class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $event_id );
+        $has_booking_area = $has_tickets || $resv_active || $sales_pending;
         ?>
 
         <!-- TICKETS (first — primary interaction) -->
-        <?php if ( $has_tickets && $status === 'active' ) : ?>
+        <?php if ( $sales_pending && $status === 'active' ) : ?>
+            <?php include KE_PLUGIN_DIR . 'public/views/sales-waitlist.php'; ?>
+
+        <?php elseif ( $has_tickets && $status === 'active' ) : ?>
             <div class="ke-content-section" id="ke-tickets-section">
                 <p class="ke-section-label">Tickets</p>
                 <h2 class="ke-section-title">Choose Your Ticket</h2>

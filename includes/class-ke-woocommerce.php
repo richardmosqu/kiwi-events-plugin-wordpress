@@ -153,6 +153,13 @@ class KE_WooCommerce {
             return new WP_Error( 'sold_out', 'Not enough tickets available.' );
         }
 
+        // Event-level scheduled opening. Mirrors the free-checkout guard in
+        // KE_Rest_API::_do_checkout so a crafted add-to-cart can't jump the
+        // queue while the public page still shows the countdown.
+        if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $event_id ) ) {
+            return new WP_Error( 'sales_not_open', KE_Sales_Schedule::closed_message( $event_id ) );
+        }
+
         // Per-ticket-type sales cutoff. Independent of stock — a ticket type
         // with capacity left but a past sale_end is still closed.
         if ( KE_Ticket_Types::is_sales_closed( $ticket_type ) ) {
@@ -313,8 +320,9 @@ class KE_WooCommerce {
             return;
         }
 
-        $tt_handler = null;
-        $seen       = array();
+        $tt_handler  = null;
+        $seen        = array();
+        $seen_events = array();
         foreach ( WC()->cart->get_cart() as $cart_item ) {
             $tt_id = isset( $cart_item['ke_ticket_type_id'] ) ? (int) $cart_item['ke_ticket_type_id'] : 0;
             if ( $tt_id <= 0 || isset( $seen[ $tt_id ] ) ) continue;
@@ -329,6 +337,17 @@ class KE_WooCommerce {
                     sprintf( __( 'Las ventas para %s ya cerraron.', 'kiwi-events' ), $tt->name ),
                     'error'
                 );
+            }
+
+            // Same re-check for a scheduled opening: a cart built before the
+            // schedule was pushed back must not survive to payment. Deduped
+            // per event so a cart with several types of one event only
+            // produces one notice.
+            $ev_id = $tt ? (int) $tt->event_id : (int) ( $cart_item['ke_event_id'] ?? 0 );
+            if ( $ev_id > 0 && ! isset( $seen_events[ $ev_id ] )
+                && class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $ev_id ) ) {
+                $seen_events[ $ev_id ] = true;
+                wc_add_notice( KE_Sales_Schedule::closed_message( $ev_id ), 'error' );
             }
         }
     }

@@ -834,8 +834,33 @@ jQuery(document).ready(function ($) {
             extras:                collectExtras(),
             extra_fields:          collectExtraFields(),
             reservations:          collectReservations(),
+            sales_schedule:        collectSalesSchedule(),
             promoter_assignments:  collectPromoterAssignments(),
             promoter_terms:        collectPromoterTerms(),
+        };
+    }
+
+    /**
+     * Scheduled ticket sales ("venta programada"). Returns null when the
+     * section isn't in the DOM so save_event() skips the key entirely and an
+     * older builder markup can never wipe a saved schedule.
+     *
+     * open_at is sent as the raw datetime-local string ("Y-m-dTH:i"); the
+     * timezone travels beside it and KE_Sales_Schedule owns all parsing —
+     * the browser's own timezone is deliberately never involved.
+     */
+    function collectSalesSchedule() {
+        var $enabled = $('#ke-sales-enabled');
+        if (!$enabled.length) return null;
+
+        var openAt = ($('#ke-sales-open-at').val() || '').trim();
+
+        return {
+            enabled:          $enabled.is(':checked') && openAt !== '',
+            open_at:          openAt,
+            timezone:         $('#ke-sales-timezone').val() || '',
+            waitlist_enabled: $('#ke-sales-waitlist').is(':checked') ? 1 : 0,
+            note:             ($('#ke-sales-note').val() || '').trim(),
         };
     }
 

@@ -23,6 +23,9 @@ class KE_Activator {
         if ( class_exists( 'KE_Reservations_Cron' ) ) {
             KE_Reservations_Cron::activate();
         }
+        if ( class_exists( 'KE_Waitlist_Cron' ) ) {
+            KE_Waitlist_Cron::activate();
+        }
     }
 
     /**
@@ -322,6 +325,29 @@ class KE_Activator {
             KEY post_id (post_id)
         ) $charset_collate;";
 
+        // ── Ticket-sales waitlist ───────────────────────────────────
+        //   ke_waitlist — one row per (event, email) for people who asked to
+        //   be notified when a scheduled ticket sale opens. The UNIQUE KEY is
+        //   the real double-signup guard (KE_Waitlist::join relies on it for
+        //   its ON DUPLICATE KEY UPDATE); the email prefix keeps the index
+        //   under InnoDB's key length limit on utf8mb4 installs.
+        $table_waitlist = $wpdb->prefix . 'ke_waitlist';
+        $sql_waitlist = "CREATE TABLE $table_waitlist (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            event_id bigint(20) unsigned NOT NULL,
+            email varchar(255) NOT NULL DEFAULT '',
+            name varchar(120) NOT NULL DEFAULT '',
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            ip_hash varchar(64) NOT NULL DEFAULT '',
+            notified_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY unique_signup (event_id, email(190)),
+            KEY event_id (event_id),
+            KEY status (status),
+            KEY ke_event_status (event_id, status)
+        ) $charset_collate;";
+
         dbDelta( $sql_ticket_types );
         dbDelta( $sql_orders );
         dbDelta( $sql_tickets );
@@ -336,6 +362,7 @@ class KE_Activator {
         dbDelta( $sql_promoter_admin_audit );
         dbDelta( $sql_email_log );
         dbDelta( $sql_board_likes );
+        dbDelta( $sql_waitlist );
 
         // Belt-and-suspenders migration: dbDelta can miss column additions
         // in some edge cases, so add is_archived explicitly if missing.

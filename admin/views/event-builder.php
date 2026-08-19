@@ -85,6 +85,20 @@ $reservations_cfg  = ( $event_id > 0 && class_exists( 'KE_Reservations' ) )
     : ( class_exists( 'KE_Reservations' ) ? KE_Reservations::default_config() : array( 'enabled' => false ) );
 $reservations_json = wp_json_encode( $reservations_cfg );
 
+// Scheduled ticket sales ("la venta abre el día X") + waitlist. Same shape
+// contract as reservations: KE_Sales_Schedule owns the defaults so the
+// builder JS hydrates a clean form for events that never scheduled a sale.
+$sales_cfg  = ( class_exists( 'KE_Sales_Schedule' ) )
+    ? ( $event_id > 0 ? KE_Sales_Schedule::get_config( $event_id ) : KE_Sales_Schedule::default_config() )
+    : array( 'enabled' => false, 'open_at' => '', 'timezone' => '', 'waitlist_enabled' => true, 'note' => '' );
+$sales_json = wp_json_encode( $sales_cfg );
+
+// Live signup count, so the organizer can see the list filling up without
+// leaving the builder.
+$sales_waitlist_count = ( $event_id > 0 && class_exists( 'KE_Waitlist' ) )
+    ? KE_Waitlist::count_for_event( $event_id, '' )
+    : 0;
+
 $extras_json = '[]';
 if ( $event_id > 0 ) {
     $extras_raw = get_post_meta( $event_id, '_ke_event_extras', true );
@@ -1086,6 +1100,84 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
 
             <div class="ke-divider"></div>
 
+            <!-- ══ Scheduled ticket sales (venta programada) ══ -->
+            <div class="ke-sched-section">
+                <div class="ke-resv-header">
+                    <h3 class="ke-section-title">🕒 Venta programada</h3>
+                    <label class="ke-resv-toggle-wrap">
+                        <input type="checkbox" id="ke-sales-enabled" <?php checked( ! empty( $sales_cfg['enabled'] ) ); ?>>
+                        <span>Programar cuándo se habilitan los boletos</span>
+                    </label>
+                </div>
+
+                <p class="ke-hint">
+                    Mientras la venta no abre, la página del evento muestra en grande
+                    “Boletos disponibles a partir del (día) (hora)” con cuenta regresiva,
+                    en lugar de los boletos. Quien quiera, deja su correo y recibe un aviso
+                    con el enlace del evento apenas abra la venta.
+                </p>
+
+                <div id="ke-sales-body"<?php echo ! empty( $sales_cfg['enabled'] ) ? ' class="is-open"' : ''; ?>>
+
+                    <div class="ke-form-row">
+                        <div class="ke-form-group">
+                            <label class="ke-label" for="ke-sales-open-at">Los boletos se habilitan el</label>
+                            <input type="datetime-local" id="ke-sales-open-at" class="ke-input"
+                                   value="<?php echo esc_attr( class_exists( 'KE_Sales_Schedule' ) ? KE_Sales_Schedule::format_for_input( $sales_cfg['open_at'] ?? '' ) : '' ); ?>">
+                            <p class="ke-hint">Fecha y hora exactas en que los boletos quedan a la venta.</p>
+                        </div>
+                        <div class="ke-form-group">
+                            <label class="ke-label" for="ke-sales-timezone">Zona horaria de esa hora</label>
+                            <?php
+                            // Falls back to the event timezone (step 1), then the site
+                            // timezone — the same order KE_Sales_Schedule::timezone_for uses.
+                            $sales_tz_selected = $sales_cfg['timezone'] ?? '';
+                            if ( $sales_tz_selected === '' ) {
+                                $sales_tz_selected = $timezone;
+                            }
+                            ?>
+                            <select id="ke-sales-timezone" class="ke-select">
+                                <?php foreach ( timezone_identifiers_list() as $tz ) : ?>
+                                    <option value="<?php echo esc_attr( $tz ); ?>" <?php selected( $sales_tz_selected, $tz ); ?>>
+                                        <?php echo esc_html( str_replace( '_', ' ', $tz ) ); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="ke-hint">La hora de la izquierda se interpreta en esta zona horaria, sin importar la zona del sitio.</p>
+                        </div>
+                    </div>
+
+                    <div class="ke-form-group">
+                        <label class="ke-resv-check">
+                            <input type="checkbox" id="ke-sales-waitlist" <?php checked( ! isset( $sales_cfg['waitlist_enabled'] ) || ! empty( $sales_cfg['waitlist_enabled'] ) ); ?>>
+                            <span>Permitir que dejen su correo para avisarles (lista de espera)</span>
+                        </label>
+                        <p class="ke-hint">
+                            El aviso sale automáticamente cuando llega la fecha y hora, con el enlace para comprar.
+                            <?php if ( $event_id > 0 ) : ?>
+                                <a href="<?php echo esc_url( admin_url( 'admin.php?page=kiwi-events-waitlist&event_id=' . $event_id ) ); ?>">Ver la lista de este evento</a>.
+                            <?php endif; ?>
+                        </p>
+                        <?php if ( $sales_waitlist_count > 0 ) : ?>
+                            <p class="ke-hint"><strong><?php echo (int) $sales_waitlist_count; ?></strong> persona(s) esperando el aviso.</p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="ke-form-group">
+                        <label class="ke-label" for="ke-sales-note">Mensaje adicional (opcional)</label>
+                        <textarea id="ke-sales-note" class="ke-input" rows="2"
+                                  placeholder="Ej: Preventa exclusiva para estudiantes. Trae tu carné."><?php echo esc_textarea( $sales_cfg['note'] ?? '' ); ?></textarea>
+                        <p class="ke-hint">Se muestra debajo de la fecha en el aviso público.</p>
+                    </div>
+
+                    <div class="ke-resv-info-card">
+                        💡 Esto no reemplaza el “Cierre de venta” de cada boleto: aquí decides cuándo <strong>abre</strong> la venta del evento completo; el cierre sigue siendo por tipo de boleto.
+                    </div>
+                </div>
+            </div>
+
+            <div class="ke-divider"></div>
+
             <!-- Template loader bar (shown when organizer has templates) -->
             <div id="ke-tpl-loader-bar" class="ke-tpl-loader-bar" style="display:none">
                 <div class="ke-tpl-loader-bar-left">
@@ -1488,6 +1580,7 @@ window.keExistingTickets    = <?php echo $tickets_json; ?>;
 window.keExistingExtras     = <?php echo $extras_json; ?>;
 window.keExistingExtraFields = <?php echo $extra_fields_json; ?>;
 window.keExistingReservations = <?php echo $reservations_json; ?>;
+window.keExistingSalesSchedule = <?php echo $sales_json; ?>;
 window.keServiceFees        = <?php echo $fees_json; ?>;
 </script>
 
@@ -1514,6 +1607,32 @@ window.keServiceFees        = <?php echo $fees_json; ?>;
         } catch (e) {
             if (window.console && console.error) {
                 console.error('KiwiEvents: reservations toggle init failed', e);
+            }
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+
+// Defensive vanilla-JS toggle for the scheduled-sales panel.
+// Same rationale as the reservations toggle above: an error earlier in
+// ke-event-builder.js would otherwise leave this checkbox inert.
+(function () {
+    function init() {
+        try {
+            var toggle = document.getElementById('ke-sales-enabled');
+            var panel  = document.getElementById('ke-sales-body');
+            if (!toggle || !panel) return;
+            panel.classList.toggle('is-open', !!toggle.checked);
+            toggle.addEventListener('change', function () {
+                panel.classList.toggle('is-open', !!toggle.checked);
+            });
+        } catch (e) {
+            if (window.console && console.error) {
+                console.error('KiwiEvents: sales schedule toggle init failed', e);
             }
         }
     }

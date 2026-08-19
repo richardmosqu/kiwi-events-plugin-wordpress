@@ -27,7 +27,7 @@ define( 'KE_VERSION', '2.2.0' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-define( 'KE_DB_VERSION', '2.6.0' );
+define( 'KE_DB_VERSION', '2.7.0' );
 
 // Diagnostic logging for promoter attribution. Flip to true ONLY while
 // debugging a missing-commission report; leaves a banner in wp-admin while
@@ -43,7 +43,7 @@ define( 'KE_SCANNER_ASSETS_VER', '0.10.2' );
 // KE_VERSION moves slowly; the builder assets churn faster, and stale
 // versions on WordPress.com edge cache cause the wizard's step
 // indicators to lose their active/accent styling.
-define( 'KE_BUILDER_ASSETS_VER', '0.12.1' );
+define( 'KE_BUILDER_ASSETS_VER', '0.13.0' );
 
 // Admin design-token stylesheet (Kiwi brand: cream + green + glass).
 // Loads BEFORE every other KE admin CSS so subsequent rules can reference
@@ -79,6 +79,12 @@ define( 'KE_WALLET_ASSETS_VER', '0.1.1' );
 // Bump when either file changes so WordPress.com edge cache picks them up.
 define( 'KE_BOARD_ASSETS_VER', '0.1.1' );
 
+// Cache-bust for the scheduled-sales notice assets (ke-waitlist.css,
+// ke-waitlist.js — the "Boletos disponibles a partir de …" block and its
+// waitlist form). Bump when either file changes so WordPress.com edge cache
+// picks up the new file.
+define( 'KE_WAITLIST_ASSETS_VER', '0.1.0' );
+
 // Rewrite-rules version. register_post_type() only ADDS rules in memory —
 // WordPress persists them on an explicit flush, which normally only happens
 // on plugin activation. Plugin UPDATES never re-run activation, so a new
@@ -104,6 +110,9 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-codes.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-reservations.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-reservations-cron.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-sales-schedule.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-waitlist.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-waitlist-cron.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-event-extra-fields.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-qr-generator.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets-wallet.php';
@@ -138,6 +147,7 @@ require_once KE_PLUGIN_DIR . 'admin/class-ke-admin.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-dashboard.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-attendees.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-reservations.php';
+require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-waitlist.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-ticket-types.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-promoters.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-board.php';
@@ -222,6 +232,13 @@ function kiwi_events_init() {
     // — its constructor only adds filters/actions.
     if ( class_exists( 'KE_Reservations_Cron' ) ) {
         new KE_Reservations_Cron();
+    }
+
+    // Boot the ticket-sales waitlist sweep (registers schedule, cron hook,
+    // and admin-gated manual trigger). Constructor only adds hooks, so it is
+    // safe to instantiate on every load.
+    if ( class_exists( 'KE_Waitlist_Cron' ) ) {
+        new KE_Waitlist_Cron();
     }
 
     // Duplicate-events detector + admin cleanup tool. Hooks the events-list

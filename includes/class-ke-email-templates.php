@@ -29,6 +29,8 @@ class KE_Email_Templates {
                 return self::render_board_submitted_admin( $context );
             case 'board_submitted_user':
                 return self::render_board_submitted_user( $context );
+            case 'tickets_on_sale':
+                return self::render_tickets_on_sale( $context );
         }
         return null;
     }
@@ -108,6 +110,52 @@ class KE_Email_Templates {
         return array(
             'subject' => 'Recibimos tu actividad — ' . sanitize_text_field( $ctx['post_title'] ?? '' ),
             'body'    => self::board_shell( 'Actividad recibida', $inner, 'Recibes este correo porque enviaste una actividad al board de ' . get_bloginfo( 'name' ) . '.' ),
+            'headers' => self::board_headers( false ),
+        );
+    }
+
+    /**
+     * Ticket-sales waitlist release — "the tickets you asked about are on
+     * sale now". Queued by KE_Waitlist_Cron once the event's scheduled
+     * opening moment has passed.
+     *
+     * Context: event_title, event_url, event_date, venue, name, event_id.
+     * Must stay cron-safe: no current-user context, no superglobals.
+     */
+    private static function render_tickets_on_sale( array $ctx ) {
+        $accent = self::accent();
+        $title  = (string) ( $ctx['event_title'] ?? '' );
+        $url    = (string) ( $ctx['event_url'] ?? '' );
+        $date   = (string) ( $ctx['event_date'] ?? '' );
+        $venue  = (string) ( $ctx['venue'] ?? '' );
+        $name   = trim( (string) ( $ctx['name'] ?? '' ) );
+
+        $meta = '';
+        if ( $date !== '' || $venue !== '' ) {
+            $meta = '<table style="border-collapse:collapse; margin:16px 0;">';
+            if ( $date !== '' ) {
+                $meta .= '<tr><td style="padding:4px 12px 4px 0; color:#64748b; font-size:13px; white-space:nowrap;">Fecha</td>'
+                       . '<td style="padding:4px 0; font-size:13px;">' . esc_html( $date ) . '</td></tr>';
+            }
+            if ( $venue !== '' ) {
+                $meta .= '<tr><td style="padding:4px 12px 4px 0; color:#64748b; font-size:13px; white-space:nowrap;">Lugar</td>'
+                       . '<td style="padding:4px 0; font-size:13px;">' . esc_html( $venue ) . '</td></tr>';
+            }
+            $meta .= '</table>';
+        }
+
+        $inner = '<p>' . ( $name !== '' ? 'Hola ' . esc_html( $name ) . ',' : '¡Hola!' ) . '</p>'
+               . '<p>Los boletos para <strong>' . esc_html( $title ) . '</strong> ya están a la venta. '
+               . 'Te avisamos porque pediste que te notificáramos cuando abriera la venta.</p>'
+               . $meta
+               . '<p style="margin-top:18px;"><a href="' . esc_url( $url ) . '" style="display:inline-block; background:' . esc_attr( $accent ) . '; color:#fff; padding:12px 22px; border-radius:8px; text-decoration:none; font-weight:700;">Comprar boletos</a></p>'
+               . '<p style="margin-top:18px; font-size:13px; color:#64748b;">Si el botón no funciona, copia este enlace en tu navegador:<br>'
+               . '<a href="' . esc_url( $url ) . '" style="color:' . esc_attr( $accent ) . '; word-break:break-all;">' . esc_html( $url ) . '</a></p>'
+               . '<p style="font-size:13px; color:#64748b;">La disponibilidad es por orden de compra — te recomendamos no esperar.</p>';
+
+        return array(
+            'subject' => '¡Ya están a la venta! — ' . sanitize_text_field( $title ),
+            'body'    => self::board_shell( 'Boletos disponibles', $inner, 'Recibes este correo porque te uniste a la lista de espera de ' . get_bloginfo( 'name' ) . '.' ),
             'headers' => self::board_headers( false ),
         );
     }
