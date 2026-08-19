@@ -247,13 +247,6 @@ class KE_Sold_Audit {
      *  step fail during the burst? Which orders are cancelled?
      * ────────────────────────────────────────────────────────────── */
 
-    /** True when WooCommerce stores orders in its own tables (HPOS). */
-    private function hpos_table() {
-        global $wpdb;
-        $t = $wpdb->prefix . 'wc_orders';
-        return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) === $t ? $t : '';
-    }
-
     private function analyze_incident( $event_id ) {
         global $wpdb;
         $event_id = (int) $event_id;
@@ -334,29 +327,57 @@ class KE_Sold_Audit {
                     SUM(CASE WHEN qr_code_path IS NULL OR qr_code_path = '' THEN 1 ELSE 0 END) AS no_qr
                FROM {$tk} WHERE event_id = %d", $event_id ) );
 
-        // 7. What WooCommerce thinks of the orders behind these tickets.
-        //    A ticket attached to a cancelled/failed/pending order is a
-        //    customer who may have been told their order was cancelled while
-        //    still holding a valid ticket — and KiwiEvents never hooks
-        //    woocommerce_order_status_cancelled, so nothing rolled back.
-        $hpos = $this->hpos_table();
-        $out['hpos'] = (bool) $hpos;
-        if ( $hpos ) {
-            $out['wc_status'] = $wpdb->get_results( $wpdb->prepare(
-                "SELECT wo.status AS wc_status, COUNT(DISTINCT o.id) AS ke_orders, COUNT(t.id) AS tickets
-                   FROM {$or} o
-                   JOIN {$hpos} wo ON wo.id = o.wc_order_id
-              LEFT JOIN {$tk} t ON t.order_id = o.id
-                  WHERE o.event_id = %d AND o.wc_order_id > 0
-               GROUP BY wo.status ORDER BY tickets DESC", $event_id ) );
-        } else {
-            $out['wc_status'] = $wpdb->get_results( $wpdb->prepare(
-                "SELECT p.post_status AS wc_status, COUNT(DISTINCT o.id) AS ke_orders, COUNT(t.id) AS tickets
-                   FROM {$or} o
-                   JOIN {$wpdb->posts} p ON p.ID = o.wc_order_id
-              LEFT JOIN {$tk} t ON t.order_id = o.id
-                  WHERE o.event_id = %d AND o.wc_order_id > 0
-               GROUP BY p.post_status ORDER BY tickets DESC", $event_id ) );
+        // 7. What WooCommerce thinks of the orders behind these tickets, and
+        //    which of them were cancelled despite carrying a payment.
+        //
+        //    Deliberately via wc_get_order() instead of SQL: WooCommerce keeps
+        //    orders either in the posts tables or in its own (HPOS), the paid
+        //    date lives in a different table again, and guessing wrong here
+        //    would silently report "no problems". The API answers the same in
+        //    both worlds. Bounded to the event's own orders, so the cost is
+        //    the number of orders for one event.
+        $ke_orders = $wpdb->get_results( $wpdb->prepare(
+            "SELECT o.id, o.wc_order_id, o.buyer_name, o.buyer_email,
+                    (SELECT COUNT(*) FROM {$tk} t WHERE t.order_id = o.id) AS tickets
+               FROM {$or} o
+              WHERE o.event_id = %d AND o.wc_order_id > 0
+           ORDER BY o.id DESC
+              LIMIT 500", $event_id ) );
+
+        $status_counts = array();
+        $out['wrongly_cancelled'] = array();
+        $out['hpos'] = class_exists( '\\Automattic\\WooCommerce\\Utilities\\OrderUtil' )
+            && \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
+
+        foreach ( $ke_orders as $row ) {
+            $wc = function_exists( 'wc_get_order' ) ? wc_get_order( (int) $row->wc_order_id ) : null;
+            if ( ! $wc ) {
+                $status_counts['(pedido no encontrado)'] = ( $status_counts['(pedido no encontrado)'] ?? 0 ) + (int) $row->tickets;
+                continue;
+            }
+            $status = $wc->get_status();
+            $status_counts[ $status ] = ( $status_counts[ $status ] ?? 0 ) + (int) $row->tickets;
+
+            if ( in_array( $status, array( 'cancelled', 'failed' ), true ) ) {
+                $paid = $wc->get_date_paid() || $wc->get_transaction_id() || $wc->get_meta( 'confirmationNumber' );
+                if ( $paid ) {
+                    $out['wrongly_cancelled'][] = (object) array(
+                        'wc_order_id' => (int) $row->wc_order_id,
+                        'status'      => $status,
+                        'paid_at'     => $wc->get_date_paid() ? $wc->get_date_paid()->date( 'Y-m-d H:i' ) : '',
+                        'total'       => $wc->get_total(),
+                        'buyer_name'  => (string) $row->buyer_name,
+                        'buyer_email' => (string) $row->buyer_email,
+                        'tickets'     => (int) $row->tickets,
+                    );
+                }
+            }
+        }
+
+        arsort( $status_counts );
+        $out['wc_status'] = array();
+        foreach ( $status_counts as $st => $count ) {
+            $out['wc_status'][] = (object) array( 'wc_status' => $st, 'tickets' => $count );
         }
 
         // 8. Was the scheduled-sales countdown live for this event, and when
@@ -496,19 +517,43 @@ class KE_Sold_Audit {
             }
         }
 
+        /* -- paid but cancelled -- */
+        $wrong = (array) $i['wrongly_cancelled'];
+        echo '<h4 class="kesa-h4">Pedidos cancelados que sí tenían pago</h4>';
+        if ( empty( $wrong ) ) {
+            echo '<p class="kesa-p kesa-ok">Ninguno. No hay pedidos cancelados con pago capturado en este evento.</p>';
+        } else {
+            echo '<p class="kesa-p kesa-badtext">' . count( $wrong ) . ' pedido(s) figuran cancelados aunque tienen el pago capturado. '
+               . 'Son clientes que pagaron: revisa cada uno en Yappy y, si el cobro está bien, devuélvele el pedido a "procesando".</p>';
+            echo '<table class="widefat kesa-table"><thead><tr><th>Pedido</th><th>Estado</th>'
+               . '<th>Pagado</th><th>Total</th><th>Cliente</th><th>Boletos</th></tr></thead><tbody>';
+            foreach ( $wrong as $w ) {
+                printf(
+                    '<tr class="kesa-row-bad"><td>#%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td></tr>',
+                    (int) $w->wc_order_id,
+                    esc_html( (string) $w->status ),
+                    esc_html( (string) ( $w->paid_at ?: '—' ) ),
+                    esc_html( (string) ( $w->total ?: '—' ) ),
+                    esc_html( trim( (string) $w->buyer_name . ' ' . (string) $w->buyer_email ) ),
+                    (int) $w->tickets
+                );
+            }
+            echo '</tbody></table>';
+        }
+
         /* -- WooCommerce statuses -- */
         echo '<h4 class="kesa-h4">WooCommerce status behind these tickets</h4>';
-        echo '<p class="kesa-p kesa-muted">Order storage detected: <code>' . ( $i['hpos'] ? 'HPOS (wc_orders table)' : 'legacy (posts table)' ) . '</code></p>';
+        echo '<p class="kesa-p kesa-muted">Order storage: <code>' . ( $i['hpos'] ? 'HPOS (tablas propias de WooCommerce)' : 'clásico (tabla de posts)' ) . '</code></p>';
         $rows = (array) $i['wc_status'];
         if ( empty( $rows ) ) {
             echo '<p class="kesa-p kesa-muted">No WooCommerce orders linked to this event (free tickets only, or the link is missing).</p>';
         } else {
-            echo '<table class="widefat kesa-table"><thead><tr><th>WC status</th><th>KE orders</th><th>Tickets</th></tr></thead><tbody>';
+            echo '<table class="widefat kesa-table"><thead><tr><th>WC status</th><th>Tickets</th></tr></thead><tbody>';
             foreach ( $rows as $r ) {
-                $bad = in_array( (string) $r->wc_status, array( 'wc-cancelled', 'cancelled', 'wc-failed', 'failed', 'wc-pending', 'pending' ), true );
-                printf( '<tr class="%s"><td>%s</td><td>%d</td><td><strong>%d</strong></td></tr>',
+                $bad = in_array( (string) $r->wc_status, array( 'cancelled', 'failed', 'pending' ), true );
+                printf( '<tr class="%s"><td>%s</td><td><strong>%d</strong></td></tr>',
                     $bad ? 'kesa-row-bad' : '',
-                    esc_html( (string) $r->wc_status ), (int) $r->ke_orders, (int) $r->tickets );
+                    esc_html( (string) $r->wc_status ), (int) $r->tickets );
             }
             echo '</tbody></table>';
             echo '<p class="kesa-p">Tickets sitting behind a <code>cancelled</code> or <code>failed</code> order are still marked valid: '
