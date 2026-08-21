@@ -359,6 +359,108 @@ class KE_Tickets {
     }
 
     /**
+     * Reconcile the two "how many tickets" numbers this plugin shows, for one
+     * event. READ-ONLY: it explains the gap, it never rewrites a counter.
+     *
+     * The events list card reports SUM(ke_ticket_types.quantity_sold) over
+     * non-archived types — a *counter*, moved by +N at sale and -N at
+     * cancellation. The attendees page reports COUNT(*) of ke_tickets rows.
+     * Those are different quantities and they legitimately disagree:
+     *
+     *   - a cancelled ticket decrements the counter but its row stays, so it
+     *     is still counted here          → rows > counter
+     *   - an emergency "Ticket error" row never increments the counter at all
+     *                                    → rows > counter
+     *   - tickets sold under a ticket type that was later archived or deleted
+     *     are excluded from the counter but their rows remain
+     *                                    → rows > counter
+     *   - and genuine counter drift, e.g. an order whose payment hooks ran
+     *     twice before the per-order lock existed
+     *                                    → counter > rows
+     *
+     * Presenting either figure alone as "tickets" is what makes them look
+     * like a bug. Callers render this breakdown so the difference is
+     * attributable instead of mysterious.
+     *
+     * @param int $event_id
+     * @return array
+     */
+    public function sold_reconciliation( $event_id ) {
+        global $wpdb;
+
+        $event_id = absint( $event_id );
+        $types    = $wpdb->prefix . 'ke_ticket_types';
+
+        $rows = $wpdb->get_row( $wpdb->prepare(
+            "SELECT
+                COUNT(*) AS rows_total,
+                COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0) AS rows_cancelled,
+                COALESCE(SUM(CASE WHEN status = 'used'      THEN 1 ELSE 0 END), 0) AS rows_used,
+                COALESCE(SUM(CASE WHEN is_courtesy = 1      THEN 1 ELSE 0 END), 0) AS rows_courtesy,
+                COALESCE(SUM(CASE WHEN is_error = 1         THEN 1 ELSE 0 END), 0) AS rows_error,
+                COALESCE(SUM(
+                    CASE WHEN ticket_type_id NOT IN (
+                        SELECT id FROM {$types}
+                         WHERE event_id = %d AND (is_archived IS NULL OR is_archived = 0)
+                    ) THEN 1 ELSE 0 END
+                ), 0) AS rows_off_counter_type
+             FROM {$this->table_name}
+             WHERE event_id = %d",
+            $event_id,
+            $event_id
+        ) );
+
+        $counter = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COALESCE(SUM(quantity_sold), 0) FROM {$types}
+              WHERE event_id = %d AND (is_archived IS NULL OR is_archived = 0)",
+            $event_id
+        ) );
+
+        $out = array(
+            'counter'               => $counter,
+            'rows_total'           => (int) ( $rows->rows_total            ?? 0 ),
+            'rows_cancelled'       => (int) ( $rows->rows_cancelled        ?? 0 ),
+            'rows_used'            => (int) ( $rows->rows_used             ?? 0 ),
+            'rows_courtesy'        => (int) ( $rows->rows_courtesy         ?? 0 ),
+            'rows_error'           => (int) ( $rows->rows_error            ?? 0 ),
+            'rows_off_counter_type'=> (int) ( $rows->rows_off_counter_type ?? 0 ),
+        );
+
+        // Live = what will actually walk in: not cancelled, not an emergency
+        // repair row. This is the number an organizer means by "attendees".
+        $out['rows_live'] = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->table_name}
+              WHERE event_id = %d AND status != 'cancelled' AND is_error = 0",
+            $event_id
+        ) );
+
+        // Whatever the known causes cannot account for is drift.
+        //
+        // Counted as a UNION, not a sum of the three buckets: a row can be
+        // cancelled AND on an archived type at once, and it still explains
+        // only one unit of the gap. Adding the buckets double-counts it and
+        // reports phantom negative drift.
+        $explained = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->table_name}
+              WHERE event_id = %d
+                AND ( is_error = 1
+                   OR status = 'cancelled'
+                   OR ticket_type_id NOT IN (
+                        SELECT id FROM {$types}
+                         WHERE event_id = %d AND (is_archived IS NULL OR is_archived = 0)
+                      ) )",
+            $event_id,
+            $event_id
+        ) );
+
+        $out['rows_explained'] = $explained;
+        $out['gap']            = $out['rows_total'] - $out['counter'];
+        $out['unexplained']    = $out['gap'] - $explained;
+
+        return $out;
+    }
+
+    /**
      * Validate and check-in a ticket
      */
     public function validate_and_checkin( $ticket_code, $scanner_user_id = 0 ) {

@@ -135,14 +135,86 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
             }
         }
     ?>
-        <!-- Total Attendees counter — its own section card so the figure pops against cream -->
+        <?php
+        // The reconciliation only makes sense against the whole event: with a
+        // filter on, $total counts a subset and comparing it to the event-wide
+        // sold counter would invent a discrepancy.
+        $has_filters = ( $status_filter !== '' || $type_filter || $attendee_type !== '' || $search !== '' );
+        ?>
+        <!-- Head counts. Two numbers used to be shown in two places with no
+             label saying they measure different things: this page counted
+             ke_tickets rows, the events list summed ke_ticket_types
+             .quantity_sold (a counter). They disagree by design — a cancelled
+             ticket keeps its row but gives back its counter unit, an
+             emergency "Ticket error" row never took one — so an unexplained
+             mismatch read as a bug. Each figure now says what it counts. -->
         <div class="ke-section-card ke-section-card--compact">
             <div class="ke-stat-strip">
                 <div class="ke-stat-strip-item">
-                    <div class="ke-stat-strip-label">Total Attendees</div>
+                    <div class="ke-stat-strip-label">
+                        <?php echo $has_filters ? 'Matching this filter' : 'Ticket rows'; ?>
+                    </div>
                     <div class="ke-stat-strip-value"><?php echo intval( $total ); ?></div>
                 </div>
+                <?php if ( $recon && ! $has_filters ) : ?>
+                    <div class="ke-stat-strip-item">
+                        <div class="ke-stat-strip-label" title="Not cancelled, and not an emergency repair ticket — the people who can actually walk in.">
+                            Expected attendees
+                        </div>
+                        <div class="ke-stat-strip-value"><?php echo intval( $recon['rows_live'] ); ?></div>
+                    </div>
+                    <div class="ke-stat-strip-item">
+                        <div class="ke-stat-strip-label" title="SUM(quantity_sold) over non-archived ticket types — the figure the events list card shows.">
+                            Sold counter
+                        </div>
+                        <div class="ke-stat-strip-value"><?php echo intval( $recon['counter'] ); ?></div>
+                    </div>
+                <?php endif; ?>
             </div>
+
+            <?php if ( $recon && ! $has_filters && (int) $recon['gap'] !== 0 ) : ?>
+                <?php
+                // Attribute the gap. Every part of this is read-only: it
+                // explains the difference, it never rewrites a counter.
+                $ke_gap_parts = array();
+                if ( $recon['rows_cancelled'] ) {
+                    $ke_gap_parts[] = sprintf(
+                        '%d cancelled (the row stays, the seat went back)',
+                        (int) $recon['rows_cancelled']
+                    );
+                }
+                if ( $recon['rows_error'] ) {
+                    $ke_gap_parts[] = sprintf(
+                        '%d emergency "Ticket error" (never counted as a sale)',
+                        (int) $recon['rows_error']
+                    );
+                }
+                if ( $recon['rows_off_counter_type'] ) {
+                    $ke_gap_parts[] = sprintf(
+                        '%d on a ticket type that was archived or deleted (outside the counter)',
+                        (int) $recon['rows_off_counter_type']
+                    );
+                }
+                ?>
+                <p class="ke-recon-note">
+                    <strong><?php echo intval( $recon['rows_total'] ); ?></strong> ticket rows vs
+                    <strong><?php echo intval( $recon['counter'] ); ?></strong> on the sold counter
+                    <?php if ( $ke_gap_parts ) : ?>
+                        — <?php echo esc_html( implode( '; ', $ke_gap_parts ) ); ?>.
+                    <?php else : ?>
+                        .
+                    <?php endif; ?>
+                    <?php if ( (int) $recon['unexplained'] !== 0 ) : ?>
+                        <span class="ke-recon-drift">
+                            <?php printf(
+                                /* translators: %d = number of tickets */
+                                esc_html__( '%d unaccounted for — counter drift, not a head count. Run the Sold Audit for this event before trusting either figure.', 'kiwi-events' ),
+                                abs( (int) $recon['unexplained'] )
+                            ); ?>
+                        </span>
+                    <?php endif; ?>
+                </p>
+            <?php endif; ?>
         </div>
 
         <!-- Bulk Actions Bar (shown when rows are selected) -->

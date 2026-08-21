@@ -1213,6 +1213,28 @@
     letter-spacing:     -0.5px;
 }
 
+/* Reconciliation note under the attendee stat strip. Explains why the
+   ke_tickets row count and the ke_ticket_types.quantity_sold counter (what
+   the events list card shows) disagree, instead of leaving the admin to
+   guess which of the two numbers is lying. */
+.ke-recon-note {
+    margin:             -12px 0 20px;
+    padding:            10px 14px;
+    font-size:          12px;
+    line-height:        1.6;
+    color:              var(--ke-text-2);
+    background:         var(--kiwi-surface-muted);
+    border:             1px solid var(--kiwi-border);
+    border-radius:      var(--kiwi-radius-md);
+}
+.ke-recon-note strong { color: var(--ke-text-1); }
+.ke-recon-drift {
+    display:            block;
+    margin-top:         4px;
+    font-weight:        600;
+    color:              var(--kiwi-legacy-red-800);
+}
+
 /* ─── Responsive ─────────────────────────────────────────── */
 @media (max-width: 1200px) {
     .ke-kpi-grid { grid-template-columns: repeat(2, 1fr); }

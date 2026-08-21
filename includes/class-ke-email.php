@@ -105,15 +105,24 @@ class KE_Email {
         $sent = wp_mail( $to, $subject, $body, $headers, $attachments );
         error_log( 'KiwiEvents: wp_mail() result for order ' . $order_id . ': ' . ( $sent ? 'true' : 'false' ) );
 
-        if ( ! $sent ) {
-            return new WP_Error( 'email_failed', 'Failed to send ticket email.' );
-        }
-
-        // Send admin notification
+        // The admin/organizer notification is a separate email to a separate
+        // recipient, so it must not depend on the buyer's send succeeding.
+        // It used to sit AFTER an early `return new WP_Error` on $sent: one
+        // undeliverable buyer address — a typo at checkout, a single recipient
+        // the relay rejects, an attachment the relay bounces — silently took
+        // the admin's copy with it. The sale happened and nobody was told.
+        // Attempt it first, then report the buyer's failure.
         try {
-            $this->send_admin_notification( $order_id );
+            $admin_sent = $this->send_admin_notification( $order_id );
+            if ( ! $admin_sent ) {
+                error_log( 'KiwiEvents: admin notification NOT sent for order ' . $order_id . ' — reason logged above.' );
+            }
         } catch ( \Throwable $e ) {
             error_log( 'KiwiEvents admin notification error for order ' . $order_id . ': ' . $e->getMessage() );
+        }
+
+        if ( ! $sent ) {
+            return new WP_Error( 'email_failed', 'Failed to send ticket email.' );
         }
 
         return true;
@@ -127,9 +136,14 @@ class KE_Email {
      */
     public function send_admin_notification( $order_id ) {
         // Check global setting
+        // Every bail here is logged. This method has six silent exits and it
+        // is the one an organizer asks about ("no me llegó el correo"); an
+        // unexplained `return false` made that unanswerable.
         $settings = get_option( 'ke_notifications_settings', array() );
         $is_enabled = isset( $settings['admin_email_enabled'] ) ? $settings['admin_email_enabled'] : true;
         if ( ! $is_enabled ) {
+            error_log( 'KiwiEvents: admin notification skipped for order ' . $order_id
+                     . ' — admin_email_enabled is off in Settings → Notifications.' );
             return false;
         }
 
@@ -138,16 +152,20 @@ class KE_Email {
 
         $order = $orders_handler->get( $order_id );
         if ( ! $order ) {
+            error_log( 'KiwiEvents: admin notification skipped — KE order ' . $order_id . ' not found.' );
             return false;
         }
 
         $tickets = $tickets_handler->get_by_order( $order_id );
         if ( empty( $tickets ) ) {
+            error_log( 'KiwiEvents: admin notification skipped for order ' . $order_id . ' — it has no tickets.' );
             return false;
         }
 
         $event = get_post( $order->event_id );
         if ( ! $event ) {
+            error_log( 'KiwiEvents: admin notification skipped for order ' . $order_id
+                     . ' — event ' . (int) $order->event_id . ' no longer exists.' );
             return false;
         }
 
@@ -212,6 +230,8 @@ class KE_Email {
         $body = ob_get_clean();
 
         if ( ! $body ) {
+            error_log( 'KiwiEvents: admin notification skipped for order ' . $order_id
+                     . ' — template rendered empty (' . $template_path . ').' );
             return false;
         }
 
@@ -230,7 +250,11 @@ class KE_Email {
             $headers[] = 'Bcc: ' . $bcc;
         }
 
-        return wp_mail( $to, $subject, $body, $headers );
+        $sent = wp_mail( $to, $subject, $body, $headers );
+        error_log( 'KiwiEvents: admin notification for order ' . $order_id . ' to ' . $to
+                 . ' — wp_mail() returned ' . ( $sent ? 'true' : 'false' ) );
+
+        return $sent;
     }
 
     /**

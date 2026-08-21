@@ -55,7 +55,7 @@ define( 'KE_TOKENS_ASSETS_VER', '0.9.2' );
 // ke-admin-reservations.css). KE_VERSION moves with the plugin code; admin
 // styling iterates faster during the Kiwi-brand rollout, so it gets its own
 // version line. Bump whenever any of those CSS files change.
-define( 'KE_ADMIN_CSS_VER', '0.17.0' );
+define( 'KE_ADMIN_CSS_VER', '0.17.1' );
 
 // Cache-bust for the promoter portal assets (ke-promoter-portal.css,
 // ke-promoter-login.js). Bump when either file changes so WordPress.com edge

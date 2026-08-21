@@ -46,6 +46,7 @@ class KE_Admin_Attendees {
         $attendees = array();
         $total     = 0;
         $types     = array();
+        $recon     = null;
 
         if ( $event_id ) {
             $types = $ticket_types->get_by_event( $event_id );
@@ -62,6 +63,12 @@ class KE_Admin_Attendees {
 
             $attendees = $tickets_handler->get_attendees( $event_id, $args );
             $total     = $tickets_handler->count_attendees( $event_id, $args );
+
+            // The events list card reports SUM(quantity_sold), a counter;
+            // $total above is a COUNT of rows. They are different quantities
+            // and they legitimately disagree, which reads as a bug when only
+            // one of them is on screen. Read-only breakdown of the gap.
+            $recon = $tickets_handler->sold_reconciliation( $event_id );
         }
 
         $total_pages = ceil( $total / $per_page );
