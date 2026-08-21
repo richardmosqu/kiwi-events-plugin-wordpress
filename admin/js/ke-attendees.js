@@ -254,7 +254,10 @@
 
     function populateViewModal(t) {
         currentId = t.id;
-        $('#ke-view-qr').src = t.qr_code_path || '';
+        // qr_url is the locally rendered image. qr_code_path is only a
+        // fallback for cached payloads; on old tickets it is a dead
+        // api.qrserver.com URL, so it must never win over qr_url.
+        $('#ke-view-qr').src = t.qr_url || t.qr_code_path || '';
         $('#ke-view-name').textContent = t.attendee_name || '—';
         $('#ke-view-email').textContent = t.attendee_email || '—';
         $('#ke-view-code').textContent = t.ticket_code || '—';

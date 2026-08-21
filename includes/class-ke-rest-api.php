@@ -13,6 +13,12 @@ class KE_Rest_API {
      */
     public function register_routes() {
 
+        // QR images — rendered and cached on this server. Registered from
+        // KE_QR_Generator so the routes live next to the renderer.
+        if ( class_exists( 'KE_QR_Generator' ) ) {
+            KE_QR_Generator::register_routes( $this->namespace );
+        }
+
         // Public: List events / Admin: Create event
         register_rest_route( $this->namespace, '/events', array(
             array(
@@ -3457,6 +3463,10 @@ class KE_Rest_API {
             'order_id'         => (int) $t->order_id,
             'event_id'         => (int) $t->event_id,
             'qr_code_path'     => (string) ( $t->qr_code_path ?? '' ),
+            // Locally rendered QR. The admin UI reads this; qr_code_path
+            // stays in the payload for back-compat but holds a dead
+            // api.qrserver.com URL for every pre-2026-08-21 ticket.
+            'qr_url'           => ( new KE_QR_Generator() )->get_url( (string) $t->ticket_code ),
         );
     }
 

@@ -800,6 +800,10 @@ $leave_action  = admin_url( 'admin-post.php' );
     <script>
     (function () {
         var isAdminView = <?php echo $admin_preview ? 'true' : 'false'; ?>;
+        // Local QR endpoint (login-gated, same-site URLs only). Replaces the
+        // api.qrserver.com call that used to build this image — a promoter's
+        // QR must not depend on a third party's rate limit.
+        var qrBase      = <?php echo wp_json_encode( KE_QR_Generator::link_endpoint_base() ); ?>;
 
         function copyText( str, onDone ) {
             if ( navigator.clipboard && navigator.clipboard.writeText ) {
@@ -865,7 +869,7 @@ $leave_action  = admin_url( 'admin-post.php' );
 
         function openQr( url, eventTitle ) {
             var size = 320;
-            var src  = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent( url );
+            var src  = qrBase + '&size=' + size + '&url=' + encodeURIComponent( url );
             qrWrap.innerHTML = '<img src="' + src + '" alt="QR code">';
             qrEventEl.textContent = eventTitle || '';
             qrUrlEl.textContent = url;

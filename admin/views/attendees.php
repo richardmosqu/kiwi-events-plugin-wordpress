@@ -178,6 +178,7 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                     </tr>
                 </thead>
                 <tbody>
+                    <?php $ke_qr_gen = new KE_QR_Generator(); ?>
                     <?php foreach ( $attendees as $a ) :
                         // Build a JSON payload on the row so JS can open modals
                         // without fetching again. Everything the View Modal needs.
@@ -201,6 +202,11 @@ $xf_columns = $xf_active ? $xf_cfg['fields'] : array();
                             'order_total'      => (float) ( $a->order_total ?? 0 ),
                             'purchase_date'    => (string) $a->created_at,
                             'qr_code_path'     => (string) ( $a->qr_code_path ?? '' ),
+                            // The View modal renders qr_url. qr_code_path is
+                            // kept only for back-compat: on every ticket sold
+                            // before 2026-08-21 it holds a dead
+                            // api.qrserver.com URL.
+                            'qr_url'           => $ke_qr_gen->get_url( (string) $a->ticket_code ),
                             'event_name'       => $event_title,
                             'event_date'       => $event_date_fmt,
                             'event_venue'      => (string) $event_venue,

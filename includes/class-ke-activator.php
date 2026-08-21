@@ -596,6 +596,50 @@ class KE_Activator {
         // default to false and only flip when the user confirms a manual
         // edit in the wizard.
         self::maybe_migrate_slug_manually_set_flag();
+
+        // 2026-08-21: every QR used to be an api.qrserver.com URL, stored
+        // per ticket. That service started refusing the burst from a
+        // ~60-ticket-per-minute sale and every QR in the product went blank.
+        // QRs are rendered locally now; the stored URLs have to be rewritten
+        // or already-sold tickets keep pointing at the dead host.
+        self::maybe_migrate_remote_qr_urls();
+    }
+
+    /**
+     * One-time rewrite of ke_tickets.qr_code_path: api.qrserver.com URLs →
+     * this site's local QR endpoint.
+     *
+     * A single UPDATE, gated by an option so it never runs twice. Readers
+     * (KE_QR_Generator::resolve_stored_url(), the admin payloads, the PDF
+     * generator) all bypass this column already — this exists so the stored
+     * data isn't a landmine for anything that reads it directly, including
+     * the ke-sold-audit report, which treats an empty qr_code_path as "the
+     * QR was failing" and would misread a blanket NULL as total failure.
+     */
+    private static function maybe_migrate_remote_qr_urls() {
+        if ( get_option( 'ke_qr_local_migration_v1_complete' ) === '1' ) {
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'ke_tickets';
+
+        // Table may not exist yet on a brand-new install mid-activation.
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+            return;
+        }
+
+        $prefix = rest_url( 'ke/v1/qr/' );
+
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table}
+                SET qr_code_path = CONCAT( %s, ticket_code )
+              WHERE qr_code_path LIKE %s",
+            $prefix,
+            '%' . $wpdb->esc_like( 'qrserver.com' ) . '%'
+        ) );
+
+        update_option( 'ke_qr_local_migration_v1_complete', '1', false );
     }
 
     /**

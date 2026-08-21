@@ -274,8 +274,12 @@ jQuery(document).ready(function($) {
             tickets.forEach(function(ticket) {
                 const shortCode = '#' + ticket.ticket_code.substring(0, 8).toUpperCase();
                 const ticketUrl = kePublic.homeUrl.replace(/\/$/, '') + '/ticket/' + ticket.ticket_code;
-                const qrUrl    = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&format=png&ecc=H&data='
-                               + encodeURIComponent(ticket.ticket_code);
+                // Server-resolved local QR (KE_QR_Generator). The fallback
+                // builds the same endpoint URL the server would return —
+                // never the old api.qrserver.com URL, which is what went
+                // dark mid-sale and blanked every QR in the product.
+                const qrUrl    = ticket.qr_url
+                               || (kePublic.restUrl + 'qr/' + encodeURIComponent(ticket.ticket_code));
 
                 html += '<div class="ke-confirmation-ticket">';
 

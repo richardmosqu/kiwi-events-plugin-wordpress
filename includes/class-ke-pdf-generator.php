@@ -149,46 +149,29 @@ class KE_PDF_Generator {
             $pdf->Line( 148, 8, 148, 92 );
             $pdf->SetLineStyle( array( 'dash' => 0 ) ); // Reset
 
-            // QR Code — qr_code_path holds an api.qrserver.com URL (see
-            // KE_QR_Generator), so remote sources must be fetched to a temp
-            // file before TCPDF can embed them. Local paths still work.
-            $qr_source  = $ticket->qr_code_path;
-            $qr_tmpfile = null;
-            if ( empty( $qr_source ) && ! empty( $ticket->ticket_code ) ) {
-                $qr_generator = new KE_QR_Generator();
-                $qr_source    = $qr_generator->get_url( $ticket->ticket_code );
-            }
-            if ( ! empty( $qr_source ) && preg_match( '#^https?://#i', $qr_source ) ) {
-                // Render the QR locally first. This method runs inside the
-                // WooCommerce payment request, once per ticket, and the remote
-                // fetch below blocks for up to 15 seconds each time — during a
-                // flash sale that is what stalls the request until it is killed
-                // (taking the confirmation email with it). chillerlan/php-qrcode
-                // ships in vendor/ and needs no network at all.
-                $local = $this->render_qr_locally( $ticket->ticket_code ?? '' );
-                if ( $local ) {
-                    $qr_tmpfile = $local;
-                    $qr_source  = $local;
-                } else {
-                    if ( ! function_exists( 'download_url' ) ) {
-                        require_once ABSPATH . 'wp-admin/includes/file.php';
-                    }
-                    $downloaded = download_url( $qr_source, 15 );
-                    if ( ! is_wp_error( $downloaded ) ) {
-                        $qr_tmpfile = $downloaded;
-                        $qr_source  = $downloaded;
-                    } else {
-                        $qr_source = null;
-                    }
-                }
-            }
+            // QR Code — always the locally rendered, locally cached image
+            // from KE_QR_Generator. It never touches the network: this method
+            // runs inside the WooCommerce payment request, once per ticket,
+            // and the remote fetch this replaced blocked for up to 15 seconds
+            // each time — during a flash sale that is what stalled the request
+            // until it was killed, taking the confirmation email with it.
+            //
+            // ke_tickets.qr_code_path is deliberately ignored here: for every
+            // ticket sold before 2026-08-21 it holds an api.qrserver.com URL
+            // that no longer resolves.
+            $qr_generator = new KE_QR_Generator();
+            $qr_source    = $qr_generator->get_path( $ticket->ticket_code ?? '' );
+
             $qr_embedded = false;
             if ( ! empty( $qr_source ) && file_exists( $qr_source ) ) {
-                $pdf->Image( $qr_source, 155, 15, 45, 45, 'PNG' );
+                // The cache is PNG wherever GD exists and SVG otherwise, and
+                // TCPDF needs a different call for each.
+                if ( strtolower( pathinfo( $qr_source, PATHINFO_EXTENSION ) ) === 'svg' ) {
+                    $pdf->ImageSVG( $qr_source, 155, 15, 45, 45 );
+                } else {
+                    $pdf->Image( $qr_source, 155, 15, 45, 45, 'PNG' );
+                }
                 $qr_embedded = true;
-            }
-            if ( $qr_tmpfile ) {
-                @unlink( $qr_tmpfile );
             }
 
             // Scan instruction
@@ -214,8 +197,8 @@ class KE_PDF_Generator {
 
             // Persist the path only when the QR made it into the PDF —
             // a cached pdf_path is served forever, so a QR-less PDF from a
-            // transient qrserver outage must not be cached (the next
-            // request regenerates and retries the QR download).
+            // transient render failure (unwritable uploads dir, GD gone
+            // mid-deploy) must not be cached; the next request retries.
             if ( $qr_embedded ) {
                 $tickets_handler = new KE_Tickets();
                 $tickets_handler->update_pdf_path( $ticket->id, $filepath );
@@ -234,55 +217,5 @@ class KE_PDF_Generator {
     public function get_url( $ticket_code ) {
         $upload = wp_upload_dir();
         return $upload['baseurl'] . '/kiwi-events/tickets/ticket-' . $ticket_code . '.pdf';
-    }
-
-    /**
-     * Render the ticket QR to a temporary PNG using the bundled
-     * chillerlan/php-qrcode library — no network, no timeout.
-     *
-     * Returns the temp file path, or null when the library is unavailable so
-     * the caller can fall back to the remote QR service. The caller unlinks
-     * the file after embedding it.
-     */
-    private function render_qr_locally( $ticket_code ) {
-        $ticket_code = (string) $ticket_code;
-        if ( $ticket_code === '' ) {
-            return null;
-        }
-        if ( ! class_exists( '\chillerlan\QRCode\QRCode' ) ) {
-            return null;
-        }
-        try {
-            // No fixed 'version': a 64-char sha256 ticket code at ECC_H
-            // overflows a version-5 symbol. VERSION_AUTO sizes it correctly.
-            $options = new \chillerlan\QRCode\QROptions( array(
-                'outputType'   => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
-                'eccLevel'     => \chillerlan\QRCode\QRCode::ECC_H,
-                'scale'        => 8,
-                'imageBase64'  => false,
-                'imageTransparent' => false,
-            ) );
-            $png = ( new \chillerlan\QRCode\QRCode( $options ) )->render( $ticket_code );
-            if ( ! is_string( $png ) || $png === '' ) {
-                return null;
-            }
-            // NOT wp_tempnam(): that lives in wp-admin/includes/file.php and
-            // is undefined in the front-end payment request this runs in — it
-            // silently sent every ticket back to the remote QR service.
-            // TCPDF is told the image type explicitly, so the extensionless
-            // name tempnam() produces is fine.
-            $tmp = tempnam( get_temp_dir(), 'ke-qr-' );
-            if ( ! $tmp ) {
-                return null;
-            }
-            if ( file_put_contents( $tmp, $png ) === false ) {
-                @unlink( $tmp );
-                return null;
-            }
-            return $tmp;
-        } catch ( \Throwable $e ) {
-            error_log( 'KiwiEvents: local QR render failed, falling back to the remote service: ' . $e->getMessage() );
-            return null;
-        }
     }
 }

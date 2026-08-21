@@ -255,17 +255,15 @@ class KE_Email_Templates {
     public static function qr_data_uri( $url ) {
         if ( ! class_exists( 'KE_QR_Generator' ) ) return '';
         try {
+            // data_uri() renders PNG, or SVG on a server without GD. Before
+            // 2026-08-21 this called a generate_png_blob() that did not exist,
+            // so the method_exists() guard silently returned '' and no
+            // promoter email ever carried a QR.
             $gen = new KE_QR_Generator();
-            $png = method_exists( $gen, 'generate_png_blob' )
-                ? $gen->generate_png_blob( $url, 220 )
-                : null;
-            if ( $png ) {
-                return 'data:image/png;base64,' . base64_encode( $png );
-            }
+            return $gen->data_uri( $url, 220 );
         } catch ( \Throwable $e ) {
-            // fall through
+            return '';
         }
-        return '';
     }
 
     private static function layout( $title_html, $inner_html ) {

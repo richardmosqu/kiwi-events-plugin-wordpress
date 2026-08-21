@@ -29,8 +29,10 @@ $event_thumb = get_the_post_thumbnail_url( $event_id, 'large' );
 $short_code  = strtoupper( substr( $ticket->ticket_code, 0, 8 ) );
 $is_used     = $ticket->status === 'used';
 
-$qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&format=png&ecc=H&data='
-        . urlencode( $ticket->ticket_code );
+// Locally rendered + cached QR (KE_QR_Generator). Never a third-party URL:
+// this page is what an attendee opens at the door.
+$ke_qr  = new KE_QR_Generator();
+$qr_url = $ke_qr->get_url( $ticket->ticket_code );
 
 // Format date
 $formatted_date = '';

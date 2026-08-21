@@ -234,6 +234,9 @@ $rest_nonce      = wp_create_nonce( 'wp_rest' );
         var siteRoot = <?php echo wp_json_encode( home_url( '/' ) ); ?>;
         var endpoint = <?php echo wp_json_encode( $search_endpoint ); ?>;
         var nonce    = <?php echo wp_json_encode( $rest_nonce ); ?>;
+        // Local QR endpoint (login-gated, same-site URLs only). Replaces the
+        // api.qrserver.com call that used to build this image.
+        var qrBase   = <?php echo wp_json_encode( KE_QR_Generator::link_endpoint_base() ); ?>;
 
         function slugify( s ) {
             return ( s || '' )
@@ -257,7 +260,7 @@ $rest_nonce      = wp_create_nonce( 'wp_rest' );
 
         function renderQr() {
             var size = 240;
-            qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent( portalInput.value );
+            qrImg.src = qrBase + '&size=' + size + '&url=' + encodeURIComponent( portalInput.value );
         }
 
         function flashCopied( btn, originalLabel ) {

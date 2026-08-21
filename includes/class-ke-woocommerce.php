@@ -824,9 +824,11 @@ class KE_WooCommerce {
         echo '<div style="margin:32px 0;font-family:\'Inter\',Arial,sans-serif;">';
         echo '<h2 style="font-size:22px;font-weight:800;color:#09090b;margin-bottom:16px;">🎟️ Your Tickets</h2>';
 
+        $qr_generator = new KE_QR_Generator();
+
         foreach ( $ticket_codes as $code ) {
             $short      = '#' . strtoupper( substr( $code, 0, 8 ) );
-            $qr_url     = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&format=png&ecc=H&data=' . urlencode( $code );
+            $qr_url     = $qr_generator->get_url( $code );
             $ticket_url = esc_url( home_url( '/ticket/' . $code ) );
 
             echo '<div style="background:#f8f8ff;border:1.5px solid #e0e0ff;border-radius:16px;'

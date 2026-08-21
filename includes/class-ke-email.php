@@ -755,8 +755,14 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
       <?php foreach ( $data['tickets'] as $ticket ) :
           $short_code  = '#' . strtoupper( substr( $ticket->ticket_code, 0, 8 ) );
           $ticket_url  = esc_url( home_url( '/ticket/' . $ticket->ticket_code ) );
-          $qr_src      = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&format=png&ecc=H&data='
-                       . urlencode( $ticket->ticket_code );
+          // Locally rendered QR. get_path() forces the cache to exist so the
+          // <img> below is a plain static uploads URL — a mail client's image
+          // proxy fetches a file, not a PHP request. This used to point at
+          // api.qrserver.com, which rate-limited the whole product off the air
+          // mid-sale; the QR must never depend on a third party.
+          $ke_qr       = new KE_QR_Generator();
+          $ke_qr->get_path( $ticket->ticket_code );
+          $qr_src      = $ke_qr->get_url( $ticket->ticket_code );
           $type_name   = ! empty( $ticket->ticket_type_name ) ? $ticket->ticket_type_name : '';
           // Resolve per-attendee extras (label-resolved against the event's
           // current config) so the buyer sees the answers they submitted.
