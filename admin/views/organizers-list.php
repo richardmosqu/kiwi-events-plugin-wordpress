@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 $organizers = get_terms( array( 'taxonomy' => 'ke_organizer', 'hide_empty' => false ) );
 
 wp_enqueue_media();
+wp_enqueue_script( 'jquery-ui-sortable' );
 
 // Pre-load template counts for all organizers
 $tpl_counts = array();
@@ -334,7 +335,7 @@ if ( ! is_wp_error( $organizers ) ) {
      Edits the three new term meta keys backing /organizers/{slug}:
        • ke_organizer_hero_image          (single attachment ID)
        • ke_organizer_category            (short text label)
-       • ke_organizer_gallery_photo_ids   (ordered list of attachment IDs)
+       • ke_organizer_gallery_photo_ids   (ordered list of image/video attachment IDs)
      Submits a normal POST to admin-post.php (handle_save_organizer_profile)
      so a page reload reflects the new state — same pattern as the rest of
      the organizer admin handlers.
@@ -380,10 +381,10 @@ if ( ! is_wp_error( $organizers ) ) {
 
             <div class="ke-prof-field">
                 <label class="ke-prof-label"><?php esc_html_e( 'Gallery', 'kiwi-events' ); ?></label>
-                <p class="ke-prof-help"><?php esc_html_e( 'Photos shown in the Galería tab. Click an image to remove it.', 'kiwi-events' ); ?></p>
+                <p class="ke-prof-help"><?php esc_html_e( 'Photos and videos shown in the Galería tab. Drag to reorder, or use “First” to move an item to the front.', 'kiwi-events' ); ?></p>
                 <div class="ke-prof-gallery" id="ke-prof-gallery"></div>
                 <button type="button" class="ke-btn ke-btn-ghost" id="ke-prof-gallery-add" style="margin-top:10px;">
-                    <?php esc_html_e( '+ Add photos', 'kiwi-events' ); ?>
+                    <?php esc_html_e( '+ Add photos or videos', 'kiwi-events' ); ?>
                 </button>
             </div>
 
@@ -753,25 +754,54 @@ if ( ! is_wp_error( $organizers ) ) {
     border-radius: var(--kiwi-radius-sm);
     overflow: hidden;
     background: var(--kiwi-cream-deep);
-    cursor: pointer;
-    transition: transform .12s var(--kiwi-ease);
+    cursor: default;
+    transition: transform .12s var(--kiwi-ease), box-shadow .12s var(--kiwi-ease);
 }
-.ke-prof-gallery-item:hover { transform: scale(1.02); }
-.ke-prof-gallery-item img {
+.ke-prof-gallery-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 18px rgba(15,23,42,.18);
+}
+.ke-prof-gallery-item img,
+.ke-prof-gallery-item video {
     width: 100%; height: 100%; object-fit: cover; display: block;
 }
-.ke-prof-gallery-item::after {
-    content: '✕';
-    position: absolute; inset: 0;
-    background: var(--kiwi-overlay-deeper);
-    color: var(--kiwi-white-ink);
+.ke-prof-gallery-item[data-media-type="video"]::before {
+    content: '▶';
+    position: absolute; left: 50%; top: 50%; z-index: 1;
+    transform: translate(-50%, -50%);
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(0,0,0,.68); color: #fff;
     display: flex; align-items: center; justify-content: center;
-    opacity: 0;
-    transition: opacity .12s var(--kiwi-ease);
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 14px; line-height: 1; pointer-events: none;
+    padding-left: 2px;
 }
-.ke-prof-gallery-item:hover::after { opacity: 1; }
+.ke-prof-gallery-controls {
+    position: absolute; inset: 6px 6px auto 6px; z-index: 3;
+    display: flex; align-items: center; gap: 4px;
+}
+.ke-prof-gallery-control {
+    min-width: 28px; height: 28px; padding: 0 7px;
+    border: 0; border-radius: 7px;
+    background: rgba(15,23,42,.82); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; line-height: 1; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.22);
+}
+.ke-prof-gallery-control:hover { background: rgba(15,23,42,.96); color: #fff; }
+.ke-prof-gallery-drag { cursor: grab; font-size: 16px; }
+.ke-prof-gallery-drag:active { cursor: grabbing; }
+.ke-prof-gallery-first { margin-left: auto; font-weight: 700; }
+.ke-prof-gallery-first:disabled {
+    background: var(--kiwi-lime); color: var(--kiwi-ink);
+    cursor: default; opacity: 1;
+}
+.ke-prof-gallery-remove { font-size: 18px; }
+.ke-prof-gallery-placeholder {
+    aspect-ratio: 1 / 1;
+    border: 2px dashed var(--kiwi-lime);
+    border-radius: var(--kiwi-radius-sm);
+    background: rgba(190,242,100,.14);
+}
 .ke-prof-gallery-empty {
     grid-column: 1 / -1;
     text-align: center;
@@ -1435,22 +1465,59 @@ if ( ! is_wp_error( $organizers ) ) {
     // text, and a gallery (ordered list of attachment IDs). The form submits
     // via standard admin-post.php; the only async work here is the WP media
     // library pickers and the in-memory gallery state.
-    var profState = { termId: null, galleryItems: [] }; // each item = { id, url }
+    var profState = { termId: null, galleryItems: [] }; // each item = { id, url, type, mime }
+
+    function syncProfGalleryFromDom() {
+        var orderedIds = $('#ke-prof-gallery .ke-prof-gallery-item').map(function() {
+            return parseInt($(this).attr('data-att-id'), 10);
+        }).get();
+        var byId = {};
+        profState.galleryItems.forEach(function(item) { byId[item.id] = item; });
+        profState.galleryItems = orderedIds.map(function(id) { return byId[id]; }).filter(Boolean);
+        syncProfGalleryInput();
+    }
 
     function renderProfGallery() {
         var $g = $('#ke-prof-gallery').empty();
         if (!profState.galleryItems.length) {
-            $g.append('<div class="ke-prof-gallery-empty"><?php echo esc_js( __( 'No photos yet — use “Add photos” to pick from your media library.', 'kiwi-events' ) ); ?></div>');
+            $g.append('<div class="ke-prof-gallery-empty"><?php echo esc_js( __( 'No media yet — use “Add photos or videos” to pick from your media library.', 'kiwi-events' ) ); ?></div>');
         } else {
-            profState.galleryItems.forEach(function(it) {
-                var $cell = $('<div class="ke-prof-gallery-item" data-att-id="' + escA(String(it.id)) + '"><img src="' + escA(it.url) + '" alt=""></div>');
-                $cell.on('click', function() {
+            profState.galleryItems.forEach(function(it, index) {
+                var isFirst = index === 0;
+                var mediaHtml = it.type === 'video'
+                    ? '<video src="' + escA(it.url) + '" muted playsinline preload="metadata"></video>'
+                    : '<img src="' + escA(it.url) + '" alt="">';
+                var controlsHtml = '<div class="ke-prof-gallery-controls">'
+                    + '<button type="button" class="ke-prof-gallery-control ke-prof-gallery-drag" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">↕</button>'
+                    + '<button type="button" class="ke-prof-gallery-control ke-prof-gallery-action ke-prof-gallery-first" aria-label="Mover al frente" title="Mover al frente"' + (isFirst ? ' disabled' : '') + '>Al frente</button>'
+                    + '<button type="button" class="ke-prof-gallery-control ke-prof-gallery-action ke-prof-gallery-remove" aria-label="Quitar de la galería" title="Quitar de la galería">×</button>'
+                    + '</div>';
+                var $cell = $('<div class="ke-prof-gallery-item' + (isFirst ? ' is-first' : '') + '" data-att-id="' + escA(String(it.id)) + '" data-media-type="' + escA(it.type || 'image') + '">' + mediaHtml + controlsHtml + '</div>');
+
+                $cell.find('.ke-prof-gallery-first').on('click', function(e) {
+                    e.preventDefault(); e.stopPropagation();
                     profState.galleryItems = profState.galleryItems.filter(function(x) { return x.id !== it.id; });
-                    syncProfGalleryInput();
+                    profState.galleryItems.unshift(it);
+                    renderProfGallery();
+                });
+                $cell.find('.ke-prof-gallery-remove').on('click', function(e) {
+                    e.preventDefault(); e.stopPropagation();
+                    profState.galleryItems = profState.galleryItems.filter(function(x) { return x.id !== it.id; });
                     renderProfGallery();
                 });
                 $g.append($cell);
             });
+
+            if ($.fn.sortable) {
+                $g.sortable({
+                    items: '.ke-prof-gallery-item',
+                    handle: '.ke-prof-gallery-drag',
+                    cancel: '.ke-prof-gallery-action',
+                    placeholder: 'ke-prof-gallery-placeholder',
+                    tolerance: 'pointer',
+                    update: function() { syncProfGalleryFromDom(); renderProfGallery(); }
+                });
+            }
         }
         syncProfGalleryInput();
     }
@@ -1489,9 +1556,12 @@ if ( ! is_wp_error( $organizers ) ) {
             var att = wp.media.attachment(id);
             att.fetch().then(function() {
                 var data = att.toJSON();
-                var url = (data.sizes && data.sizes.thumbnail && data.sizes.thumbnail.url) || data.url;
+                var type = data.type === 'video' ? 'video' : 'image';
+                var url = type === 'video'
+                    ? data.url
+                    : ((data.sizes && data.sizes.thumbnail && data.sizes.thumbnail.url) || data.url);
                 // Preserve original order (ids array) — push in array order.
-                profState.galleryItems.push({ id: parseInt(id, 10), url: url });
+                profState.galleryItems.push({ id: parseInt(id, 10), url: url, type: type, mime: data.mime || '' });
                 profState.galleryItems.sort(function(a, b) {
                     return ids.indexOf(a.id) - ids.indexOf(b.id);
                 });
@@ -1558,9 +1628,9 @@ if ( ! is_wp_error( $organizers ) ) {
         e.preventDefault();
         if (!profGalleryFrame) {
             profGalleryFrame = wp.media({
-                title: '<?php echo esc_js( __( 'Add photos to gallery', 'kiwi-events' ) ); ?>',
+                title: '<?php echo esc_js( __( 'Add photos or videos to gallery', 'kiwi-events' ) ); ?>',
                 button: { text: '<?php echo esc_js( __( 'Add to gallery', 'kiwi-events' ) ); ?>' },
-                library: { type: 'image' },
+                library: { type: [ 'image', 'video' ] },
                 multiple: 'add'
             });
             profGalleryFrame.on('select', function() {
@@ -1569,8 +1639,12 @@ if ( ! is_wp_error( $organizers ) ) {
                 profState.galleryItems.forEach(function(x) { existing[x.id] = true; });
                 sel.forEach(function(att) {
                     if (existing[att.id]) return;
-                    var url = (att.sizes && att.sizes.thumbnail && att.sizes.thumbnail.url) || att.url;
-                    profState.galleryItems.push({ id: att.id, url: url });
+                    var type = att.type === 'video' ? 'video' : 'image';
+                    if (type !== 'image' && type !== 'video') return;
+                    var url = type === 'video'
+                        ? att.url
+                        : ((att.sizes && att.sizes.thumbnail && att.sizes.thumbnail.url) || att.url);
+                    profState.galleryItems.push({ id: att.id, url: url, type: type, mime: att.mime || '' });
                 });
                 renderProfGallery();
             });

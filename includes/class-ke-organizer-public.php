@@ -220,21 +220,33 @@ class KE_Organizer_Public {
             'order'          => 'ASC',
         ) );
 
-        $now      = current_time( 'timestamp' );
+        $now      = time();
         $upcoming = array();
         $past     = array();
 
         foreach ( $q->posts as $p ) {
-            $start = get_post_meta( $p->ID, '_ke_event_date_start', true );
-            $end   = get_post_meta( $p->ID, '_ke_event_date_end', true );
+            $start         = get_post_meta( $p->ID, '_ke_event_date_start', true );
+            $end           = get_post_meta( $p->ID, '_ke_event_date_end', true );
+            $timezone_name = (string) get_post_meta( $p->ID, '_ke_event_timezone', true );
+            $timezone_name = $timezone_name ?: wp_timezone_string();
             if ( ! $start ) continue;
 
-            $start_ts = strtotime( $start );
-            $end_ts   = $end ? strtotime( $end ) : $start_ts;
+            try {
+                $event_timezone = new DateTimeZone( $timezone_name );
+                $start_dt       = new DateTime( $start, $event_timezone );
+                $end_dt         = $end ? new DateTime( $end, $event_timezone ) : $start_dt;
+                $start_ts       = $start_dt->getTimestamp();
+                $end_ts         = $end_dt->getTimestamp();
+            } catch ( Exception $e ) {
+                $timezone_name = wp_timezone_string();
+                $start_ts      = strtotime( $start );
+                $end_ts        = $end ? strtotime( $end ) : $start_ts;
+            }
             if ( ! $start_ts ) continue;
 
             $thumb_id  = get_post_thumbnail_id( $p->ID );
             $thumb_url = $thumb_id ? wp_get_attachment_image_url( $thumb_id, 'medium_large' ) : '';
+            $commerce  = self::get_event_commerce_state( $p->ID, $now );
 
             $row = array(
                 'id'         => $p->ID,
@@ -244,7 +256,12 @@ class KE_Organizer_Public {
                 'start_ts'   => $start_ts,
                 'end_ts'     => $end_ts ?: $start_ts,
                 'start_iso'  => date( 'c', $start_ts ),
-                'venue'      => (string) get_post_meta( $p->ID, '_ke_event_venue', true ),
+                'venue'               => (string) get_post_meta( $p->ID, '_ke_event_venue', true ),
+                'timezone'            => $timezone_name,
+                'tickets_open'         => ! empty( $commerce['tickets_open'] ),
+                'reservations_enabled' => ! empty( $commerce['reservations_enabled'] ),
+                'reservations_open'    => ! empty( $commerce['reservations_open'] ),
+                'reservations_status'  => (string) $commerce['reservations_status'],
             );
 
             // Treat the event as past once its end date has passed.
@@ -261,13 +278,77 @@ class KE_Organizer_Public {
         return array( $upcoming, $past );
     }
 
+    /**
+     * Resolve public commercial actions from current inventory and reservation rules.
+     */
+    private static function get_event_commerce_state( $event_id, $now_ts ) {
+        $state = array(
+            'tickets_open'         => false,
+            'reservations_enabled' => false,
+            'reservations_open'    => false,
+            'reservations_status'  => 'unavailable',
+        );
+
+        // Scheduled sales gate FIRST. An event whose sale has not opened yet
+        // has perfectly valid ticket types with stock left, so the loop below
+        // would happily report tickets_open and this page would offer a
+        // "Comprar entradas" button that the checkout then refuses. The sale
+        // schedule is enforced at three choke points in the purchase path;
+        // this profile is a fourth surface and has to respect it too.
+        if ( class_exists( 'KE_Sales_Schedule' ) && KE_Sales_Schedule::is_pending( $event_id ) ) {
+            return $state;
+        }
+
+        if ( class_exists( 'KE_Ticket_Types' ) ) {
+            $ticket_types = new KE_Ticket_Types();
+            foreach ( (array) $ticket_types->get_available( $event_id ) as $type ) {
+                $is_unlimited = ( $type->capacity_type ?? 'limited' ) === 'unlimited';
+                $remaining    = $is_unlimited ? PHP_INT_MAX : max( 0, (int) $type->quantity_total - (int) $type->quantity_sold );
+                $sales_closed = method_exists( 'KE_Ticket_Types', 'is_sales_closed' )
+                    ? KE_Ticket_Types::is_sales_closed( $type )
+                    : false;
+
+                if ( ! $sales_closed && ( $is_unlimited || $remaining > 0 ) ) {
+                    $state['tickets_open'] = true;
+                    break;
+                }
+            }
+        }
+
+        if ( ! class_exists( 'KE_Reservations' ) || ! KE_Reservations::is_active( $event_id ) ) {
+            return $state;
+        }
+
+        $state['reservations_enabled'] = true;
+        $cfg      = KE_Reservations::get_config( $event_id );
+        $handler  = new KE_Reservations();
+        $capacity = $handler->get_capacity_state( $event_id );
+        $open_ts  = ! empty( $cfg['reservations_open'] ) ? strtotime( $cfg['reservations_open'] ) : 0;
+        $close_ts = ! empty( $cfg['reservations_close'] ) ? strtotime( $cfg['reservations_close'] ) : 0;
+        $booking_now = current_time( 'timestamp' );
+
+        if ( (int) ( $capacity['remaining'] ?? 0 ) <= 0 ) {
+            $state['reservations_status'] = 'full';
+        } elseif ( $open_ts && $booking_now < $open_ts ) {
+            $state['reservations_status'] = 'before';
+        } elseif ( $close_ts && $booking_now > $close_ts ) {
+            $state['reservations_status'] = 'closed';
+        } else {
+            $state['reservations_open']   = true;
+            $state['reservations_status'] = 'open';
+        }
+
+        return $state;
+    }
+
     private function enqueue_assets( $organizer, $hero_url ) {
         // Asset cache-bust suffix, bumped on every change to the two files
         // below — KE_VERSION moves too slowly for this page's churn.
-        //   -op3: hardened lightbox hide() so it only restores body overflow
-        //         if we acquired the lock (was clobbering other widgets').
-        //   -op5: real tablist keyboard nav + focus ring + tab counts.
-        $ver = KE_VERSION . '-op5';
+        //   -op3:  hardened lightbox hide() so it only restores body overflow
+        //          if we acquired the lock (was clobbering other widgets').
+        //   -op10: V4 conversion layout, video gallery, commerce-aware CTAs,
+        //          tablist keyboard nav + focus ring.
+        $ver = KE_VERSION . '-op10';
 
         wp_enqueue_style(
             'ke-organizer-public',

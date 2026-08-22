@@ -171,12 +171,20 @@ class KE_Admin {
             delete_term_meta( $term_id, 'ke_organizer_category' );
         }
 
-        // Gallery — comma-separated attachment IDs in display order.
-        $gallery_raw = isset( $_POST['gallery_photo_ids'] ) ? (string) $_POST['gallery_photo_ids'] : '';
-        $ids = array_values( array_filter( array_map( 'absint', explode( ',', $gallery_raw ) ) ) );
-        // Cap at 60 to avoid runaway term meta from a misclick in the
-        // media library — generous enough for any real organizer.
-        $ids = array_slice( $ids, 0, 60 );
+        // Gallery — comma-separated image/video attachment IDs in display order.
+        $gallery_raw  = isset( $_POST['gallery_photo_ids'] ) ? (string) $_POST['gallery_photo_ids'] : '';
+        $submitted_ids = array_values( array_filter( array_map( 'absint', explode( ',', $gallery_raw ) ) ) );
+        $ids = array();
+        foreach ( $submitted_ids as $attachment_id ) {
+            if ( get_post_type( $attachment_id ) !== 'attachment' ) continue;
+            $mime = (string) get_post_mime_type( $attachment_id );
+            if ( str_starts_with( $mime, 'image/' ) || str_starts_with( $mime, 'video/' ) ) {
+                $ids[] = $attachment_id;
+            }
+        }
+        // De-duplicate and cap at 60 to avoid runaway term meta from a
+        // misclick in the media library while preserving display order.
+        $ids = array_slice( array_values( array_unique( $ids ) ), 0, 60 );
         if ( ! empty( $ids ) ) {
             update_term_meta( $term_id, 'ke_organizer_gallery_photo_ids', $ids );
         } else {

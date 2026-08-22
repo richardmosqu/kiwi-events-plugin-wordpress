@@ -18,18 +18,10 @@
         initEventsToggle();
         initLightbox();
         initCalendar();
+        initAnalytics();
     });
 
     /* ── TABS ──────────────────────────────────────────────────── */
-    /*
-     * role="tablist" is a promise to a keyboard: one stop for the whole set,
-     * arrows to move inside it. Without that, every tab was its own Tab stop
-     * and the arrow keys did nothing — the ARIA roles were announcing a
-     * widget the markup did not actually implement.
-     *
-     * Roving tabindex: exactly one tab is focusable (the active one), the
-     * rest are -1. Tab enters and leaves the group, arrows move within it.
-     */
     function initTabs() {
         var tabs = document.querySelectorAll('.ke-op-tab');
         var panels = document.querySelectorAll('.ke-op-panel');
@@ -37,7 +29,6 @@
 
         tabs.forEach(function (tab, index) {
             tab.tabIndex = tab.classList.contains('is-active') ? 0 : -1;
-
             tab.addEventListener('click', function () {
                 var key = tab.getAttribute('data-tab');
                 tabs.forEach(function (t) {
@@ -61,13 +52,11 @@
 
             tab.addEventListener('keydown', function (event) {
                 var targetIndex = index;
-                if (event.key === 'ArrowRight')     targetIndex = (index + 1) % tabs.length;
+                if (event.key === 'ArrowRight') targetIndex = (index + 1) % tabs.length;
                 else if (event.key === 'ArrowLeft') targetIndex = (index - 1 + tabs.length) % tabs.length;
-                else if (event.key === 'Home')      targetIndex = 0;
-                else if (event.key === 'End')       targetIndex = tabs.length - 1;
+                else if (event.key === 'Home') targetIndex = 0;
+                else if (event.key === 'End') targetIndex = tabs.length - 1;
                 else return;
-
-                // preventDefault so Home/End don't also scroll the page.
                 event.preventDefault();
                 tabs[targetIndex].focus();
                 tabs[targetIndex].click();
@@ -110,6 +99,7 @@
         if (!items.length || !box) return;
 
         var img   = document.getElementById('ke-op-lightbox-img');
+        var video = document.getElementById('ke-op-lightbox-video');
         var close = document.getElementById('ke-op-lightbox-close');
         var prev  = document.getElementById('ke-op-lightbox-prev');
         var next  = document.getElementById('ke-op-lightbox-next');
@@ -127,8 +117,27 @@
         function show(i) {
             try {
                 idx = (i + items.length) % items.length;
-                img.src = items[idx].getAttribute('data-full');
-                img.alt = items[idx].querySelector('img') ? items[idx].querySelector('img').alt : '';
+                var item = items[idx];
+                var type = item.getAttribute('data-type') || 'image';
+                var full = item.getAttribute('data-full') || '';
+
+                img.hidden = true;
+                img.src = '';
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.hidden = true;
+                    video.load();
+                }
+
+                if (type === 'video' && video) {
+                    video.src = full;
+                    video.hidden = false;
+                } else {
+                    img.src = full;
+                    img.alt = item.querySelector('img') ? item.querySelector('img').alt : '';
+                    img.hidden = false;
+                }
                 box.hidden = false;
                 box.setAttribute('aria-hidden', 'false');
                 if (!keydownBound) {
@@ -149,7 +158,14 @@
             try {
                 box.hidden = true;
                 box.setAttribute('aria-hidden', 'true');
+                img.hidden = true;
                 img.src = '';
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.hidden = true;
+                    video.load();
+                }
             } finally {
                 // Only restore overflow / unbind keydown if WE actually
                 // acquired the lock — `keydownBound` doubles as that
@@ -174,7 +190,7 @@
         // Backdrop click closes (but ignore clicks that originated on the
         // image or the prev/next/close controls).
         box.addEventListener('click', function (e) {
-            if (e.target === box) hide();
+            if (e.target === box || e.target.closest('#ke-op-lightbox-close')) hide();
         });
     }
 
@@ -314,6 +330,36 @@
         // Re-render when the calendar tab activates (in case fonts/sizes
         // shifted while it was hidden).
         window.addEventListener('ke-op-calendar-show', render);
+    }
+
+    /* Privacy-safe commercial measurement */
+    function initAnalytics() {
+        var root = document.querySelector('.ke-org-public');
+        if (!root) return;
+        var organizer = root.getAttribute('data-organizer-slug') || '';
+        root.addEventListener('click', function (event) {
+            var cta = event.target.closest('[data-ke-cta]');
+            if (cta) {
+                trackEvent('organizer_cta_click', {
+                    organizer_slug: organizer,
+                    cta_action: cta.getAttribute('data-ke-cta') || '',
+                    event_id: cta.getAttribute('data-event-id') || '',
+                    destination: cta.getAttribute('href') || '',
+                    device_context: window.matchMedia('(max-width: 768px)').matches ? 'mobile' : 'desktop'
+                });
+                return;
+            }
+            var tab = event.target.closest('.ke-op-tab[data-tab]');
+            if (tab) trackEvent('organizer_profile_tab_view', { organizer_slug: organizer, profile_tab: tab.getAttribute('data-tab') || '' });
+        });
+    }
+
+    function trackEvent(name, params) {
+        if (typeof window.gtag === 'function') window.gtag('event', name, params);
+        else {
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push(Object.assign({ event: name }, params));
+        }
     }
 
     /* ── helpers ───────────────────────────────────────────────── */

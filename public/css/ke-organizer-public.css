@@ -134,9 +134,6 @@
 }
 .ke-op-tab {
     padding: 14px 24px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
     font-size: 15px;
     font-weight: 600;
     color: var(--op-ink-3);
@@ -148,33 +145,6 @@
 .ke-op-tab.is-active {
     color: var(--kep-accent-1);
     border-bottom-color: var(--kep-accent-1);
-}
-
-/* The tabs are arrow-key navigable (see initTabs), and roving tabindex means
-   focus moves between them without a click. Without a visible ring that
-   navigation is invisible — you can move but not see where you are. Only
-   :focus-visible, so a mouse click doesn't leave a ring behind. */
-.ke-op-tab:focus-visible {
-    outline: 2px solid var(--kep-accent-1);
-    outline-offset: -3px;
-    border-radius: 8px 8px 0 0;
-    color: var(--op-ink-1);
-}
-
-/* Count badge. Same shape and tokens as .ke-op-pill-count below, so the two
-   badge families on this page stay one visual idea. */
-.ke-op-tab-count {
-    font-size: 12px;
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: rgba(15,23,42,.08);
-    color: var(--op-ink-2);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-}
-.ke-op-tab.is-active .ke-op-tab-count {
-    background: rgba(var(--kep-accent-rgb), .14);
-    color: var(--kep-accent-1);
 }
 
 /* ── CONTENT ──────────────────────────────────────────────────── */
@@ -350,13 +320,29 @@
     padding: 0;
 }
 .ke-op-gallery-item:hover { transform: scale(1.02); }
-.ke-op-gallery-item img {
+.ke-op-gallery-item img,
+.ke-op-gallery-item video {
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
     transition: opacity .2s ease;
 }
-.ke-op-gallery-item:hover img { opacity: .92; }
+.ke-op-gallery-item:hover img,
+.ke-op-gallery-item:hover video { opacity: .92; }
+.ke-op-gallery-play {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    background: rgba(0,0,0,.68);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    padding-left: 3px;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,.28);
+}
 
 /* ── LIGHTBOX ─────────────────────────────────────────────────── */
 /* z-index intentionally kept BELOW WooCommerce / theme cart-drawer
@@ -377,7 +363,8 @@
     animation: ke-op-fade .15s ease;
 }
 .ke-op-lightbox[hidden] { display: none !important; }
-.ke-op-lightbox-img {
+.ke-op-lightbox-img,
+.ke-op-lightbox-video {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
@@ -385,6 +372,9 @@
     user-select: none;
     -webkit-user-drag: none;
 }
+.ke-op-lightbox-img[hidden],
+.ke-op-lightbox-video[hidden] { display: none !important; }
+.ke-op-lightbox-video { background: #000; }
 .ke-op-lightbox-close,
 .ke-op-lightbox-prev,
 .ke-op-lightbox-next {
@@ -397,11 +387,14 @@
     border-radius: 50%;
     background: rgba(255,255,255,.08);
     transition: background .15s ease;
+    z-index: 10;
+    cursor: pointer;
+    pointer-events: auto;
 }
 .ke-op-lightbox-close:hover,
 .ke-op-lightbox-prev:hover,
 .ke-op-lightbox-next:hover { background: rgba(255,255,255,.18); }
-.ke-op-lightbox-close { top: 20px; right: 20px; font-size: 28px; }
+.ke-op-lightbox-close { top: 88px; right: 20px; font-size: 28px; }
 .ke-op-lightbox-prev { left: 20px; top: 50%; transform: translateY(-50%); }
 .ke-op-lightbox-next { right: 20px; top: 50%; transform: translateY(-50%); }
 
@@ -569,10 +562,7 @@
     .ke-op-card-name { font-size: 22px; }
 
     .ke-op-tabs { margin-top: 80px; gap: 0; }
-    /* flex:1 splits the bar three ways, so the label+badge pair has to
-       centre itself inside the width it is given. */
-    .ke-op-tab { padding: 12px 10px; font-size: 14px; flex: 1; justify-content: center; gap: 6px; }
-    .ke-op-tab-count { padding: 1px 5px; font-size: 11px; }
+    .ke-op-tab { padding: 12px 14px; font-size: 14px; flex: 1; }
 
     .ke-op-content { padding: 24px 14px 60px; }
 
@@ -586,4 +576,99 @@
     .ke-op-cal-grid,
     .ke-op-cal-weekday-row { display: none; }
     .ke-op-cal-agenda { display: flex; }
+}
+
+
+/* Organizer Profile V4 — Furia conversion layout, scoped to public profiles */
+.ke-org-public{--op-ink:#0b0f18;--op-card:#fff;--op-line:rgba(15,23,42,.10);--op-shadow:0 24px 70px rgba(2,6,23,.20);background:#f4f5f7}
+.ke-op-hero{position:relative;isolation:isolate;min-height:600px;padding:76px 24px 56px;display:flex;align-items:center;background-size:cover;background-position:center;overflow:hidden}
+.ke-op-hero:before{content:"";position:absolute;inset:0;z-index:-2;background:linear-gradient(90deg,rgba(2,6,15,.94),rgba(2,6,15,.70) 52%,rgba(2,6,15,.45)),linear-gradient(180deg,rgba(2,6,15,.12),rgba(2,6,15,.82))}
+.ke-op-hero-glow{position:absolute;z-index:-1;width:520px;height:520px;right:-160px;top:-180px;border-radius:50%;background:rgba(var(--kep-accent-rgb),.34);filter:blur(115px);pointer-events:none}
+.ke-op-hero.is-no-hero{background:linear-gradient(135deg,#090d17,#172033)}
+.ke-op-hero-inner{width:100%;max-width:1180px;margin:auto;transform:none}
+.ke-op-card{width:100%;max-width:1120px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(260px,.75fr) minmax(520px,1.45fr);gap:20px;text-align:left;color:#fff;background:rgba(7,11,20,.78);border:1px solid rgba(255,255,255,.16);border-radius:28px;box-shadow:var(--op-shadow);backdrop-filter:blur(22px) saturate(1.15)}
+.ke-op-card.is-identity-only{max-width:620px;grid-template-columns:1fr}
+.ke-op-identity{min-width:0;padding:28px 24px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.ke-op-card-logo{width:104px;height:104px;margin:0 0 20px;border-radius:22px;background:#fff;border:1px solid rgba(255,255,255,.25);box-shadow:0 16px 38px rgba(0,0,0,.28);overflow:hidden}
+.ke-op-card-logo img{width:100%;height:100%;object-fit:contain}
+.ke-op-card-category{display:inline-flex;margin:0 0 12px;padding:6px 11px;border:1px solid rgba(var(--kep-accent-rgb),.55);border-radius:999px;background:rgba(var(--kep-accent-rgb),.24);color:#fff;font-size:11px;font-weight:800;letter-spacing:.10em;text-transform:uppercase}
+.ke-op-card-name{margin:0;color:#fff;font-size:clamp(34px,4vw,52px);line-height:.98;letter-spacing:-.045em;font-weight:850}
+.ke-op-card-bio{max-width:40ch;margin:16px 0 0;color:rgba(255,255,255,.72);font-size:14px;line-height:1.65}
+.ke-op-current-event{min-width:0;margin:0;padding:14px;display:grid;grid-template-columns:minmax(160px,.72fr) minmax(0,1.45fr);gap:20px;border-radius:22px;background:rgba(255,255,255,.98);color:var(--op-ink)}
+.ke-op-current-thumb{position:relative;z-index:3;display:block;min-height:270px;border-radius:16px;overflow:hidden;background:#111827;cursor:pointer;pointer-events:auto;touch-action:manipulation}
+.ke-op-current-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ke-op-current-body{min-width:0;padding:18px 18px 16px;display:flex;flex-direction:column;justify-content:center}
+.ke-op-current-kicker{margin-bottom:9px;color:#64748b;font-size:11px;font-weight:850;letter-spacing:.11em;text-transform:uppercase}
+.ke-op-current-title{color:#0f172a;font-size:clamp(23px,2.3vw,34px);line-height:1.08;font-weight:850;letter-spacing:-.035em}
+.ke-op-current-title-link{text-decoration:none!important}
+.ke-op-current-title-link:hover{color:rgb(var(--kep-accent-rgb))}
+.ke-op-current-date{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;color:#475569;font-size:14px;font-weight:650}
+.ke-op-current-date>span:first-child{color:rgb(var(--kep-accent-rgb))}
+.ke-op-current-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.ke-op-action{min-height:48px;padding:0 18px;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;text-decoration:none!important;font-size:14px;font-weight:850;transition:transform .2s ease,box-shadow .2s ease}
+.ke-op-action:hover{transform:translateY(-2px)}
+.ke-op-action--primary{background:#0b0f18;color:#fff!important;box-shadow:0 12px 24px rgba(2,6,23,.22)}
+.ke-op-action--secondary{background:#eef2f7;color:#111827!important;border:1px solid #dbe2ea}
+.ke-op-action-status{margin-top:14px;padding:10px 12px;border-radius:10px;background:#fff7ed;color:#9a3412;font-size:13px;font-weight:750}
+.ke-op-tabs{position:sticky;top:0;z-index:20;max-width:none;padding:0 24px;justify-content:center;background:rgba(255,255,255,.92);border-bottom:1px solid var(--op-line);backdrop-filter:blur(16px)}
+.ke-op-tab{min-height:68px;padding:0 22px;gap:9px;color:#64748b;font-weight:800}
+.ke-op-tab.is-active{color:#0f172a}
+.ke-op-tab-count{min-width:25px;height:25px;padding:0 7px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#eef2f7;color:#475569;font-size:11px}
+.ke-op-tab.is-active .ke-op-tab-count{background:#0f172a;color:#fff}
+/* Focus ring for the tablist. initTabs() gives the tabs roving tabindex and
+   arrow-key navigation, so focus moves between them without a click — and
+   there was no focus style anywhere in this file, which made that navigation
+   invisible: you could move but not see where you were. :focus-visible only,
+   so a mouse click does not leave a ring behind. Uses the configurable
+   accent, not a hardcoded blue. */
+.ke-op-tab:focus-visible{outline:2px solid var(--kep-accent-1);outline-offset:-4px;border-radius:10px 10px 0 0;color:#0f172a}
+.ke-op-content{max-width:1180px;padding:54px 24px 110px}
+.ke-op-section-intro{margin:0 0 30px;display:flex;justify-content:space-between;align-items:end;gap:24px}
+.ke-op-section-intro h2{margin:4px 0 0;color:#0f172a;font-size:clamp(28px,3.2vw,42px);letter-spacing:-.04em}
+.ke-op-section-intro p{max-width:390px;margin:0;color:#64748b;line-height:1.6}
+.ke-op-section-eyebrow{color:rgb(var(--kep-accent-rgb));font-size:11px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
+.ke-op-events-grid{gap:22px}
+.ke-op-event-card{border-radius:20px;border:1px solid var(--op-line);box-shadow:0 12px 32px rgba(15,23,42,.08);overflow:hidden;transition:transform .25s ease,box-shadow .25s ease}
+.ke-op-event-card:hover{transform:translateY(-5px);box-shadow:0 22px 50px rgba(15,23,42,.14)}
+.ke-op-gallery-grid{gap:12px}
+.ke-op-gallery-item{border-radius:16px;overflow:hidden;box-shadow:0 9px 25px rgba(15,23,42,.11)}
+.ke-op-gallery-item img,.ke-op-gallery-item video{transition:transform .35s ease,filter .35s ease}
+.ke-op-gallery-item:hover img,.ke-op-gallery-item:hover video{transform:scale(1.035);filter:saturate(1.08)}
+.ke-op-mobile-actions{display:none}
+
+@media(max-width:900px){
+ .ke-op-hero{min-height:auto;padding:56px 18px 40px}
+ .ke-op-card{grid-template-columns:1fr;max-width:680px}
+ .ke-op-identity{padding:20px 18px 4px;display:grid;grid-template-columns:82px 1fr;gap:16px;align-items:center}
+ .ke-op-card-logo{width:82px;height:82px;margin:0}
+ .ke-op-card-bio{display:none}
+ .ke-op-current-event{grid-template-columns:150px 1fr}
+ .ke-op-current-thumb{min-height:220px}
+}
+@media(max-width:620px){
+ .ke-org-public{padding-bottom:76px}
+ .ke-op-hero{padding:34px 14px 28px;background-position:center}
+ .ke-op-card{padding:10px;gap:10px;border-radius:22px}
+ .ke-op-identity{grid-template-columns:68px 1fr;padding:14px 12px 4px}
+ .ke-op-card-logo{width:68px;height:68px;border-radius:16px}
+ .ke-op-card-category{margin-bottom:7px;padding:4px 8px;font-size:9px}
+ .ke-op-card-name{font-size:30px}
+ .ke-op-current-event{grid-template-columns:104px 1fr;gap:12px;padding:10px;border-radius:16px}
+ .ke-op-current-thumb{min-height:168px;border-radius:12px}
+ .ke-op-current-body{padding:8px 6px}
+ .ke-op-current-kicker{font-size:9px}
+ .ke-op-current-title{font-size:18px}
+ .ke-op-current-date{margin-top:8px;font-size:12px}
+ .ke-op-current-venue{display:none}
+ .ke-op-current-actions{margin-top:12px}
+ .ke-op-current-actions .ke-op-action{display:none}
+ .ke-op-action-status{margin-top:10px;font-size:11px}
+ .ke-op-tabs{padding:0 8px;overflow-x:auto;justify-content:flex-start}
+ .ke-op-tab{min-width:max-content;min-height:58px;padding:0 14px}
+ .ke-op-content{padding:36px 14px 80px}
+ .ke-op-section-intro{display:block;margin-bottom:22px}
+ .ke-op-section-intro p{margin-top:8px;font-size:13px}
+ .ke-op-section-intro h2{font-size:29px}
+ .ke-op-mobile-actions{position:fixed;left:0;right:0;bottom:0;z-index:1200;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);border-top:1px solid var(--op-line);box-shadow:0 -12px 28px rgba(15,23,42,.13);backdrop-filter:blur(16px)}
+ .ke-op-mobile-actions .ke-op-action{flex:1;min-height:50px}
 }
