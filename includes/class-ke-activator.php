@@ -602,7 +602,15 @@ class KE_Activator {
         // ~60-ticket-per-minute sale and every QR in the product went blank.
         // QRs are rendered locally now; the stored URLs have to be rewritten
         // or already-sold tickets keep pointing at the dead host.
-        self::maybe_migrate_remote_qr_urls();
+        //
+        // Deferred to `init`, NEVER called from here. This method runs on
+        // `plugins_loaded`, and the migration needs rest_url() — which reads
+        // the $wp_rewrite global that WordPress does not create until AFTER
+        // plugins_loaded. Calling it here fataled on `using_index_permalinks()
+        // on null` on every single request, front end and wp-login included,
+        // i.e. it took the whole site down. Nothing in this class may build a
+        // URL before `init`.
+        add_action( 'init', array( __CLASS__, 'maybe_migrate_remote_qr_urls' ), 20 );
     }
 
     /**
@@ -616,8 +624,18 @@ class KE_Activator {
      * the ke-sold-audit report, which treats an empty qr_code_path as "the
      * QR was failing" and would misread a blanket NULL as total failure.
      */
-    private static function maybe_migrate_remote_qr_urls() {
+    public static function maybe_migrate_remote_qr_urls() {
         if ( get_option( 'ke_qr_local_migration_v1_complete' ) === '1' ) {
+            return;
+        }
+
+        // Hard guard, independent of which hook got us here. rest_url() ends
+        // up calling $wp_rewrite->using_index_permalinks(), and that global is
+        // null before WordPress builds it — a fatal, not a warning, on every
+        // request. A one-time cosmetic data migration must never be able to
+        // take a site offline: if the URL layer is not ready, skip this pass
+        // and let the next request do it.
+        if ( empty( $GLOBALS['wp_rewrite'] ) || ! function_exists( 'rest_url' ) ) {
             return;
         }
 
