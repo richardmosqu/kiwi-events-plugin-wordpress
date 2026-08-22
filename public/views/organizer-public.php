@@ -66,17 +66,32 @@ foreach ( array_merge( (array) $upcoming_events, (array) $past_events ) as $ev )
         </div>
     </section>
 
-    <!-- ── TABS ── -->
+    <!-- ── TABS ──
+         Each tab carries an id so its panel's aria-labelledby can point at
+         it. Those attributes used to read aria-labelledby="events", naming an
+         element that does not exist anywhere on the page, so a screen reader
+         announced the panels with no name at all.
+         Counts mirror the .ke-op-pill-count pattern used by the events
+         filter below, so a visitor can see what is behind a tab before
+         opening it. The calendar has no count — it is a view of the same
+         events, not a separate set. -->
     <nav class="ke-op-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Profile sections', 'kiwi-events' ); ?>">
-        <button type="button" class="ke-op-tab is-active" role="tab" aria-selected="true"
+        <?php $ke_op_event_count = count( (array) $upcoming_events ) + count( (array) $past_events ); ?>
+        <button type="button" id="ke-op-tab-events" class="ke-op-tab is-active" role="tab" aria-selected="true"
                 aria-controls="ke-op-panel-events" data-tab="events">
             <?php esc_html_e( 'Eventos', 'kiwi-events' ); ?>
+            <?php if ( $ke_op_event_count ) : ?>
+                <span class="ke-op-tab-count"><?php echo (int) $ke_op_event_count; ?></span>
+            <?php endif; ?>
         </button>
-        <button type="button" class="ke-op-tab" role="tab" aria-selected="false"
+        <button type="button" id="ke-op-tab-gallery" class="ke-op-tab" role="tab" aria-selected="false"
                 aria-controls="ke-op-panel-gallery" data-tab="gallery">
             <?php esc_html_e( 'Galería', 'kiwi-events' ); ?>
+            <?php if ( ! empty( $gallery ) ) : ?>
+                <span class="ke-op-tab-count"><?php echo (int) count( $gallery ); ?></span>
+            <?php endif; ?>
         </button>
-        <button type="button" class="ke-op-tab" role="tab" aria-selected="false"
+        <button type="button" id="ke-op-tab-calendar" class="ke-op-tab" role="tab" aria-selected="false"
                 aria-controls="ke-op-panel-calendar" data-tab="calendar">
             <?php esc_html_e( 'Calendario', 'kiwi-events' ); ?>
         </button>
@@ -85,7 +100,7 @@ foreach ( array_merge( (array) $upcoming_events, (array) $past_events ) as $ev )
     <div class="ke-op-content">
 
         <!-- ── EVENTOS ── -->
-        <section id="ke-op-panel-events" class="ke-op-panel is-active" role="tabpanel" aria-labelledby="events">
+        <section id="ke-op-panel-events" class="ke-op-panel is-active" role="tabpanel" aria-labelledby="ke-op-tab-events">
             <?php
             $has_upcoming = ! empty( $upcoming_events );
             $has_past     = ! empty( $past_events );
@@ -131,7 +146,7 @@ foreach ( array_merge( (array) $upcoming_events, (array) $past_events ) as $ev )
         </section>
 
         <!-- ── GALERÍA ── -->
-        <section id="ke-op-panel-gallery" class="ke-op-panel" role="tabpanel" aria-labelledby="gallery" hidden>
+        <section id="ke-op-panel-gallery" class="ke-op-panel" role="tabpanel" aria-labelledby="ke-op-tab-gallery" hidden>
             <?php if ( empty( $gallery ) ) : ?>
                 <div class="ke-op-empty">
                     <span class="ke-op-empty-icon">🖼️</span>
@@ -154,7 +169,7 @@ foreach ( array_merge( (array) $upcoming_events, (array) $past_events ) as $ev )
         </section>
 
         <!-- ── CALENDARIO ── -->
-        <section id="ke-op-panel-calendar" class="ke-op-panel" role="tabpanel" aria-labelledby="calendar" hidden>
+        <section id="ke-op-panel-calendar" class="ke-op-panel" role="tabpanel" aria-labelledby="ke-op-tab-calendar" hidden>
             <div class="ke-op-calendar"
                  data-events="<?php echo esc_attr( wp_json_encode( $cal_events ) ); ?>">
                 <div class="ke-op-cal-loading"><?php esc_html_e( 'Loading calendar…', 'kiwi-events' ); ?></div>

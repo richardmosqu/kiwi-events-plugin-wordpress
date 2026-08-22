@@ -262,10 +262,12 @@ class KE_Organizer_Public {
     }
 
     private function enqueue_assets( $organizer, $hero_url ) {
-        // -op3: hardened lightbox hide() so it only restores body
-        // overflow if we acquired the lock (was clobbering other
-        // widgets' overflow locks on no-op hide paths).
-        $ver = KE_VERSION . '-op4';
+        // Asset cache-bust suffix, bumped on every change to the two files
+        // below — KE_VERSION moves too slowly for this page's churn.
+        //   -op3: hardened lightbox hide() so it only restores body overflow
+        //         if we acquired the lock (was clobbering other widgets').
+        //   -op5: real tablist keyboard nav + focus ring + tab counts.
+        $ver = KE_VERSION . '-op5';
 
         wp_enqueue_style(
             'ke-organizer-public',

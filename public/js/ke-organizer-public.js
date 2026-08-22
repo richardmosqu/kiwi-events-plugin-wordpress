@@ -21,18 +21,30 @@
     });
 
     /* ── TABS ──────────────────────────────────────────────────── */
+    /*
+     * role="tablist" is a promise to a keyboard: one stop for the whole set,
+     * arrows to move inside it. Without that, every tab was its own Tab stop
+     * and the arrow keys did nothing — the ARIA roles were announcing a
+     * widget the markup did not actually implement.
+     *
+     * Roving tabindex: exactly one tab is focusable (the active one), the
+     * rest are -1. Tab enters and leaves the group, arrows move within it.
+     */
     function initTabs() {
         var tabs = document.querySelectorAll('.ke-op-tab');
         var panels = document.querySelectorAll('.ke-op-panel');
         if (!tabs.length) return;
 
-        tabs.forEach(function (tab) {
+        tabs.forEach(function (tab, index) {
+            tab.tabIndex = tab.classList.contains('is-active') ? 0 : -1;
+
             tab.addEventListener('click', function () {
                 var key = tab.getAttribute('data-tab');
                 tabs.forEach(function (t) {
                     var active = t === tab;
                     t.classList.toggle('is-active', active);
                     t.setAttribute('aria-selected', active ? 'true' : 'false');
+                    t.tabIndex = active ? 0 : -1;
                 });
                 panels.forEach(function (p) {
                     var active = p.id === 'ke-op-panel-' + key;
@@ -45,6 +57,20 @@
                 if (key === 'calendar') {
                     window.dispatchEvent(new Event('ke-op-calendar-show'));
                 }
+            });
+
+            tab.addEventListener('keydown', function (event) {
+                var targetIndex = index;
+                if (event.key === 'ArrowRight')     targetIndex = (index + 1) % tabs.length;
+                else if (event.key === 'ArrowLeft') targetIndex = (index - 1 + tabs.length) % tabs.length;
+                else if (event.key === 'Home')      targetIndex = 0;
+                else if (event.key === 'End')       targetIndex = tabs.length - 1;
+                else return;
+
+                // preventDefault so Home/End don't also scroll the page.
+                event.preventDefault();
+                tabs[targetIndex].focus();
+                tabs[targetIndex].click();
             });
         });
     }

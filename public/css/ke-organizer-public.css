@@ -134,6 +134,9 @@
 }
 .ke-op-tab {
     padding: 14px 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 15px;
     font-weight: 600;
     color: var(--op-ink-3);
@@ -145,6 +148,33 @@
 .ke-op-tab.is-active {
     color: var(--kep-accent-1);
     border-bottom-color: var(--kep-accent-1);
+}
+
+/* The tabs are arrow-key navigable (see initTabs), and roving tabindex means
+   focus moves between them without a click. Without a visible ring that
+   navigation is invisible — you can move but not see where you are. Only
+   :focus-visible, so a mouse click doesn't leave a ring behind. */
+.ke-op-tab:focus-visible {
+    outline: 2px solid var(--kep-accent-1);
+    outline-offset: -3px;
+    border-radius: 8px 8px 0 0;
+    color: var(--op-ink-1);
+}
+
+/* Count badge. Same shape and tokens as .ke-op-pill-count below, so the two
+   badge families on this page stay one visual idea. */
+.ke-op-tab-count {
+    font-size: 12px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(15,23,42,.08);
+    color: var(--op-ink-2);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.ke-op-tab.is-active .ke-op-tab-count {
+    background: rgba(var(--kep-accent-rgb), .14);
+    color: var(--kep-accent-1);
 }
 
 /* ── CONTENT ──────────────────────────────────────────────────── */
@@ -539,7 +569,10 @@
     .ke-op-card-name { font-size: 22px; }
 
     .ke-op-tabs { margin-top: 80px; gap: 0; }
-    .ke-op-tab { padding: 12px 14px; font-size: 14px; flex: 1; }
+    /* flex:1 splits the bar three ways, so the label+badge pair has to
+       centre itself inside the width it is given. */
+    .ke-op-tab { padding: 12px 10px; font-size: 14px; flex: 1; justify-content: center; gap: 6px; }
+    .ke-op-tab-count { padding: 1px 5px; font-size: 11px; }
 
     .ke-op-content { padding: 24px 14px 60px; }
 
