@@ -26,7 +26,11 @@
 
     background: var(--op-bg);
     color: var(--op-ink-1);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* Poppins, the Campus Life face. This used to be the generic
+       -apple-system stack, which overrode the theme's Poppins and made the
+       organizer profile the one page on the site in a different typeface.
+       The stack keeps the old fonts as fallbacks for a failed webfont. */
+    font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
 }
@@ -672,3 +676,175 @@
  .ke-op-mobile-actions{position:fixed;left:0;right:0;bottom:0;z-index:1200;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);border-top:1px solid var(--op-line);box-shadow:0 -12px 28px rgba(15,23,42,.13);backdrop-filter:blur(16px)}
  .ke-op-mobile-actions .ke-op-action{flex:1;min-height:50px}
 }
+
+/* ==================================================================
+   WP.com button guard + Campus blue actions
+   ==================================================================
+   WP.com on campuslifepa.com injects a global:
+       button, [type=button], [type=submit], [type=reset] {
+           background-color: transparent;
+           border: 1px solid #c36;
+           color: #c36;
+       }
+   #c36 is the magenta-purple that was showing up on the tabs, the
+   Próximos/Pasados pills, the gallery cells and the lightbox arrows —
+   every one of those is a real <button>. WP.com also injects rose-tinted
+   variants on :hover / :focus / :active / :focus-visible whose
+   `[type=button]:hover` reaches (0,2,0), which is why it won on hover
+   specifically even where the base looked right.
+
+   Same fix already used by ke-promoter-portal.css and the ticket wallet:
+     1. a base reset scoped to .ke-org-public → (0,1,1), which beats
+        WP.com's (0,0,1) on the props it leaves undeclared;
+     2. a pseudo-state block → (0,2,1), to outrank their (0,2,0);
+     3. every intentional style re-declared parent-scoped, so it reaches
+        (0,2,0)/(0,3,0) and layers cleanly on top of both.
+
+   Step 3 is the part that is easy to miss: the rules earlier in this file
+   are bare (0,1,0) selectors and would LOSE to the reset in step 1.
+   ================================================================== */
+.ke-org-public button,
+.ke-org-public [type="button"],
+.ke-org-public [type="submit"],
+.ke-org-public [type="reset"] {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    /* font-family only. Buttons do not inherit it from the page — the UA
+       stylesheet gives them the system font, which is exactly why Poppins
+       was not reaching the tabs. Deliberately NOT font-size/line-height:
+       at (0,1,1) those beat every bare rule that sets a real size,
+       including the mobile media query for the lightbox arrows. */
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+}
+.ke-org-public button:hover,
+.ke-org-public button:focus,
+.ke-org-public button:active,
+.ke-org-public button:focus-visible,
+.ke-org-public [type="button"]:hover,
+.ke-org-public [type="button"]:focus,
+.ke-org-public [type="button"]:active,
+.ke-org-public [type="button"]:focus-visible,
+.ke-org-public [type="submit"]:hover,
+.ke-org-public [type="submit"]:focus,
+.ke-org-public [type="submit"]:active,
+.ke-org-public [type="submit"]:focus-visible {
+    background-color: transparent;
+    border-color: transparent;
+    color: inherit;
+    outline: none;
+}
+
+/* ── Tabs, re-declared over the reset ── */
+.ke-org-public .ke-op-tab {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: #64748b;
+    font-weight: 800;
+}
+.ke-org-public .ke-op-tab:hover { color: var(--kep-accent-1); }
+.ke-org-public .ke-op-tab.is-active {
+    color: var(--kep-accent-1);
+    border-bottom-color: var(--kep-accent-1);
+}
+.ke-org-public .ke-op-tab:focus-visible {
+    outline: 2px solid var(--kep-accent-1);
+    outline-offset: -4px;
+    border-radius: 10px 10px 0 0;
+    color: var(--kep-accent-1);
+}
+.ke-org-public .ke-op-tab-count {
+    background: #eef2f7;
+    color: #475569;
+}
+.ke-org-public .ke-op-tab.is-active .ke-op-tab-count {
+    background: var(--kep-accent-1);
+    color: #fff;
+}
+
+/* ── Upcoming / Past pills ── */
+.ke-org-public .ke-op-pill {
+    background: var(--op-card-bg);
+    border: 1px solid var(--op-border);
+    color: var(--op-ink-2);
+}
+.ke-org-public .ke-op-pill:hover:not([disabled]),
+.ke-org-public .ke-op-pill:focus-visible:not([disabled]) {
+    border-color: var(--kep-accent-1);
+    color: var(--kep-accent-1);
+    background: rgba(var(--kep-accent-rgb), .06);
+}
+.ke-org-public .ke-op-pill.is-active {
+    background: var(--kep-accent-1);
+    border-color: var(--kep-accent-1);
+    color: #fff;
+}
+.ke-org-public .ke-op-pill.is-active:hover {
+    background: var(--kep-accent-1);
+    color: #fff;
+}
+
+/* ── Gallery cells and lightbox controls ── */
+.ke-org-public .ke-op-gallery-item,
+.ke-org-public .ke-op-gallery-item:hover { border: 0; }
+.ke-org-public .ke-op-gallery-item:focus-visible {
+    outline: 3px solid var(--kep-accent-1);
+    outline-offset: 3px;
+}
+.ke-org-public .ke-op-lightbox-close,
+.ke-org-public .ke-op-lightbox-prev,
+.ke-org-public .ke-op-lightbox-next {
+    border: 0;
+    color: #fff;
+    background: rgba(255,255,255,.08);
+}
+.ke-org-public .ke-op-lightbox-close:hover,
+.ke-org-public .ke-op-lightbox-prev:hover,
+.ke-org-public .ke-op-lightbox-next:hover,
+.ke-org-public .ke-op-lightbox-close:focus-visible,
+.ke-org-public .ke-op-lightbox-prev:focus-visible,
+.ke-org-public .ke-op-lightbox-next:focus-visible {
+    color: #fff;
+    background: rgba(255,255,255,.22);
+}
+
+/* ── Buy / Reserve actions in Campus blue ──
+   These are <a>, so WP.com's button rule misses them, but they were
+   near-black (#0b0f18) and never used the accent at all. The hover keeps
+   the accent: color-mix lightens it slightly on browsers that support it,
+   and the plain declaration before it means an older browser gets the same
+   blue rather than falling through to a theme colour. */
+.ke-org-public .ke-op-action--primary {
+    background: var(--kep-accent-1);
+    color: #fff !important;
+    border: 1px solid transparent;
+    box-shadow: 0 12px 24px rgba(var(--kep-accent-rgb), .28);
+}
+.ke-org-public .ke-op-action--primary:hover,
+.ke-org-public .ke-op-action--primary:focus-visible {
+    background: var(--kep-accent-1);
+    background: color-mix(in srgb, var(--kep-accent-1) 82%, #fff);
+    color: #fff !important;
+    box-shadow: 0 16px 30px rgba(var(--kep-accent-rgb), .34);
+}
+.ke-org-public .ke-op-action--secondary {
+    background: #eef2f7;
+    color: var(--kep-accent-1) !important;
+    border: 1px solid #dbe2ea;
+}
+.ke-org-public .ke-op-action--secondary:hover,
+.ke-org-public .ke-op-action--secondary:focus-visible {
+    background: rgba(var(--kep-accent-rgb), .10);
+    border-color: rgba(var(--kep-accent-rgb), .38);
+    color: var(--kep-accent-1) !important;
+}
+.ke-org-public .ke-op-action:focus-visible {
+    outline: 2px solid var(--kep-accent-1);
+    outline-offset: 3px;
+}
+
+/* Event card title link — was picking up the theme's link hover. */
+.ke-org-public .ke-op-current-title-link:hover,
+.ke-org-public .ke-op-event-card:hover .ke-op-event-title { color: var(--kep-accent-1); }

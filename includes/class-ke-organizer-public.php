@@ -348,12 +348,25 @@ class KE_Organizer_Public {
         //          if we acquired the lock (was clobbering other widgets').
         //   -op10: V4 conversion layout, video gallery, commerce-aware CTAs,
         //          tablist keyboard nav + focus ring.
-        $ver = KE_VERSION . '-op10';
+        //   -op11: Poppins + Campus blue, and the WP.com button guard that
+        //          stops #c36 repainting every button on hover.
+        $ver = KE_VERSION . '-op11';
+
+        // Poppins — the Campus Life face. Enqueued here rather than relying
+        // on the theme so the profile keeps its typography even if the theme
+        // stops loading it. Same URL the site already requests, so it comes
+        // straight from cache. null version: Google serves its own.
+        wp_enqueue_style(
+            'ke-organizer-poppins',
+            'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap',
+            array(),
+            null
+        );
 
         wp_enqueue_style(
             'ke-organizer-public',
             KE_PLUGIN_URL . 'public/css/ke-organizer-public.css',
-            array(),
+            array( 'ke-organizer-poppins' ),
             $ver
         );
 
