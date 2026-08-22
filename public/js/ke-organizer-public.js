@@ -300,10 +300,10 @@
                 .sort(function (a, b) { return a._start - b._start; });
 
             if (!future.length) {
-                var empty = el('div', 'ke-op-cal-agenda-item');
-                empty.style.justifyContent = 'center';
-                empty.style.color = '#94a3b8';
-                empty.style.borderLeftColor = 'transparent';
+                // A modifier class, not three inline styles — one of which
+                // hardcoded #94a3b8 and so escaped the token palette that
+                // every other colour on this page resolves through.
+                var empty = el('div', 'ke-op-cal-agenda-item is-empty');
                 empty.textContent = i18n.no_events || 'No events';
                 agenda.appendChild(empty);
             } else {

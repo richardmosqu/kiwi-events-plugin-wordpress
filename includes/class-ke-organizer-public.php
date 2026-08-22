@@ -350,7 +350,9 @@ class KE_Organizer_Public {
         //          tablist keyboard nav + focus ring.
         //   -op11: Poppins + Campus blue, and the WP.com button guard that
         //          stops #c36 repainting every button on hover.
-        $ver = KE_VERSION . '-op11';
+        //   -op12: normalized against .impeccable.md — every colour through
+        //          a token, the four blurred surfaces cut, reduced-motion.
+        $ver = KE_VERSION . '-op12';
 
         // Poppins — the Campus Life face. Enqueued here rather than relying
         // on the theme so the profile keeps its typography even if the theme
