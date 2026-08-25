@@ -93,7 +93,10 @@
     max-width: 1080px;
     display: flex;
     justify-content: center;
-    transform: translateY(64px);
+    /* No translateY here, ever: the V1 card used to overlap the hero edge
+       via a shift, but the V4 hero has overflow:hidden and clips any child
+       pushed past it — on mobile that amputated the bottom of the card
+       (date + CTA). V4 centers with flex + margin instead. */
 }
 
 .ke-op-card {
@@ -156,7 +159,10 @@
 
 /* ── TABS ─────────────────────────────────────────────────────── */
 .ke-op-tabs {
-    margin: 96px auto 0;
+    /* Flush under the hero. The 96px margin belonged to the V1 overlap
+       design (card hanging past the hero); with the V4 card fully inside
+       the hero it was just a dead grey band. */
+    margin: 0 auto;
     max-width: 1080px;
     padding: 0 20px;
     display: flex;
@@ -598,12 +604,11 @@
 
 @media (max-width: 768px) {
     .ke-op-hero { min-height: 320px; padding: 60px 16px 0; }
-    .ke-op-hero-inner { transform: translateY(56px); }
     .ke-op-card { padding: 24px 20px; max-width: 100%; }
     .ke-op-card-logo { width: 80px; height: 80px; margin-top: -64px; }
     .ke-op-card-name { font-size: 22px; }
 
-    .ke-op-tabs { margin-top: 80px; gap: 0; }
+    .ke-op-tabs { gap: 0; }
     .ke-op-tab { padding: 12px 14px; font-size: 14px; flex: 1; }
 
     .ke-op-content { padding: 24px 14px 60px; }
@@ -941,6 +946,10 @@
 .ke-op-gallery-item:hover img,
 .ke-op-gallery-item:hover video { transform: scale(1.035); filter: saturate(1.08); }
 
+/* Tombstone: the fixed mobile buy-bar is gone from the template (it drew
+   underneath the theme's nav.clnav), but cached HTML can keep serving the
+   old markup next to this newer stylesheet for a while. Keep it invisible
+   rather than letting it fall into the page flow unstyled. */
 .ke-op-mobile-actions { display: none; }
 
 @media (max-width: 900px) {
@@ -960,8 +969,6 @@
 }
 
 @media (max-width: 620px) {
-    /* Room for the fixed buy bar. */
-    .ke-org-public { padding-bottom: 76px; }
     .ke-op-hero { padding: 34px 14px 28px; background-position: center; }
     /* The bloom is a decoration the phone pays for on a screen where it is
        mostly off-canvas anyway. */
@@ -983,10 +990,13 @@
     .ke-op-current-title { font-size: 18px; }
     .ke-op-current-date { margin-top: 8px; font-size: 12px; }
     .ke-op-current-venue { display: none; }
-    .ke-op-current-actions { margin-top: 12px; }
-    /* The buy actions move to the fixed bar below, so they are always one
-       thumb away instead of scrolled past. */
-    .ke-op-current-actions .ke-op-action { display: none; }
+    /* The CTAs stay inside the card, stacked full width. They used to be
+       display:none here in favour of a fixed bottom buy-bar, but the theme's
+       mobile nav (nav.clnav — fixed, z-index 99990) owns the bottom edge of
+       every page: the bar rendered underneath it and the phone lost its only
+       visible purchase path. */
+    .ke-op-current-actions { margin-top: 14px; }
+    .ke-op-current-actions .ke-op-action { flex: 1 1 100%; min-height: 46px; }
     .ke-op-action-status { margin-top: 10px; font-size: 11px; }
     .ke-op-tabs { padding: 0 8px; overflow-x: auto; justify-content: flex-start; }
     .ke-op-tab { min-width: max-content; min-height: 58px; padding: 0 14px; }
@@ -994,20 +1004,6 @@
     .ke-op-section-intro { display: block; margin-bottom: 22px; }
     .ke-op-section-intro p { margin-top: 8px; font-size: 13px; }
     .ke-op-section-intro h2 { font-size: 29px; }
-    .ke-op-mobile-actions {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 1200;
-        display: flex;
-        gap: 8px;
-        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-        background: rgba(255,255,255,.98);
-        border-top: 1px solid var(--op-line);
-        box-shadow: 0 -12px 28px rgba(15,23,42,.13);
-    }
-    .ke-op-mobile-actions .ke-op-action { flex: 1; min-height: 50px; }
 }
 
 /* Someone who asked the OS to calm motion down gets a still page. The
@@ -1089,6 +1085,11 @@
 
 /* ── Tabs, re-declared over the reset ── */
 .ke-org-public .ke-op-tab {
+    /* Flex, so the label and the count chip center as one unit and the
+       V4 `gap: 9px` actually applies (gap is inert on a non-flex button). */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 0;
     border-bottom: 2px solid transparent;
     color: var(--op-ink-quiet);
@@ -1105,9 +1106,22 @@
     border-radius: 10px 10px 0 0;
     color: var(--kep-accent-1);
 }
+/* The count is a capsule chip, like .ke-op-pill-count. It shipped with
+   background/colour only — no radius, no padding, no size — so the active
+   tab painted a raw accent-blue rectangle glued to the digits. */
 .ke-org-public .ke-op-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
     background: var(--op-fill);
     color: var(--op-ink-2);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
 }
 .ke-org-public .ke-op-tab.is-active .ke-op-tab-count {
     background: var(--kep-accent-1);

@@ -352,7 +352,12 @@ class KE_Organizer_Public {
         //          stops #c36 repainting every button on hover.
         //   -op12: normalized against .impeccable.md — every colour through
         //          a token, the four blurred surfaces cut, reduced-motion.
-        $ver = KE_VERSION . '-op12';
+        //   -op13: mobile repair — stale V1 translateY was clipping the card
+        //          against the hero's overflow:hidden, tabs lost their dead
+        //          96/80px margin, tab counts became real chips, and the CTAs
+        //          returned to the card (the fixed buy-bar rendered UNDER the
+        //          theme's nav.clnav z-index 99990 and phones had no CTA).
+        $ver = KE_VERSION . '-op13';
 
         // Poppins — the Campus Life face. Enqueued here rather than relying
         // on the theme so the profile keeps its typography even if the theme

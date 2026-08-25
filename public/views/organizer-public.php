@@ -232,12 +232,12 @@ foreach ( array_merge( (array) $upcoming_events, (array) $past_events ) as $ev )
             </div>
         </section>
     </div>
-    <?php if ( $current_event && ( ! empty( $current_event['tickets_open'] ) || ! empty( $current_event['reservations_open'] ) ) ) : ?>
-        <div class="ke-op-mobile-actions" aria-label="Acciones del evento actual">
-            <?php if ( ! empty( $current_event['tickets_open'] ) ) : ?><a href="<?php echo esc_url( $current_event['permalink'] . '#ke-tickets-section' ); ?>" class="ke-op-action ke-op-action--primary" data-ke-cta="mobile-buy-tickets" data-event-id="<?php echo (int) $current_event['id']; ?>">Descarga tus boletos</a><?php endif; ?>
-            <?php if ( ! empty( $current_event['reservations_open'] ) ) : ?><a href="<?php echo esc_url( $current_event['permalink'] . '#ke-reservations-section' ); ?>" class="ke-op-action ke-op-action--secondary" data-ke-cta="mobile-reserve-table" data-event-id="<?php echo (int) $current_event['id']; ?>">Reservar mesa</a><?php endif; ?>
-        </div>
-    <?php endif; ?>
+    <?php
+    // No fixed bottom buy-bar on mobile: the theme's mobile nav (nav.clnav,
+    // position:fixed, z-index 99990) owns the bottom edge of every page, and
+    // the bar rendered invisible underneath it — leaving phones with no CTA
+    // at all. The hero card keeps its buttons at every width instead.
+    ?>
 </div>
 
 <!-- Lightbox (hidden until a gallery item is clicked) -->
