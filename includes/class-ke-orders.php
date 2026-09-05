@@ -226,29 +226,27 @@ class KE_Orders {
     }
 
     /**
-     * Enforce ticket limit per person per event
+     * Enforce the per-person ticket limit for an event.
+     *
+     * Thin wrapper kept for backward compatibility with existing callers. The
+     * rule itself now lives in KE_Ticket_Limits so every enforcement layer
+     * (add-to-cart, cart update, whole-cart re-check, Store API, checkout,
+     * order-creation guard) evaluates it identically. This 'checkout' context
+     * counts issued tickets for the email plus any cart lines for the event.
+     *
+     * @param int    $event_id
+     * @param string $email
+     * @param int    $requested_qty
+     * @return true|WP_Error  WP_Error 'ticket_limit_exceeded' with a dynamic,
+     *                        translatable Spanish message when the limit is hit.
      */
     public function can_purchase( $event_id, $email, $requested_qty ) {
-        $max_per_person = (int) get_post_meta( $event_id, '_ke_event_max_tickets_per_person', true );
-        if ( $max_per_person <= 0 ) {
-            $max_per_person = (int) get_option( 'ke_default_ticket_limit', 10 );
-        }
-
-        $existing = $this->get_ticket_count_for_email( $event_id, $email );
-        $remaining = $max_per_person - $existing;
-
-        if ( $requested_qty > $remaining ) {
-            return new WP_Error(
-                'ticket_limit_exceeded',
-                sprintf(
-                    'You can only purchase %d more ticket(s) for this event. (Limit: %d per person)',
-                    $remaining,
-                    $max_per_person
-                )
-            );
-        }
-
-        return true;
+        return KE_Ticket_Limits::can_user_take(
+            (int) $event_id,
+            $email,
+            (int) $requested_qty,
+            'checkout'
+        );
     }
 
     /**
