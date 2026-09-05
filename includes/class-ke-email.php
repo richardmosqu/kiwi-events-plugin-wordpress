@@ -774,6 +774,26 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
       </p>
     </div>
 
+    <!-- Quick links to every ticket, listed BEFORE the full QR blocks so they
+         survive Gmail's ~102KB message-clipping on large multi-ticket orders:
+         each QR block below adds roughly 2KB of inlined HTML, so a big order can
+         cross the clip point and drop the trailing tickets from the rendered
+         message — these plain per-ticket links stay above that boundary, giving
+         the buyer a reliable path to each ticket regardless of clipping. Shown
+         only for multi-ticket orders (a single ticket needs no index). -->
+    <?php if ( ! empty( $data['tickets'] ) && count( $data['tickets'] ) > 1 ) : ?>
+    <div style="background:#ffffff;border:1px solid #f0f0f0;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#71717a;margin-bottom:8px;font-family:'Inter',Arial,sans-serif;"><?php echo intval( count( $data['tickets'] ) ); ?> tickets &mdash; open each one below</div>
+      <?php foreach ( $data['tickets'] as $i => $t ) :
+          $t_url = esc_url( home_url( '/ticket/' . $t->ticket_code ) );
+      ?>
+      <div style="padding:3px 0;font-size:13px;font-family:'Inter',Arial,sans-serif;">
+        <a href="<?php echo $t_url; ?>" style="color:<?php echo $accent; ?>;text-decoration:none;font-weight:600;"><?php echo esc_html( ( $i + 1 ) . '. ' . ( $t->attendee_name ?: 'Ticket' ) ); ?></a>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
     <!-- Per-ticket blocks -->
     <?php if ( ! empty( $data['tickets'] ) ) : ?>
       <?php foreach ( $data['tickets'] as $ticket ) :

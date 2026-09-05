@@ -3,7 +3,7 @@
  * Plugin Name: KiwiEvents
  * Plugin URI:  https://kiwievents.com
  * Description: A complete event management and ticketing solution for WordPress. Create events, sell tickets (free & paid via WooCommerce), generate QR code tickets, scan at the door, track attendees, and view sales dashboards.
- * Version:     2.5.2
+ * Version:     2.5.3
  * Author:      KiwiEvents
  * Author URI:  https://kiwievents.com
  * License:     GPL-2.0+
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // header for the plugins list and update checks, while KE_VERSION is what
 // asset enqueues and schema guards use. They drifted before (header stuck at
 // 1.0.0 while the code shipped 2.x); bump both together.
-define( 'KE_VERSION', '2.5.2' );
+define( 'KE_VERSION', '2.5.3' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -105,6 +105,7 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-post-types.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-event-slug.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-shortcodes.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-ticket-types.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-ticket-limits.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-orders.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-tickets.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-codes.php';
@@ -141,6 +142,8 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-visible.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-admin-preview.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-duplicate-events.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-service-fee-audit.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-ticket-audit.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-ticket-reissue.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-admin-color-mode.php';
 require_once KE_PLUGIN_DIR . 'includes/class-kiwi-events.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin.php';
@@ -251,6 +254,14 @@ function kiwi_events_init() {
     // submenu page reachable at admin.php?page=ke-service-fee-audit.
     if ( is_admin() && class_exists( 'KE_Service_Fee_Audit' ) ) {
         ( new KE_Service_Fee_Audit() )->init();
+    }
+
+    // Ticket count audit (read-only). Hidden admin submenu at
+    // admin.php?page=ke-ticket-audit — reports orders whose issued ticket rows
+    // don't match the paid quantity (both directions), for the Bug 2 blast
+    // radius. Issues nothing; the re-issue action is designed, not built.
+    if ( is_admin() && class_exists( 'KE_Ticket_Audit' ) ) {
+        ( new KE_Ticket_Audit() )->init();
     }
 
     // Visible promoter attribution (URL persistence + badge + checkout

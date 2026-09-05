@@ -156,6 +156,26 @@ class KE_Rest_API {
             'permission_callback' => array( $this, 'admin_permission_check' ),
         ) );
 
+        // Admin: Re-issue tickets for ONE order (incident remedy). Two routes:
+        // /plan is a read-only dry run (writes nothing); /execute writes only
+        // with an explicit confirm and per-reason overrides. Deliberately
+        // per-order — there is no bulk/batch/scheduled variant.
+        register_rest_route( $this->namespace, '/reissue/plan', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'rest_reissue_plan' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+        register_rest_route( $this->namespace, '/reissue/execute', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'rest_reissue_execute' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+        register_rest_route( $this->namespace, '/reissue/reverse', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'rest_reissue_reverse' ),
+            'permission_callback' => array( $this, 'admin_permission_check' ),
+        ) );
+
 
         // Admin: PUT updates attendee name/email; DELETE soft-cancels (or hard-deletes with ?hard=1)
         register_rest_route( $this->namespace, '/tickets/(?P<id>\d+)', array(
@@ -1017,12 +1037,27 @@ class KE_Rest_API {
         $buyer_email    = sanitize_email( $request->get_param( 'email' ) );
         $attendees      = $request->get_param( 'attendees' );
 
-        // Fallback for missing attendees
+        // Fallback for missing attendees: when the client sends none, one
+        // attendee entry per requested unit is synthesized from the buyer.
         if ( ! is_array( $attendees ) || empty( $attendees ) ) {
             $attendees = array();
             for ( $i = 0; $i < $quantity; $i++ ) {
                 $attendees[] = array( 'name' => $buyer_name, 'email' => $buyer_email );
             }
+        }
+
+        // E — tickets are minted one per attendee entry, so the attendee count
+        // must equal the quantity being paid/charged. A mismatch (e.g. a crafted
+        // request with quantity=1 but three attendees, which would mint three
+        // tickets against a single-unit capacity/limit check) is hard-rejected,
+        // never coerced. The fallback above already makes these equal when no
+        // attendees were sent, so this only trips on an explicit mismatch.
+        if ( count( $attendees ) !== $quantity ) {
+            return new WP_Error(
+                'attendee_quantity_mismatch',
+                __( 'La cantidad de asistentes no coincide con la cantidad de boletos.', 'kiwi-events' ),
+                array( 'status' => 400 )
+            );
         }
 
         // Validate inputs
@@ -1078,6 +1113,19 @@ class KE_Rest_API {
             return new WP_Error(
                 'ticket_event_mismatch',
                 'That ticket type does not belong to this event.',
+                array( 'status' => 400 )
+            );
+        }
+
+        // D — per-ticket-type order bounds (min_per_order / max_per_order),
+        // enforced server-side for BOTH the paid and free branches. Previously
+        // these lived only in the checkout sheet's stepper (data-min/data-max),
+        // so a crafted POST could request any quantity.
+        $bounds = KE_Ticket_Limits::check_order_bounds( $ticket_type, $quantity );
+        if ( is_wp_error( $bounds ) ) {
+            return new WP_Error(
+                $bounds->get_error_code(),
+                $bounds->get_error_message(),
                 array( 'status' => 400 )
             );
         }
@@ -1163,7 +1211,20 @@ class KE_Rest_API {
         // reservation; this is the free path's equivalent. Released on every
         // exit below, and MySQL drops it anyway if the request dies.
         $ke_cap_lock = 'ke_capacity_' . (int) $ticket_type_id;
-        $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT GET_LOCK(%s, %d)', $ke_cap_lock, 5 ) );
+        $ke_got_lock = (int) $GLOBALS['wpdb']->get_var(
+            $GLOBALS['wpdb']->prepare( 'SELECT GET_LOCK(%s, %d)', $ke_cap_lock, 5 )
+        );
+        // GET_LOCK returns 1 on success, 0 on timeout, NULL on error. If we did
+        // not actually acquire the lock, the availability check below would race
+        // against a concurrent checkout — bail with a retryable error rather
+        // than proceed unserialized. Nothing to release: we do not hold it.
+        if ( $ke_got_lock !== 1 ) {
+            return new WP_Error(
+                'checkout_busy',
+                __( 'El sistema está procesando otra compra para este boleto. Intenta de nuevo en unos segundos.', 'kiwi-events' ),
+                array( 'status' => 503 )
+            );
+        }
         $ke_release_lock = static function () use ( $ke_cap_lock ) {
             $GLOBALS['wpdb']->get_var( $GLOBALS['wpdb']->prepare( 'SELECT RELEASE_LOCK(%s)', $ke_cap_lock ) );
         };
@@ -3382,6 +3443,54 @@ class KE_Rest_API {
         }
 
         return rest_ensure_response( array( 'success' => true ) );
+    }
+
+    /**
+     * POST /reissue/plan — dry run. Body: { type: 'ke_order'|'orphan', id: int }.
+     * Read-only: returns exactly what /execute would create. Writes nothing.
+     */
+    public function rest_reissue_plan( WP_REST_Request $request ) {
+        $plan = KE_Ticket_Reissue::plan( array(
+            'type' => sanitize_text_field( (string) $request->get_param( 'type' ) ),
+            'id'   => absint( $request->get_param( 'id' ) ),
+        ) );
+        return rest_ensure_response( $plan );
+    }
+
+    /**
+     * POST /reissue/execute — writes, per order only. Body: type, id,
+     * confirm(bool, required true), override_refunded(bool), override_passed(bool),
+     * send_email(bool, default false). Refuses refunded/passed unless overridden.
+     */
+    public function rest_reissue_execute( WP_REST_Request $request ) {
+        $result = KE_Ticket_Reissue::execute( array(
+            'type'              => sanitize_text_field( (string) $request->get_param( 'type' ) ),
+            'id'                => absint( $request->get_param( 'id' ) ),
+            'confirm'           => filter_var( $request->get_param( 'confirm' ), FILTER_VALIDATE_BOOLEAN ),
+            'override_refunded' => filter_var( $request->get_param( 'override_refunded' ), FILTER_VALIDATE_BOOLEAN ),
+            'override_passed'   => filter_var( $request->get_param( 'override_passed' ), FILTER_VALIDATE_BOOLEAN ),
+            'send_email'        => filter_var( $request->get_param( 'send_email' ), FILTER_VALIDATE_BOOLEAN ),
+        ) );
+        if ( is_wp_error( $result ) ) {
+            $data   = $result->get_error_data();
+            $status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 400;
+            return new WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => $status, 'plan' => is_array( $data ) ? ( $data['plan'] ?? null ) : null ) );
+        }
+        return rest_ensure_response( $result );
+    }
+
+    /**
+     * POST /reissue/reverse — cancel exactly the tickets a batch created.
+     * Body: { batch_id: string }.
+     */
+    public function rest_reissue_reverse( WP_REST_Request $request ) {
+        $result = KE_Ticket_Reissue::reverse( sanitize_text_field( (string) $request->get_param( 'batch_id' ) ) );
+        if ( is_wp_error( $result ) ) {
+            $data   = $result->get_error_data();
+            $status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 400;
+            return new WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => $status ) );
+        }
+        return rest_ensure_response( $result );
     }
 
     /**

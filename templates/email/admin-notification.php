@@ -108,24 +108,27 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
         </tr>
       </table>
       
-      <?php if ( count( $tickets ) > 1 ) : ?>
+      <!-- One QR link PER ticket (every attendee), not just the first. A
+           multi-ticket order previously surfaced only tickets[0]'s QR here. -->
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e4e4e7;">
-        <div style="font-size:12px;font-weight:600;color:#71717a;margin-bottom:8px;">ATTENDEES</div>
-        <?php foreach ( $tickets as $ticket ) : ?>
-          <div class="sub-row">
-            <?php echo esc_html( $ticket->attendee_name ); ?>
-            <?php if ( ! empty( $ticket->attendee_email ) && $ticket->attendee_email !== $customer_email ) : ?>
-              &middot; <?php echo esc_html( $ticket->attendee_email ); ?>
-            <?php endif; ?>
+        <div style="font-size:12px;font-weight:600;color:#71717a;margin-bottom:8px;"><?php echo count( $tickets ) > 1 ? 'ATTENDEES &amp; QR CODES' : 'QR CODE'; ?></div>
+        <?php foreach ( $tickets as $ticket ) :
+            $t_qr = esc_url( home_url( '/ticket/' . $ticket->ticket_code ) );
+        ?>
+          <div class="sub-row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span><?php echo esc_html( $ticket->attendee_name ); ?><?php if ( ! empty( $ticket->attendee_email ) && $ticket->attendee_email !== $customer_email ) : ?> &middot; <?php echo esc_html( $ticket->attendee_email ); ?><?php endif; ?></span>
+            <a href="<?php echo $t_qr; ?>" style="color:<?php echo $accent; ?>;text-decoration:none;font-weight:600;font-size:13px;white-space:nowrap;">View QR &rsaquo;</a>
           </div>
         <?php endforeach; ?>
       </div>
-      <?php endif; ?>
     </div>
 
-    <!-- Actions -->
+    <!-- Actions. The single QR button only makes sense for a one-ticket order;
+         multi-ticket orders get their per-ticket QR links in the list above. -->
     <div class="btn-group">
+      <?php if ( count( $tickets ) === 1 ) : ?>
       <a href="<?php echo esc_url( $qr_link ); ?>" class="btn" style="background:<?php echo $accent; ?>;">View QR Code</a><br>
+      <?php endif; ?>
       <a href="<?php echo esc_url( $dashboard_link ); ?>" class="btn btn-secondary">View in Dashboard</a>
     </div>
 
