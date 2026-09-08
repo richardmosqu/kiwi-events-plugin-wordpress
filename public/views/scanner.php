@@ -170,10 +170,11 @@ if ( class_exists( 'KE_REST_API' ) ) {
                     <line x1="17" y1="9" x2="23" y2="15"/>
                 </svg>
             </button>
-            <div class="ke-topbar-counter" aria-live="polite">
-                <span class="ke-counter-checked" id="ke-counter-checked">0</span>
+            <div class="ke-topbar-counter" aria-live="polite" title="<?php esc_attr_e( 'Live count from the server', 'kiwi-events' ); ?>">
+                <span class="ke-counter-sync" id="ke-counter-sync" aria-hidden="true"></span>
+                <span class="ke-counter-checked" id="ke-counter-checked">—</span>
                 <span class="ke-counter-divider">/</span>
-                <span class="ke-counter-total" id="ke-counter-total">0</span>
+                <span class="ke-counter-total" id="ke-counter-total">—</span>
             </div>
         </header>
 

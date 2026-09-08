@@ -250,6 +250,12 @@ h1 {
 
 /* ─── Buttons ───────────────────────────────────────────────────── */
 
+/* The JS toggles the action button with the `hidden` attribute. The class
+   rule below sets display:inline-flex, which outranks the UA stylesheet's
+   [hidden]{display:none} — so "Scan Another" used to sit on screen even while
+   idle. Author-level [hidden] rule restores the intended behaviour. */
+.ke-scanner-body .ke-btn-primary[hidden] { display: none !important; }
+
 .ke-scanner-body .ke-btn-primary {
     width: 100%;
     height: 56px;
@@ -568,6 +574,46 @@ h1 {
 .ke-scanner-actions {
     padding: 12px 16px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+/* ─── Counter sync indicator (0.11) ─────────────────────────────
+   The number in the pill is the server's; the dot says how fresh it is.
+   green = synced · pulsing accent = fetching · amber = last sync failed. */
+.ke-counter-sync {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--kep-fg-dim);
+    align-self: center;
+    flex-shrink: 0;
+    margin-right: 3px;
+    transition: background 0.2s ease;
+}
+.ke-counter-sync.is-live    { background: var(--kep-valid); }
+.ke-counter-sync.is-stale   { background: var(--kep-used); }
+.ke-counter-sync.is-syncing {
+    background: var(--kep-accent-1);
+    animation: ke-sync-pulse 1s ease-in-out infinite;
+}
+@keyframes ke-sync-pulse {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+}
+
+/* Neutral "hold on" card — shown while the client retries a transient
+   failure (rate limit, network blip) so a real ticket is never painted red
+   for a problem that clears itself in a second. */
+.ke-result-card--hold {
+    background: var(--kep-surface);
+    border: 1px solid var(--kep-line);
+}
+.ke-result-card--hold .ke-result-icon   { background: var(--kep-surface-2); color: var(--kep-fg-muted); }
+.ke-result-card--hold .ke-result-status { color: var(--kep-fg-muted); }
+.ke-result-card--hold .ke-result-icon svg { animation: ke-spin 1.6s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .ke-counter-sync,
+    .ke-result-card--hold .ke-result-icon svg { animation: none !important; }
 }
 
 /* ─── Reduced motion ───────────────────────────────────────────── */

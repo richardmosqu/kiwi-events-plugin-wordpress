@@ -21,10 +21,18 @@ class KE_Scanner_Password {
     // password gate and presented as X-KE-Scanner-Token on validate calls.
     const SESSION_TTL           = 4 * HOUR_IN_SECONDS;
     const SESSION_PREFIX        = 'ke_scanner_session_';
-    // Per-token scan rate limit (anti-flooding by a leaked token).
+    // Per-token scan rate limit (anti-flooding by a leaked token). FIXED
+    // window: the counter resets SCAN_RATE_WINDOW seconds after the first
+    // scan of the window, however many scans follow. The previous version
+    // refreshed the transient's expiry on every scan, so a door that never
+    // paused for a full minute accumulated forever and locked itself out
+    // after the 60th ticket ("Too many scans") — seen at the gate as valid
+    // tickets that "wouldn't scan". 120/min is several times what a person
+    // with one phone can physically do, and still a hard cap for a leaked
+    // token.
     const SCAN_RATE_PREFIX      = 'ke_scanner_scan_rate_';
     const SCAN_RATE_WINDOW      = 60;   // seconds
-    const SCAN_RATE_LIMIT       = 60;   // scans per token per window
+    const SCAN_RATE_LIMIT       = 120;  // scans per token per window
     // Index of live tokens per organizer, used for bulk invalidation.
     const SESSION_INDEX_PREFIX  = 'ke_scanner_session_index_';
 
@@ -393,9 +401,18 @@ class KE_Scanner_Password {
     public static function check_scan_rate( $token ) {
         if ( ! is_string( $token ) || $token === '' ) return false;
         $key = self::SCAN_RATE_PREFIX . $token;
-        $val = (int) get_transient( $key );
-        if ( $val >= self::SCAN_RATE_LIMIT ) return false;
-        set_transient( $key, $val + 1, self::SCAN_RATE_WINDOW );
+        $now = time();
+        $val = get_transient( $key );
+        // A legacy integer value (pre fixed-window) or anything malformed
+        // simply starts a new window.
+        if ( ! is_array( $val ) || empty( $val['start'] ) || ( $now - (int) $val['start'] ) >= self::SCAN_RATE_WINDOW ) {
+            $val = array( 'start' => $now, 'count' => 0 );
+        }
+        if ( (int) $val['count'] >= self::SCAN_RATE_LIMIT ) return false;
+        $val['count'] = (int) $val['count'] + 1;
+        // Expire exactly when the window ends, so a rejected burst can never
+        // extend the lockout.
+        set_transient( $key, $val, max( 1, self::SCAN_RATE_WINDOW - ( $now - (int) $val['start'] ) ) );
         return true;
     }
 }

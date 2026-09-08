@@ -71,11 +71,16 @@ class KE_Rest_API {
             'permission_callback' => array( $this, 'admin_permission_check' ),
         ) );
 
-        // Admin: Check-in stats for an event
+        // Check-in stats for an event. Admin/scanner caps, OR the public
+        // scanner's session token (scoped to the token's own event), so every
+        // phone at the door polls the server's count instead of trusting a
+        // number it tallied locally. POST is accepted alongside GET so the
+        // scanner can bypass any edge cache in front of the REST API — a
+        // cached "12 / 80" is exactly the bug this exists to fix.
         register_rest_route( $this->namespace, '/events/(?P<id>\d+)/checkin-stats', array(
-            'methods'             => WP_REST_Server::READABLE,
+            'methods'             => array( WP_REST_Server::READABLE, WP_REST_Server::CREATABLE ),
             'callback'            => array( $this, 'get_checkin_stats' ),
-            'permission_callback' => array( $this, 'scanner_permission_check' ),
+            'permission_callback' => array( $this, 'scanner_stats_permission' ),
         ) );
 
         // Admin: Toggle a ticket type's active/inactive status. Flips the
@@ -676,6 +681,27 @@ class KE_Rest_API {
             return new WP_Error( 'invalid_token', __( 'Scanner session expired or invalid.', 'kiwi-events' ), array( 'status' => 401 ) );
         }
         // No token — allow admin/scan caps as a fallback.
+        return $this->scanner_permission_check();
+    }
+
+    /**
+     * Permission for the read-only check-in counter. Same token model as the
+     * validate route, but (a) the token must be scoped to the requested event
+     * and (b) it does NOT consume scan-rate budget — polling the counter must
+     * never lock a door out of scanning.
+     */
+    public function scanner_stats_permission( WP_REST_Request $request ) {
+        $token = $request->get_header( 'x-ke-scanner-token' );
+        if ( $token ) {
+            $session = KE_Scanner_Password::verify_session_token( $token );
+            if ( ! is_array( $session ) ) {
+                return new WP_Error( 'invalid_token', __( 'Scanner session expired or invalid.', 'kiwi-events' ), array( 'status' => 401 ) );
+            }
+            if ( (int) $session['event_id'] !== absint( $request['id'] ) ) {
+                return new WP_Error( 'wrong_event', __( 'This scanner session belongs to a different event.', 'kiwi-events' ), array( 'status' => 403 ) );
+            }
+            return true;
+        }
         return $this->scanner_permission_check();
     }
 
@@ -1744,26 +1770,26 @@ class KE_Rest_API {
     public function validate_ticket( WP_REST_Request $request ) {
         $tickets = new KE_Tickets();
         $session = $request->get_param( '_ke_scanner_session' );
+        $scope   = is_array( $session ) ? (int) $session['event_id'] : 0;
 
+        // Token callers may only validate tickets for the event the token was
+        // issued against. The scope is enforced INSIDE validate_and_checkin,
+        // before any write — a wrong-event ticket must never be burned.
         $result = $tickets->validate_and_checkin(
             $request['code'],
-            get_current_user_id()
+            get_current_user_id(),
+            $scope
         );
 
-        // Token callers may only validate tickets for the event the token
-        // was issued against. Anything else is a 403 — never 'valid' for
-        // the wrong event.
-        if ( is_array( $session ) && isset( $result['ticket'] ) ) {
-            $ticket_event_id = is_object( $result['ticket'] )
-                ? (int) ( $result['ticket']->event_id ?? 0 )
-                : (int) ( $result['ticket']['event_id'] ?? 0 );
-            if ( $ticket_event_id > 0 && $ticket_event_id !== (int) $session['event_id'] ) {
-                return new WP_Error(
-                    'wrong_event',
-                    __( 'This ticket belongs to a different event.', 'kiwi-events' ),
-                    array( 'status' => 403 )
-                );
-            }
+        // Every answer carries the server's live counter for the scanning
+        // event, so the phone never keeps a tally of its own (the old client
+        // did, and lost it on every refresh — and no two phones agreed).
+        $stats_event = $scope;
+        if ( $stats_event <= 0 && isset( $result['ticket'] ) && is_object( $result['ticket'] ) ) {
+            $stats_event = (int) ( $result['ticket']->event_id ?? 0 );
+        }
+        if ( $stats_event > 0 ) {
+            $result['stats'] = $tickets->get_checkin_stats( $stats_event );
         }
 
         // Strip PII for token-authed callers — scanners at the door don't
@@ -1782,11 +1808,15 @@ class KE_Rest_API {
         $status_code = match( $result['status'] ) {
             'valid'        => 200,
             'already_used' => 200,
+            'wrong_event'  => 403,
             'invalid'      => 404,
+            'error'        => 409,
             default        => 400,
         };
 
-        return new WP_REST_Response( $result, $status_code );
+        $response = new WP_REST_Response( $result, $status_code );
+        $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        return $response;
     }
 
     /**
@@ -1847,10 +1877,11 @@ class KE_Rest_API {
 
         $session = KE_Scanner_Password::issue_session_token( $event_id );
 
-        global $wpdb;
-        $tt = $wpdb->prefix . 'ke_tickets';
-        $checked_in = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tt} WHERE event_id = %d AND status = 'used'", $event_id ) );
-        $total      = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tt} WHERE event_id = %d AND status != 'cancelled'", $event_id ) );
+        // Same counter the validate and stats routes return, so every number
+        // the phone can show comes from one query.
+        $stats      = ( new KE_Tickets() )->get_checkin_stats( $event_id );
+        $checked_in = (int) $stats['checked_in'];
+        $total      = (int) $stats['total'];
 
         $event_name = get_the_title( $event_id );
         $organizer_name = '';
@@ -1866,6 +1897,7 @@ class KE_Rest_API {
             'organizer_name' => $organizer_name,
             'total_tickets'  => $total,
             'checked_in'     => $checked_in,
+            'stats'          => $stats,
         ) );
     }
 
@@ -2528,16 +2560,19 @@ class KE_Rest_API {
      * GET /events/{id}/checkin-stats
      */
     public function get_checkin_stats( WP_REST_Request $request ) {
-        global $wpdb;
-        $event_id   = absint( $request->get_param( 'id' ) );
-        $table      = $wpdb->prefix . 'ke_tickets';
-        $checked_in = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status = 'used'", $event_id
+        $event_id = absint( $request->get_param( 'id' ) );
+        $stats    = ( new KE_Tickets() )->get_checkin_stats( $event_id );
+
+        $response = rest_ensure_response( array(
+            'checked_in'  => (int) $stats['checked_in'],
+            'total'       => (int) $stats['total'],
+            'remaining'   => (int) $stats['remaining'],
+            'percentage'  => $stats['percentage'],
+            'server_time' => current_time( 'mysql' ),
         ) );
-        $total = (int) $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status != 'cancelled'", $event_id
-        ) );
-        return rest_ensure_response( array( 'checked_in' => $checked_in, 'total' => $total ) );
+        // Never let an intermediary serve yesterday's count to the door.
+        $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        return $response;
     }
 
     /**

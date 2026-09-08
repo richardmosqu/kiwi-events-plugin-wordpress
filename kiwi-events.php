@@ -36,7 +36,7 @@ define( 'KE_DB_VERSION', '2.8.0' );
 if ( ! defined( 'KE_PROMOTER_DEBUG' ) ) {
     define( 'KE_PROMOTER_DEBUG', false );
 }
-define( 'KE_SCANNER_ASSETS_VER', '0.10.2' );
+define( 'KE_SCANNER_ASSETS_VER', '0.11.0' );
 
 // Asset cache-bust for the event-builder admin page. Bump whenever
 // admin/css/ke-event-builder.css or admin/js/ke-event-builder.js change.

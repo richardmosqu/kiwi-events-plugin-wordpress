@@ -461,15 +461,44 @@ class KE_Tickets {
     }
 
     /**
-     * Validate and check-in a ticket
+     * Validate a ticket code and check it in — atomically.
+     *
+     * Several phones scan the same door at once, so the state change is one
+     * conditional UPDATE (the row must still be un-scanned) instead of a
+     * read-then-write. Two devices reading the same QR in the same second get
+     * exactly one 'valid' and one 'already_used', never two 'valid'.
+     *
+     * @param string $ticket_code       Raw code from the QR.
+     * @param int    $scanner_user_id   WP user doing the scan (0 for the
+     *                                  token-authenticated public scanner).
+     * @param int    $expected_event_id When > 0, a ticket for any other event
+     *                                  is refused BEFORE anything is written.
+     *                                  The old flow marked the row used first
+     *                                  and raised the scope error afterwards,
+     *                                  which burned the ticket at the wrong
+     *                                  door and made it read "already used"
+     *                                  at the right one.
+     * @return array { status, message, ticket? }
+     *               status ∈ valid | already_used | invalid | wrong_event | error
      */
-    public function validate_and_checkin( $ticket_code, $scanner_user_id = 0 ) {
+    public function validate_and_checkin( $ticket_code, $scanner_user_id = 0, $expected_event_id = 0 ) {
+        global $wpdb;
+
         $ticket = $this->get_by_code( $ticket_code );
 
         if ( ! $ticket ) {
             return array(
                 'status'  => 'invalid',
                 'message' => 'Ticket not found.',
+            );
+        }
+
+        $expected_event_id = absint( $expected_event_id );
+        if ( $expected_event_id > 0 && (int) $ticket->event_id !== $expected_event_id ) {
+            return array(
+                'status'  => 'wrong_event',
+                'message' => 'This ticket belongs to a different event.',
+                'ticket'  => $ticket,
             );
         }
 
@@ -489,29 +518,51 @@ class KE_Tickets {
             );
         }
 
-        // Check in the ticket
-        global $wpdb;
-        $now = current_time( 'mysql' );
+        // Compare-and-set: only the request that still finds the row
+        // un-scanned gets to flip it. Whoever loses the race falls through to
+        // the re-read below and reports what actually happened.
+        $now     = current_time( 'mysql' );
+        $updated = $wpdb->query( $wpdb->prepare(
+            "UPDATE {$this->table_name}
+                SET status = 'used', checked_in_at = %s, checked_in_by = %d
+              WHERE id = %d AND status NOT IN ('used', 'cancelled')",
+            $now,
+            absint( $scanner_user_id ),
+            (int) $ticket->id
+        ) );
 
-        $wpdb->update(
-            $this->table_name,
-            array(
-                'status'         => 'used',
-                'checked_in_at'  => $now,
-                'checked_in_by'  => absint( $scanner_user_id ),
-            ),
-            array( 'id' => $ticket->id ),
-            array( '%s', '%s', '%d' ),
-            array( '%d' )
-        );
+        if ( $updated === 1 ) {
+            $ticket->status        = 'used';
+            $ticket->checked_in_at = $now;
+            $ticket->checked_in_by = absint( $scanner_user_id );
 
-        $ticket->status = 'used';
-        $ticket->checked_in_at = $now;
+            return array(
+                'status'  => 'valid',
+                'message' => 'Ticket validated successfully!',
+                'ticket'  => $ticket,
+            );
+        }
+
+        $fresh = $this->get_by_code( $ticket_code );
+        if ( $fresh && $fresh->status === 'used' ) {
+            return array(
+                'status'  => 'already_used',
+                'message' => sprintf( 'Already checked in at %s', $fresh->checked_in_at ),
+                'ticket'  => $fresh,
+            );
+        }
+        if ( $fresh && $fresh->status === 'cancelled' ) {
+            return array(
+                'status'  => 'invalid',
+                'message' => 'This ticket has been cancelled.',
+                'ticket'  => $fresh,
+            );
+        }
 
         return array(
-            'status'  => 'valid',
-            'message' => 'Ticket validated successfully!',
-            'ticket'  => $ticket,
+            'status'  => 'error',
+            'message' => 'Could not record the check-in. Scan again.',
+            'ticket'  => $fresh ? $fresh : $ticket,
         );
     }
 
