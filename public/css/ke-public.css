@@ -3101,7 +3101,72 @@
 .ke-resv-sheet .ke-sheet-body {
     /* Slightly tighter than the ticket sheet so the form fits without
        crowding on small phones. Inherits scroll behavior. */
+    padding-bottom:     8px;
 }
+
+/* One-screen flow: two numbered blocks (what you want · your details) and
+   a footer that stays pinned inside the sheet so Reserve is always one tap
+   away, however long the form gets. */
+.ke-resv-block { padding: 4px 0 18px; }
+.ke-resv-block + .ke-resv-block {
+    margin-top:         6px;
+    padding-top:        22px;
+    border-top:         1px solid var(--kep-border-soft);
+}
+.ke-resv-block-head {
+    display:            flex;
+    align-items:        center;
+    gap:                10px;
+    margin-bottom:      14px;
+}
+.ke-resv-step-num {
+    display:            inline-flex;
+    align-items:        center;
+    justify-content:    center;
+    width:              24px;
+    height:             24px;
+    border-radius:      50%;
+    background:         var(--kep-accent-1);
+    color:              #ffffff;
+    font-size:          12.5px;
+    font-weight:        800;
+    line-height:        1;
+    flex-shrink:        0;
+}
+.ke-resv-block-title {
+    font-size:          16px;
+    font-weight:        700;
+    color:              var(--kep-ink);
+    letter-spacing:     -0.2px;
+}
+.ke-resv-areas-field { margin-bottom: 16px; }
+.ke-resv-party-row {
+    margin-bottom:      0;
+    padding:            12px 14px;
+    border:             1.5px solid var(--kep-border);
+    border-radius:      var(--kep-r-sm);
+    background:         var(--kep-surface-2);
+}
+.ke-resv-arrival-select {
+    -webkit-appearance: none;
+    appearance:         none;
+    cursor:             pointer;
+    padding-right:      28px !important;
+    background-image:   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:  no-repeat;
+    background-position: right 4px center;
+    background-size:    16px;
+}
+.ke-resv-footer {
+    position:           sticky;
+    bottom:             0;
+    z-index:            2;
+    background:         rgba(255,255,255,0.96);
+    border-top:         1px solid var(--kep-border-soft);
+    padding-top:        14px;
+}
+.ke-resv-footer .ke-sheet-msg { margin-bottom: 12px; }
+.ke-resv-footer .ke-sheet-terms { margin-top: 10px; }
 
 /* Reservation contact-form fields reuse .ke-sheet-field / .ke-field-label /
    .ke-required from the shared design system above (lines ~1200-1280).

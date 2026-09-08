@@ -896,6 +896,36 @@ $allowed_iframe = array(
     // fields, default party size, capacity caps). The capacity snapshot
     // is also re-fetched on sheet-open via REST so a stale page render
     // doesn't lock the user out when seats free up.
+
+    // Arrival options: half-hour slots from the event's start to its end
+    // (max 24), so the customer taps a time instead of typing a date. Values
+    // are wall-clock strings in the site's own convention — the same naive
+    // format _ke_event_date_start uses — never UTC (the old datetime-local
+    // default came from toISOString() and was off by the timezone offset).
+    // If the event is already under way the list starts at the next half
+    // hour; if it is over, or the dates are unusable, the sheet falls back
+    // to a free datetime input.
+    $resv_slots    = array();
+    $resv_start_ts = $date_start ? (int) strtotime( str_replace( 'T', ' ', (string) $date_start ) ) : 0;
+    $resv_end_ts   = $date_end   ? (int) strtotime( str_replace( 'T', ' ', (string) $date_end ) )   : 0;
+    if ( $resv_start_ts > 0 ) {
+        if ( $resv_end_ts <= $resv_start_ts ) {
+            $resv_end_ts = $resv_start_ts + 4 * HOUR_IN_SECONDS;
+        }
+        $resv_now_ts   = (int) current_time( 'timestamp' );
+        $resv_step     = 30 * MINUTE_IN_SECONDS;
+        $resv_first_ts = $resv_start_ts;
+        if ( $resv_now_ts > $resv_start_ts ) {
+            $resv_first_ts = (int) ( ceil( $resv_now_ts / $resv_step ) * $resv_step );
+        }
+        for ( $resv_ts = $resv_first_ts, $resv_i = 0; $resv_ts <= $resv_end_ts && $resv_i < 24; $resv_ts += $resv_step, $resv_i++ ) {
+            $resv_slots[] = array(
+                'value' => date( 'Y-m-d H:i', $resv_ts ),
+                'label' => date( 'g:i A', $resv_ts ) . ( $resv_ts === $resv_start_ts ? ' · Doors open' : '' ),
+            );
+        }
+    }
+
     $resv_xfields_payload = array();
     foreach ( $resv_xfields as $f ) {
         $resv_xfields_payload[] = array(
@@ -929,6 +959,9 @@ $allowed_iframe = array(
         'extraFields'         => $resv_xfields_payload,
         'reservationsOpen'    => $resv_cfg['reservations_open'],
         'reservationsClose'   => $resv_cfg['reservations_close'],
+        'arrivalSlots'        => $resv_slots,
+        'eventStart'          => $resv_start_ts > 0 ? date( 'Y-m-d H:i', $resv_start_ts ) : '',
+        'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
     ) );
 ?>
 <!-- ═══════════════ RESERVATIONS BOTTOM SHEET ═══════════════ -->
@@ -945,83 +978,82 @@ window.kePublicResv = <?php echo $resv_js; ?>;
         </svg>
     </button>
 
-    <!-- Step 1: Party + arrival + area -->
-    <div class="ke-sheet-step" id="ke-resv-step-party">
+    <!-- One screen: what you want (1) + your details (2) → Reserve.
+         Two taps for the customer: open the sheet, press Reserve. The
+         Continue step that used to sit between them is gone. -->
+    <div class="ke-sheet-step ke-resv-form-step" id="ke-resv-step-form">
         <div class="ke-sheet-header">
-            <div class="ke-sheet-title">Reservation Details</div>
-            <div class="ke-sheet-subtitle" id="ke-resv-availability-line">Choose your party size and arrival time</div>
+            <div class="ke-sheet-title"><?php echo $resv_cfg['confirmation_mode'] === 'manual' ? 'Request a table' : 'Reserve a table'; ?></div>
+            <div class="ke-sheet-subtitle" id="ke-resv-availability-line">Checking availability…</div>
         </div>
 
         <div class="ke-sheet-body">
-            <div class="ke-sheet-msg" id="ke-resv-msg-1"></div>
+            <form id="ke-resv-form" novalidate>
 
-            <div class="ke-sheet-field">
-                <label class="ke-field-label" for="ke-resv-party">How many people?</label>
-                <div class="ke-sheet-qty-row">
-                    <div>
-                        <div class="ke-sheet-qty-label">Party size</div>
+                <div class="ke-resv-block" id="ke-resv-block-choice">
+                    <div class="ke-resv-block-head">
+                        <span class="ke-resv-step-num" aria-hidden="true">1</span>
+                        <span class="ke-resv-block-title"><?php echo ! empty( $resv_cfg['areas'] ) ? 'What do you want?' : 'How many are you?'; ?></span>
                     </div>
-                    <div class="ke-stepper">
-                        <button type="button" class="ke-stepper-btn" id="ke-resv-party-minus">−</button>
-                        <span class="ke-stepper-val" id="ke-resv-party-val">2</span>
-                        <button type="button" class="ke-stepper-btn" id="ke-resv-party-plus">+</button>
+
+                    <div class="ke-sheet-field ke-resv-areas-field" id="ke-resv-areas-wrap" style="display:none;">
+                        <div class="ke-resv-areas" id="ke-resv-areas-grid" role="radiogroup" aria-label="Area"></div>
                     </div>
+
+                    <div class="ke-sheet-qty-row ke-resv-party-row">
+                        <div>
+                            <div class="ke-sheet-qty-label" id="ke-resv-party-label">People</div>
+                            <div class="ke-sheet-qty-ticket" id="ke-resv-party-hint">Including you</div>
+                        </div>
+                        <div class="ke-stepper" role="group" aria-labelledby="ke-resv-party-label">
+                            <button type="button" class="ke-stepper-btn" id="ke-resv-party-minus" aria-label="Fewer people">−</button>
+                            <span class="ke-stepper-val" id="ke-resv-party-val" aria-live="polite">2</span>
+                            <button type="button" class="ke-stepper-btn" id="ke-resv-party-plus" aria-label="More people">+</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="ke-resv-party" value="2">
                 </div>
-                <input type="hidden" id="ke-resv-party" value="2">
-            </div>
 
-            <div class="ke-sheet-field">
-                <label class="ke-field-label" for="ke-resv-arrival">When will you arrive?</label>
-                <input type="datetime-local" id="ke-resv-arrival" required>
-            </div>
-
-            <div class="ke-sheet-field" id="ke-resv-areas-wrap" style="display:none;">
-                <label class="ke-field-label">Area</label>
-                <div class="ke-resv-areas" id="ke-resv-areas-grid"></div>
-            </div>
-        </div>
-
-        <div class="ke-sheet-footer">
-            <button type="button" class="ke-sheet-btn ke-sheet-btn-primary" id="ke-resv-continue">
-                Continue
-            </button>
-        </div>
-    </div><!-- /#ke-resv-step-party -->
-
-    <!-- Step 2: Contact details + extras -->
-    <div class="ke-sheet-step" id="ke-resv-step-contact" style="display:none;">
-        <div class="ke-sheet-header">
-            <div class="ke-sheet-title">Your Details</div>
-            <div class="ke-sheet-subtitle">We&rsquo;ll use this to confirm your reservation</div>
-        </div>
-
-        <div class="ke-sheet-body">
-            <div class="ke-sheet-msg" id="ke-resv-msg-2"></div>
-            <form id="ke-resv-form">
-                <div class="ke-sheet-attendee">
-                    <div class="ke-sheet-attendee-header">Reservation Holder</div>
+                <div class="ke-resv-block" id="ke-resv-block-details">
+                    <div class="ke-resv-block-head">
+                        <span class="ke-resv-step-num" aria-hidden="true">2</span>
+                        <span class="ke-resv-block-title">Your details</span>
+                    </div>
 
                     <div class="ke-sheet-field">
                         <label class="ke-field-label" for="ke-resv-name">Full name <span class="ke-required">*</span></label>
-                        <input type="text" id="ke-resv-name" required autocomplete="name" placeholder="John Doe">
+                        <input type="text" id="ke-resv-name" required autocomplete="name" placeholder="Your name">
                     </div>
 
                     <div class="ke-sheet-field">
                         <label class="ke-field-label" for="ke-resv-phone">Phone <span class="ke-required">*</span></label>
-                        <input type="tel" id="ke-resv-phone" required autocomplete="tel" placeholder="+507 6000-0000">
+                        <input type="tel" id="ke-resv-phone" required autocomplete="tel" inputmode="tel" placeholder="+507 6000-0000">
                     </div>
 
                     <?php if ( ! empty( $resv_cfg['show_email_field'] ) ) : ?>
                     <div class="ke-sheet-field">
                         <label class="ke-field-label" for="ke-resv-email">Email <span class="ke-required">*</span></label>
-                        <input type="email" id="ke-resv-email" required autocomplete="email" placeholder="john@example.com">
+                        <input type="email" id="ke-resv-email" required autocomplete="email" inputmode="email" placeholder="you@example.com">
                     </div>
                     <?php endif; ?>
+
+                    <div class="ke-sheet-field ke-resv-arrival-field">
+                        <label class="ke-field-label" for="ke-resv-arrival">Arrival time</label>
+                        <?php if ( ! empty( $resv_slots ) ) : ?>
+                            <select id="ke-resv-arrival" class="ke-resv-arrival-select">
+                                <?php foreach ( $resv_slots as $resv_slot ) : ?>
+                                    <option value="<?php echo esc_attr( $resv_slot['value'] ); ?>"><?php echo esc_html( $resv_slot['label'] ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php else : ?>
+                            <input type="datetime-local" id="ke-resv-arrival" required>
+                        <?php endif; ?>
+                    </div>
 
                     <?php if ( ! empty( $resv_cfg['show_notes_field'] ) ) : ?>
                     <div class="ke-sheet-field">
                         <label class="ke-field-label" for="ke-resv-notes">Special requests <span class="ke-optional">(optional)</span></label>
-                        <textarea id="ke-resv-notes" rows="3" placeholder="Birthday, accessibility needs, dietary, etc."></textarea>
+                        <textarea id="ke-resv-notes" rows="2" placeholder="Birthday, accessibility needs, dietary…"></textarea>
                     </div>
                     <?php endif; ?>
 
@@ -1030,16 +1062,17 @@ window.kePublicResv = <?php echo $resv_js; ?>;
             </form>
         </div>
 
-        <div class="ke-sheet-footer">
+        <div class="ke-sheet-footer ke-resv-footer">
+            <div class="ke-sheet-msg" id="ke-resv-msg" role="alert"></div>
             <button type="submit" form="ke-resv-form" class="ke-sheet-btn ke-sheet-btn-primary" id="ke-resv-submit">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M1.5 8h13M8.5 3l5 5-5 5"/>
                 </svg>
-                <span class="ke-resv-submit-label"><?php echo $resv_cfg['confirmation_mode'] === 'manual' ? 'Submit Request' : 'Confirm Reservation'; ?></span>
+                <span class="ke-resv-submit-label"><?php echo $resv_cfg['confirmation_mode'] === 'manual' ? 'Request reservation' : 'Reserve'; ?></span>
             </button>
             <p class="ke-sheet-terms">By continuing you agree to our Terms of Service and Privacy Policy</p>
         </div>
-    </div><!-- /#ke-resv-step-contact -->
+    </div><!-- /#ke-resv-step-form -->
 
     <!-- Step 3: Success -->
     <div class="ke-sheet-step" id="ke-resv-step-success" style="display:none;">
