@@ -3367,28 +3367,108 @@ body.ke-hlv-lock { overflow: hidden; }
 .ke-hlv .ke-hlv-next { right: 0; width: 68%; }
 .ke-hlv .ke-hlv-nav:focus-visible { outline: none; }
 
-/* ══════════════ Cumpleaños widget (extra section) ══════════════
- * A self-contained accent card (no glow/pulse). The link declares its own
- * background/border/color in every state (WP.com magenta guard); accent from
- * --kep-* tokens. */
-.ke-bday-widget { margin-top: 24px; }
+/* ══════════════ Cumpleaños — birthday CTA (extra pinned under tickets) ═══════
+ * Accent-filled card so it reads as the page's second action after the
+ * tickets (order: Tickets → Cumpleaños → Reservas → other extras). Colour
+ * comes from the organizer's --kep-accent tokens; the white/black layers are
+ * neutral tints, never brand literals. No glow, no blur, no motion beyond the
+ * hover lift. The link redeclares every state (WP.com magenta guard). */
 .ke-bday-card {
-    border: 1px solid rgba(var(--kep-accent-rgb, 99,102,241), 0.30);
-    border-radius: 16px;
-    padding: 22px 22px 24px;
-    background: linear-gradient(135deg,
-                    rgba(var(--kep-accent-rgb, 99,102,241), 0.10),
-                    rgba(var(--kep-accent-rgb, 99,102,241), 0.03));
+    position:           relative;
+    overflow:           hidden;
+    display:            flex;
+    flex-direction:     column;
+    gap:                22px;
+    padding:            26px 22px 22px;
+    border-radius:      var(--kep-r-md, 20px);
+    color:              #ffffff;
+    background:
+        /* confetti — a few soft dots, not a pattern */
+        radial-gradient(circle at 9% 22%,  rgba(255,255,255,0.26) 0 2.5px, transparent 3.5px),
+        radial-gradient(circle at 22% 88%, rgba(255,255,255,0.18) 0 2px,   transparent 3px),
+        radial-gradient(circle at 63% 10%, rgba(255,255,255,0.20) 0 1.8px, transparent 2.8px),
+        radial-gradient(circle at 88% 74%, rgba(255,255,255,0.16) 0 2.2px, transparent 3.2px),
+        radial-gradient(circle at 44% 46%, rgba(255,255,255,0.10) 0 1.5px, transparent 2.5px),
+        /* light-to-shade sweep gives the flat accent some depth */
+        linear-gradient(155deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.18) 100%),
+        var(--kep-accent-1, #6366f1);
+    box-shadow:         var(--kep-shadow-accent, 0 8px 32px rgba(var(--kep-accent-rgb, 99,102,241), 0.35));
 }
-.ke-bday-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.ke-bday-card-icon { font-size: 26px; line-height: 1; }
-.ke-bday-card-title { margin: 0; font-size: 19px; font-weight: 700; color: var(--kep-text, #12121a); }
+/* Large soft disc in the corner — shape, not glow. */
+.ke-bday-card::before {
+    content:            '';
+    position:           absolute;
+    width:              240px;
+    height:             240px;
+    right:              -90px;
+    top:                -110px;
+    border-radius:      50%;
+    background:         rgba(255,255,255,0.10);
+    pointer-events:     none;
+}
+.ke-bday-card-body   { position: relative; min-width: 0; }
+
+.ke-bday-card-eyebrow {
+    display:            inline-flex;
+    align-items:        center;
+    gap:                7px;
+    margin-bottom:      14px;
+    padding:            6px 12px 6px 9px;
+    border-radius:      var(--kep-r-pill, 100px);
+    background:         rgba(255,255,255,0.18);
+    color:              #ffffff;
+    font-size:          11.5px;
+    font-weight:        800;
+    letter-spacing:     0.8px;
+    text-transform:     uppercase;
+    line-height:        1;
+}
+.ke-bday-card-icon   { font-size: 15px; line-height: 1; }
+
+.ke-bday-card-title {
+    margin:             0 0 14px;
+    font-size:          26px;
+    line-height:        1.1;
+    font-weight:        800;
+    letter-spacing:     -0.6px;
+    color:              #ffffff;
+    overflow-wrap:      break-word;
+}
+
+.ke-bday-card-perks {
+    list-style:         none;
+    margin:             0;
+    padding:            0;
+    display:            flex;
+    flex-direction:     column;
+    gap:                9px;
+}
+.ke-bday-card-perks li {
+    display:            flex;
+    align-items:        flex-start;
+    gap:                10px;
+    font-size:          15.5px;
+    line-height:        1.45;
+    font-weight:        500;
+    color:              rgba(255,255,255,0.94);
+}
+.ke-bday-card-perks svg {
+    flex-shrink:        0;
+    width:              20px;
+    height:             20px;
+    margin-top:         1px;
+    color:              #ffffff;
+}
 .ke-bday-card-desc {
-    margin: 0 0 18px;
-    font-size: 15px;
-    line-height: 1.65;
-    color: var(--kep-text-muted, #4b5563);
+    margin:             0;
+    font-size:          15.5px;
+    line-height:        1.6;
+    color:              rgba(255,255,255,0.94);
 }
+
+/* The button: white pill with the accent as ink — the highest-contrast
+   object on the page, which is the whole point of the card. Every state is
+   declared so WP.com's link/button globals can't repaint it. */
 .ke-bday-widget .ke-bday-card-link,
 .ke-bday-widget .ke-bday-card-link:link,
 .ke-bday-widget .ke-bday-card-link:visited,
@@ -3396,23 +3476,61 @@ body.ke-hlv-lock { overflow: hidden; }
 .ke-bday-widget .ke-bday-card-link:focus,
 .ke-bday-widget .ke-bday-card-link:focus-visible,
 .ke-bday-widget .ke-bday-card-link:active {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
-    padding: 12px 22px;
-    border: 0;
-    border-radius: 12px;
-    color: #ffffff;
-    background: linear-gradient(135deg, var(--kep-accent-1, #6366f1), var(--kep-accent-2, #8b5cf6));
-    font-weight: 700;
-    font-size: 15px;
-    text-decoration: none;
-    box-shadow: 0 6px 18px rgba(var(--kep-accent-rgb, 99,102,241), 0.28);
+    position:           relative;
+    display:            flex;
+    align-items:        center;
+    justify-content:    center;
+    gap:                10px;
+    width:              100%;
+    min-height:         54px;
+    padding:            14px 22px;
+    border:             0;
+    border-radius:      var(--kep-r-pill, 100px);
+    background:         #ffffff;
+    color:              var(--kep-accent-1, #6366f1);
+    font-family:        var(--kep-font, inherit);
+    font-weight:        800;
+    font-size:          16px;
+    letter-spacing:     -0.2px;
+    line-height:        1.2;
+    text-decoration:    none;
+    box-shadow:         0 8px 22px rgba(0,0,0,0.16);
+    transition:         transform 0.15s ease, box-shadow 0.15s ease;
 }
-.ke-bday-card-link:hover { transform: translateY(-1px); }
-.ke-bday-card-link:focus-visible { outline: 2px solid var(--kep-accent-1, #6366f1); outline-offset: 2px; }
+.ke-bday-widget .ke-bday-card-link:hover  { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(0,0,0,0.20); }
+.ke-bday-widget .ke-bday-card-link:active { transform: translateY(0);    box-shadow: 0 6px 16px rgba(0,0,0,0.16); }
+.ke-bday-widget .ke-bday-card-link:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }
+.ke-bday-card-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+.ke-bday-card-link .ke-bday-arrow { transition: transform 0.15s ease; }
+.ke-bday-card-link:hover .ke-bday-arrow { transform: translateX(3px); }
+
 @media (min-width: 768px) {
-    .ke-bday-card-link { min-width: 240px; }
+    .ke-bday-card {
+        flex-direction:  row;
+        align-items:     center;
+        justify-content: space-between;
+        gap:             36px;
+        padding:         30px 32px;
+    }
+    .ke-bday-card-body  { flex: 1 1 auto; }
+    .ke-bday-card-title { font-size: 28px; }
+    /* Same selector list as the base rule: its :link/:visited variants are
+       (0,3,0) and would otherwise keep width:100% and starve the text column. */
+    .ke-bday-widget .ke-bday-card-link,
+    .ke-bday-widget .ke-bday-card-link:link,
+    .ke-bday-widget .ke-bday-card-link:visited,
+    .ke-bday-widget .ke-bday-card-link:hover,
+    .ke-bday-widget .ke-bday-card-link:focus,
+    .ke-bday-widget .ke-bday-card-link:focus-visible,
+    .ke-bday-widget .ke-bday-card-link:active {
+        flex:      0 0 auto;
+        width:     auto;
+        min-width: 270px;
+        max-width: 46%;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ke-bday-widget .ke-bday-card-link,
+    .ke-bday-card-link .ke-bday-arrow { transition: none !important; }
 }
 

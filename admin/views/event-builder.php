@@ -799,7 +799,12 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                 </p>
                 <div class="ke-extras-grid">
                     <?php
+                    // Cumpleaños leads the catalog on purpose: on the public page it is
+                    // pinned right under the tickets (Tickets → Cumpleaños → Reservas →
+                    // everything else), so it is the extra that sells, and the one the
+                    // organizer should see first here.
                     $extras_catalog = array(
+                        'birthday'        => array( '🎂', 'Cumpleaños',             'Botón destacado bajo los tickets: beneficios del paquete + enlace para pedir info.' ),
                         'sold_out_bar'    => array( '📊', 'Sold-Out Bar',           'Live availability progress.' ),
                         'countdown'       => array( '⏰', 'Countdown',               'Days/hours until it starts.' ),
                         'lineup'          => array( '🎤', 'Lineup',                  'Artists or speakers, with photos.' ),
@@ -809,17 +814,23 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                         'faq'             => array( '❓', 'FAQ',                      'Accordion of common questions.' ),
                         'menu_faq'        => array( '🍔', 'Menu / FAQ',              'Collapsible custom sections.' ),
                         'additional_info' => array( 'ℹ️', 'Additional Information', 'Refundable status + important notes.' ),
-                        'birthday'        => array( '🎂', 'Cumpleaños',             'Paquete de cumpleaños con enlace para pedir info.' ),
                     );
+                    $extras_featured = array( 'birthday' );
                     foreach ( $extras_catalog as $slug => $spec ) :
                         list( $icon, $label, $desc ) = $spec;
+                        $is_featured = in_array( $slug, $extras_featured, true );
                     ?>
-                        <label class="ke-extra-card">
+                        <label class="ke-extra-card<?php echo $is_featured ? ' ke-extra-card--featured' : ''; ?>">
                             <input type="checkbox" class="ke-extra-toggle"
                                    data-type="<?php echo esc_attr( $slug ); ?>">
                             <div class="ke-extra-icon"><?php echo $icon; ?></div>
                             <div class="ke-extra-body">
-                                <div class="ke-extra-label"><?php echo esc_html( $label ); ?></div>
+                                <div class="ke-extra-label">
+                                    <?php echo esc_html( $label ); ?>
+                                    <?php if ( $is_featured ) : ?>
+                                        <span class="ke-extra-featured-tag">Primero en la página</span>
+                                    <?php endif; ?>
+                                </div>
                                 <div class="ke-extra-desc"><?php echo esc_html( $desc ); ?></div>
                             </div>
                             <div class="ke-extra-switch">
@@ -827,6 +838,31 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                             </div>
                         </label>
                     <?php endforeach; ?>
+                </div>
+                <p class="ke-hint ke-extras-order-hint">
+                    Orden en la página del evento: <strong>Tickets → 🎂 Cumpleaños → 📅 Reservas</strong> → el resto de extras (Testimonials siempre al final).
+                </p>
+            </div>
+
+            <!-- ── CUMPLEAÑOS EDITOR (shown only when the extra is enabled) ── -->
+            <div class="ke-form-group ke-birthday-editor" id="ke-birthday-editor" style="display:none;">
+                <h3 class="ke-subsection-title">🎂 Cumpleaños</h3>
+                <p class="ke-hint" style="margin-top:0;">
+                    Se muestra como una sección propia (widget) en la página del evento, con los beneficios y un enlace para pedir información.
+                </p>
+                <div class="ke-form-row" style="margin-top:10px;">
+                    <label class="ke-label" for="ke-birthday-title">Título</label>
+                    <input type="text" id="ke-birthday-title" class="ke-input" maxlength="120" placeholder="¿Cumples este mes?">
+                </div>
+                <div class="ke-form-row" style="margin-top:14px;">
+                    <label class="ke-label" for="ke-birthday-description">Descripción del paquete</label>
+                    <textarea id="ke-birthday-description" class="ke-textarea" rows="5" placeholder="Un beneficio por línea…"></textarea>
+                    <p class="ke-hint" style="margin-top:6px;">Un beneficio por línea; se conservan los saltos de línea. No se permite HTML.</p>
+                </div>
+                <div class="ke-form-row" style="margin-top:14px;">
+                    <label class="ke-label" for="ke-birthday-link">Enlace para más información</label>
+                    <input type="url" id="ke-birthday-link" class="ke-input" placeholder="https://wa.me/507XXXXXXXX">
+                    <p class="ke-hint" style="margin-top:6px;">WhatsApp, formulario o página. Se abre en una pestaña nueva.</p>
                 </div>
             </div>
 
@@ -963,28 +999,6 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
                 </div>
             </div>
 
-            <!-- ── CUMPLEAÑOS EDITOR (shown only when the extra is enabled) ── -->
-            <div class="ke-form-group ke-birthday-editor" id="ke-birthday-editor" style="display:none;">
-                <h3 class="ke-subsection-title">🎂 Cumpleaños</h3>
-                <p class="ke-hint" style="margin-top:0;">
-                    Se muestra como una sección propia (widget) en la página del evento, con los beneficios y un enlace para pedir información.
-                </p>
-                <div class="ke-form-row" style="margin-top:10px;">
-                    <label class="ke-label" for="ke-birthday-title">Título</label>
-                    <input type="text" id="ke-birthday-title" class="ke-input" maxlength="120" placeholder="¿Cumples este mes?">
-                </div>
-                <div class="ke-form-row" style="margin-top:14px;">
-                    <label class="ke-label" for="ke-birthday-description">Descripción del paquete</label>
-                    <textarea id="ke-birthday-description" class="ke-textarea" rows="5" placeholder="Un beneficio por línea…"></textarea>
-                    <p class="ke-hint" style="margin-top:6px;">Un beneficio por línea; se conservan los saltos de línea. No se permite HTML.</p>
-                </div>
-                <div class="ke-form-row" style="margin-top:14px;">
-                    <label class="ke-label" for="ke-birthday-link">Enlace para más información</label>
-                    <input type="url" id="ke-birthday-link" class="ke-input" placeholder="https://wa.me/507XXXXXXXX">
-                    <p class="ke-hint" style="margin-top:6px;">WhatsApp, formulario o página. Se abre en una pestaña nueva.</p>
-                </div>
-            </div>
-
             <div class="ke-divider"></div>
 
             <!-- ── EXTRA FIELDS (per-attendee checkout questions) ── -->
@@ -1055,7 +1069,7 @@ if ( isset( $GLOBALS['wpdb'] ) ) {
 
                 <?php
                 // Per-event additional terms — appended to the global terms in assignment emails.
-                $event_terms_value = $post_id ? (string) get_post_meta( $post_id, '_ke_promoter_terms', true ) : '';
+                $event_terms_value = $event_id ? (string) get_post_meta( $event_id, '_ke_promoter_terms', true ) : '';
                 ?>
                 <div style="margin-top:18px; padding:12px 14px; background:var(--kiwi-legacy-stone-50); border:1px solid var(--kiwi-legacy-stone-200); border-radius:8px;">
                     <label class="ke-label" for="ke_promoter_event_terms" style="display:block; font-weight:600; margin-bottom:6px;">

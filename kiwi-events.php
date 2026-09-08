@@ -3,7 +3,7 @@
  * Plugin Name: KiwiEvents
  * Plugin URI:  https://kiwievents.com
  * Description: A complete event management and ticketing solution for WordPress. Create events, sell tickets (free & paid via WooCommerce), generate QR code tickets, scan at the door, track attendees, and view sales dashboards.
- * Version:     2.5.3
+ * Version:     2.5.4
  * Author:      KiwiEvents
  * Author URI:  https://kiwievents.com
  * License:     GPL-2.0+
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // header for the plugins list and update checks, while KE_VERSION is what
 // asset enqueues and schema guards use. They drifted before (header stuck at
 // 1.0.0 while the code shipped 2.x); bump both together.
-define( 'KE_VERSION', '2.5.3' );
+define( 'KE_VERSION', '2.5.4' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -43,7 +43,7 @@ define( 'KE_SCANNER_ASSETS_VER', '0.11.0' );
 // KE_VERSION moves slowly; the builder assets churn faster, and stale
 // versions on WordPress.com edge cache cause the wizard's step
 // indicators to lose their active/accent styling.
-define( 'KE_BUILDER_ASSETS_VER', '0.14.0' );
+define( 'KE_BUILDER_ASSETS_VER', '0.15.0' );
 
 // Admin design-token stylesheet (Kiwi brand: cream + green + glass).
 // Loads BEFORE every other KE admin CSS so subsequent rules can reference
