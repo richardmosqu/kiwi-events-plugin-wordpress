@@ -654,6 +654,25 @@ class KE_Admin {
                 array( 'ke-admin-css' ),
                 $ke_admin_css_ver
             );
+            // The history-import tool is site-admin only; the script is not
+            // even loaded for other roles.
+            if ( current_user_can( 'manage_options' ) && class_exists( 'KE_Analytics_History' ) ) {
+                $ke_admin_js_ver = defined( 'KE_ADMIN_JS_VER' ) ? KE_ADMIN_JS_VER : KE_VERSION;
+                wp_enqueue_script(
+                    'ke-analytics-js',
+                    KE_PLUGIN_URL . 'admin/js/ke-analytics.js',
+                    array(),
+                    $ke_admin_js_ver,
+                    true
+                );
+                wp_localize_script( 'ke-analytics-js', 'keAnalyticsHistory', array(
+                    'restUrl'   => esc_url_raw( rest_url( 'ke/v1/' ) ),
+                    'nonce'     => wp_create_nonce( 'wp_rest' ),
+                    'eventIds'  => KE_Analytics_History::candidate_event_ids(),
+                    'available' => KE_Analytics_History::is_available(),
+                    'batch'     => 5,
+                ) );
+            }
         }
 
         // Waitlist admin page — read-only listing, so it only needs the

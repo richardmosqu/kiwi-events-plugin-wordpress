@@ -467,6 +467,15 @@ class KE_Rest_API {
             'permission_callback' => array( $this, 'organizer_session_permission_check' ),
         ) );
 
+        // Historical visits import from WordPress.com Stats (site admins
+        // only). mode=status|preview|import, event_ids up to 20 per call so
+        // a site with many events runs in short batches with progress.
+        register_rest_route( $this->namespace, '/admin/analytics/history', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_analytics_history' ),
+            'permission_callback' => array( $this, 'site_admin_permission_check' ),
+        ) );
+
         // Public analytics beacon. POST { event_id, metric } from the event
         // page; anonymous by design (credentials are omitted client-side), so
         // it is bounded by a per-IP fixed-window limit and a metric allowlist.
@@ -667,6 +676,15 @@ class KE_Rest_API {
         // Fall back to manage_options so site admins can always use plugin REST endpoints
         // even if the custom manage_kiwi_events cap wasn't granted (e.g., activator skipped).
         return current_user_can( 'manage_kiwi_events' ) || current_user_can( 'manage_options' );
+    }
+
+    /**
+     * Permission: site administrator only. For actions that write data an
+     * organizer or staff account must never be able to trigger (the history
+     * import). manage_kiwi_events is deliberately NOT enough here.
+     */
+    public function site_admin_permission_check() {
+        return current_user_can( 'manage_options' );
     }
 
     /**
@@ -3848,6 +3866,61 @@ class KE_Rest_API {
 
         $resp = new WP_REST_Response( array( 'ok' => true ), 200 );
         $resp->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        return $resp;
+    }
+
+    /**
+     * POST /admin/analytics/history
+     *
+     * Body: { mode: 'status'|'preview'|'import', event_ids: int[] }
+     *   status  → provider availability + last import log
+     *   preview → what an import would write for these events (read-only)
+     *   import  → write it (idempotent; only days before today, never a
+     *             day the beacon already counted)
+     */
+    public function admin_analytics_history( WP_REST_Request $request ) {
+        if ( ! class_exists( 'KE_Analytics_History' ) ) {
+            return new WP_Error( 'unavailable', 'History import is not available.', array( 'status' => 503 ) );
+        }
+        $mode = sanitize_key( (string) ( $request->get_param( 'mode' ) ?: 'status' ) );
+        $ids  = array_values( array_filter( array_map( 'absint', (array) $request->get_param( 'event_ids' ) ) ) );
+
+        $payload = array(
+            'mode'      => $mode,
+            'available' => KE_Analytics_History::is_available(),
+            'provider'  => KE_Analytics_History::provider_label(),
+            'today'     => current_time( 'Y-m-d' ),
+        );
+
+        switch ( $mode ) {
+            case 'status':
+                $payload['log']       = KE_Analytics_History::log();
+                $payload['event_ids'] = KE_Analytics_History::candidate_event_ids();
+                break;
+            case 'preview':
+            case 'import':
+                if ( ! $payload['available'] ) {
+                    return new WP_Error( 'provider_unavailable', 'WordPress.com Stats is not reachable from this site, so there is nothing to import.', array( 'status' => 409 ) );
+                }
+                if ( empty( $ids ) ) {
+                    return new WP_Error( 'no_events', 'No events given.', array( 'status' => 400 ) );
+                }
+                if ( count( $ids ) > KE_Analytics_History::MAX_BATCH ) {
+                    return new WP_Error( 'batch_too_large', sprintf( 'At most %d events per call.', KE_Analytics_History::MAX_BATCH ), array( 'status' => 400 ) );
+                }
+                $payload['events'] = $mode === 'import'
+                    ? KE_Analytics_History::import( $ids )
+                    : KE_Analytics_History::preview( $ids );
+                if ( $mode === 'import' ) {
+                    $payload['log'] = KE_Analytics_History::log();
+                }
+                break;
+            default:
+                return new WP_Error( 'bad_mode', 'Unknown mode.', array( 'status' => 400 ) );
+        }
+
+        $resp = rest_ensure_response( $payload );
+        $resp->header( 'Cache-Control', 'no-store, private, max-age=0' );
         return $resp;
     }
 

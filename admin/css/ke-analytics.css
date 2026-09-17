@@ -51,7 +51,7 @@
 .ke-analytics-page .ke-an-pill:focus-visible { outline: 2px solid var(--kiwi-green); outline-offset: 2px; }
 
 .ke-an-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.ke-an-kpi-grid .ke-kpi-label { white-space: nowrap; }
+.ke-an-kpi-grid .ke-kpi-label { white-space: normal; line-height: 1.25; }
 
 .ke-an-table-head {
     display: flex;
@@ -108,3 +108,34 @@
 .ke-an-bar-hit:hover { fill: var(--kiwi-green-soft); }
 
 .ke-btn-small { height: 30px; padding: 0 12px; font-size: 12px; }
+
+/* ── Historical import tool ─────────────────────────────────────── */
+.ke-an-note--history { background: var(--kiwi-green-soft); border-color: var(--kiwi-green-line); color: var(--kiwi-text); }
+.ke-an-history-head h3 { margin: 0 0 6px; }
+.ke-an-history-intro { margin: 0; max-width: 78ch; line-height: 1.55; font-size: 13px; }
+.ke-an-history-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0 12px; font-size: 13px; }
+.ke-an-history-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ke-an-history-progress { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 12px; }
+.ke-an-history-bar {
+    flex: 1 1 auto;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--kiwi-surface-muted);
+    border: 1px solid var(--kiwi-border);
+    overflow: hidden;
+}
+.ke-an-history-bar span { display: block; height: 100%; width: 0; background: var(--kiwi-green); transition: width .2s ease; }
+.ke-an-history-result { margin-top: 14px; }
+.ke-an-history-result .ke-table td.ke-an-num, .ke-an-history-result .ke-table th.ke-an-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ke-an-history-summary {
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-green-soft);
+    border: 1px solid var(--kiwi-green-line);
+    font-size: 13px;
+    color: var(--kiwi-text);
+}
+.ke-an-history-summary.is-error { background: var(--kiwi-red-fill-soft); border-color: var(--kiwi-red-edge-soft); color: var(--kiwi-red-text); }
+.ke-an-history-row--error td { color: var(--kiwi-red-text); }
+.ke-an-history-row--empty td { color: var(--kiwi-text-muted); }

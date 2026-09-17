@@ -27,6 +27,12 @@ foreach ( $events as $ev ) {
     if ( (int) $ev['totals']['view'] + (int) $ev['clicks'] > 0 ) { $any_traffic = true; break; }
 }
 
+$history      = isset( $report['history'] ) ? $report['history'] : null;
+$can_import   = current_user_can( 'manage_options' ) && class_exists( 'KE_Analytics_History' );
+$hist_avail   = $can_import && KE_Analytics_History::is_available();
+$hist_log     = $can_import ? KE_Analytics_History::log() : null;
+$hist_events  = $can_import ? count( KE_Analytics_History::candidate_event_ids() ) : 0;
+
 $range_phrase = array(
     'day'   => __( 'today', 'kiwi-events' ),
     'week'  => __( 'in the last 7 days', 'kiwi-events' ),
@@ -193,6 +199,18 @@ $ke_an_spark = function ( array $days, array $views, array $clicks ) {
                     <?php echo esc_html( sprintf( __( 'No visits recorded %s. Numbers start appearing as soon as visitors open an event page.', 'kiwi-events' ), $range_phrase[ $range ] ?? '' ) ); ?>
                 </p>
             <?php endif; ?>
+            <?php if ( $history && ( $range === 'all' || ( $report['from'] && $report['from'] < $history['cutover'] ) ) ) : ?>
+                <p class="ke-an-note ke-an-note--history">
+                    <?php
+                    echo esc_html( sprintf(
+                        /* translators: 1: date, 2: source name */
+                        __( 'Visits before %1$s come from %2$s and count page views, so they read a little higher than the plugin’s one-per-session visits. Clicks only exist from that date on.', 'kiwi-events' ),
+                        date_i18n( 'M j, Y', strtotime( $history['cutover'] ) ),
+                        $history['provider'] ? $history['provider'] : 'WordPress.com Stats'
+                    ) );
+                    ?>
+                </p>
+            <?php endif; ?>
             <div class="ke-an-table-wrap">
                 <table class="ke-table ke-an-table">
                     <thead>
@@ -249,6 +267,48 @@ $ke_an_spark = function ( array $days, array $views, array $clicks ) {
             </div>
         <?php endif; ?>
     </div>
+
+    <?php if ( $can_import ) : ?>
+    <!-- Historical visits import (site admins only) -->
+    <div class="ke-section-card ke-an-history" id="ke-an-history" data-available="<?php echo $hist_avail ? '1' : '0'; ?>">
+        <div class="ke-an-history-head">
+            <div>
+                <h3><?php esc_html_e( 'Import visit history from WordPress.com Stats', 'kiwi-events' ); ?></h3>
+                <p class="ke-muted ke-an-history-intro">
+                    <?php esc_html_e( 'The plugin’s own counter only started the day this version went live. WordPress.com Stats has counted views of every event page since the site exists; this brings those days in, event by event, for dates before today only. Days the plugin already counted are never touched, and running it again only fills gaps. WordPress.com counts page views (a repeat open counts twice) while the plugin counts one visit per session, so imported days read a little higher. Clicks cannot be recovered: nothing ever recorded them.', 'kiwi-events' ); ?>
+                </p>
+            </div>
+        </div>
+
+        <div class="ke-an-history-status">
+            <?php if ( ! $hist_avail ) : ?>
+                <span class="ke-badge ke-badge-cancelled"><?php esc_html_e( 'Not available', 'kiwi-events' ); ?></span>
+                <span class="ke-muted"><?php esc_html_e( 'WordPress.com Stats (Jetpack) is not reachable from this site, so there is nothing to import. On the live site it appears automatically when Jetpack Stats is active.', 'kiwi-events' ); ?></span>
+            <?php else : ?>
+                <span class="ke-badge ke-badge-active"><?php esc_html_e( 'Available', 'kiwi-events' ); ?></span>
+                <span class="ke-muted">
+                    <?php echo esc_html( sprintf( _n( '%s event to look at.', '%s events to look at.', $hist_events, 'kiwi-events' ), number_format_i18n( $hist_events ) ) ); ?>
+                    <?php if ( $hist_log && ! empty( $hist_log['imported_at'] ) ) : ?>
+                        <?php echo esc_html( sprintf( __( 'Last import %1$s: %2$s visits across %3$s days.', 'kiwi-events' ), date_i18n( 'M j, Y · g:i A', strtotime( $hist_log['imported_at'] ) ), number_format_i18n( (int) $hist_log['total_views'] ), number_format_i18n( (int) $hist_log['total_days'] ) ) ); ?>
+                    <?php else : ?>
+                        <?php esc_html_e( 'Nothing imported yet.', 'kiwi-events' ); ?>
+                    <?php endif; ?>
+                </span>
+            <?php endif; ?>
+        </div>
+
+        <div class="ke-an-history-actions">
+            <button type="button" class="ke-btn ke-btn-secondary" id="ke-an-h-preview" <?php disabled( ! $hist_avail ); ?>><?php esc_html_e( 'Preview import', 'kiwi-events' ); ?></button>
+            <button type="button" class="ke-btn ke-btn-primary" id="ke-an-h-import" hidden></button>
+            <a class="ke-btn ke-btn-ghost" id="ke-an-h-reload" href="<?php echo esc_url( add_query_arg( array_merge( $base_args, array( 'range' => $range ) ), admin_url( 'admin.php' ) ) ); ?>" hidden><?php esc_html_e( 'Reload page', 'kiwi-events' ); ?></a>
+        </div>
+        <div class="ke-an-history-progress" id="ke-an-h-progress" hidden>
+            <div class="ke-an-history-bar"><span id="ke-an-h-bar"></span></div>
+            <span class="ke-muted" id="ke-an-h-progress-text"></span>
+        </div>
+        <div class="ke-an-history-result" id="ke-an-h-result" aria-live="polite"></div>
+    </div>
+    <?php endif; ?>
 
 </div>
 <script>

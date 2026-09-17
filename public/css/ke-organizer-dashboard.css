@@ -1906,3 +1906,12 @@ body.ke-org-resv-drawer-open { overflow: hidden; }
     .ke-org-an-summary { grid-template-columns: repeat(2, 1fr); }
     .ke-org-an-kpi-value { font-size: 19px; }
 }
+
+.ke-org-an-footnote {
+    margin: 2px 0 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--kep-muted);
+    border-top: 1px solid var(--kep-border-soft);
+}
