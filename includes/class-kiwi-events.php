@@ -98,6 +98,10 @@ class Kiwi_Events {
             // when we're in wp-admin.
             $this->admin_promoters = new KE_Admin_Promoters();
             $this->admin_promoters->init();
+
+            // Coupons admin: its save/delete handlers run through
+            // admin-post.php, so they must register on every admin request.
+            ( new KE_Admin_Coupons() )->init();
         }
 
         // Public
@@ -135,6 +139,11 @@ class Kiwi_Events {
             $this->woocommerce = new KE_WooCommerce();
             $this->woocommerce->init();
         }
+
+        // Per-event coupons. Storage is a native WooCommerce coupon, so the
+        // discount maths and the checkout field are WooCommerce's; this only
+        // adds the event scope and the ticket cap. init() no-ops without WC.
+        ( new KE_Coupons() )->init();
 
         // Scanner
         $this->scanner = new KE_Scanner();

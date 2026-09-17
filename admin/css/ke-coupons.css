@@ -1,0 +1,103 @@
+/* KiwiEvents — Cupones admin page. Tokens only (dark-mode safe). */
+
+/* ke-admin.css styles .ke-select but not .ke-input / .ke-textarea, and the
+   builder's versions live in a stylesheet this page does not load. Match the
+   select exactly so the form reads as one control set. */
+.ke-coupons-page .ke-input,
+.ke-coupons-page .ke-textarea {
+    padding:       9px 14px;
+    border:        1px solid var(--kiwi-border);
+    border-radius: var(--kiwi-radius-md);
+    background:    var(--kiwi-surface);
+    font-family:   var(--ke-font);
+    font-size:     13px;
+    color:         var(--ke-text-1);
+    transition:    var(--ke-transition);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 1px 2px var(--kiwi-shadow-1) inset;
+}
+.ke-coupons-page .ke-textarea { resize: vertical; line-height: 1.5; }
+.ke-coupons-page .ke-input:focus,
+.ke-coupons-page .ke-textarea:focus {
+    border-color: var(--kiwi-green);
+    box-shadow:
+        0 0 0 1px var(--kiwi-glass-border-edge),
+        0 0 0 3px var(--kiwi-green-glow);
+    outline: none;
+}
+
+.ke-coupon-notice {
+    font-size: 13.5px;
+    line-height: 1.5;
+    border-left: 4px solid var(--kiwi-green);
+}
+.ke-coupon-notice--error { border-left-color: var(--kiwi-red); color: var(--kiwi-red-text); }
+.ke-coupon-notice--warn  { border-left-color: var(--kiwi-orange); }
+.ke-coupon-notice a { color: inherit; font-weight: 600; }
+
+.ke-coupon-form h3 { margin: 0 0 16px; }
+.ke-coupon-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 24px;
+}
+@media (max-width: 860px) { .ke-coupon-grid { grid-template-columns: minmax(0, 1fr); } }
+.ke-coupon-field--wide { grid-column: 1 / -1; }
+.ke-coupon-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--kiwi-text-muted);
+    margin-bottom: 6px;
+}
+.ke-coupon-field .ke-input,
+.ke-coupon-field .ke-select,
+.ke-coupon-field .ke-textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+.ke-coupon-field .ke-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--kiwi-text-muted);
+}
+.ke-req { color: var(--kiwi-red); }
+
+.ke-coupon-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    text-transform: none !important;
+    font-size: 14px !important;
+    letter-spacing: 0 !important;
+    color: var(--kiwi-text) !important;
+    margin-bottom: 0 !important;
+}
+.ke-coupon-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--kiwi-border);
+}
+
+.ke-coupon-table-wrap { overflow-x: auto; }
+.ke-coupon-table th.ke-c-num, .ke-coupon-table td.ke-c-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ke-coupon-code {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+    background: var(--kiwi-green-soft);
+    border: 1px solid var(--kiwi-green-line);
+    border-radius: var(--kiwi-radius-sm);
+    padding: 3px 8px;
+}
+.ke-coupon-note { margin-top: 4px; font-size: 12px; }
+.ke-coupon-row-actions { text-align: right; white-space: nowrap; }
+.ke-coupon-row-actions .ke-btn + .ke-btn { margin-left: 6px; }
+.ke-coupons-page .ke-btn-small { height: 30px; padding: 0 12px; font-size: 12px; }
