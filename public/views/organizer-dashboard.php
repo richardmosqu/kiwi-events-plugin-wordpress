@@ -190,6 +190,28 @@ $admin_email = get_option( 'admin_email' );
                     </div>
                 </section>
 
+                <section class="ke-org-section" id="keOrgAnalyticsSection">
+                    <p class="ke-org-section-eyebrow"><?php esc_html_e( 'Audience', 'kiwi-events' ); ?></p>
+                    <div class="ke-org-card">
+                        <header class="ke-org-card-header ke-org-card-header--toolbar">
+                            <div class="ke-org-card-titles">
+                                <h2 class="ke-org-card-title"><?php esc_html_e( 'Event traffic', 'kiwi-events' ); ?></h2>
+                                <p class="ke-org-card-subtitle"><?php esc_html_e( 'Visits to each event page and clicks on tickets, reservations, birthday and share buttons.', 'kiwi-events' ); ?></p>
+                            </div>
+                            <div class="ke-org-an-pills" id="keOrgAnRange" role="tablist" aria-label="<?php esc_attr_e( 'Traffic range', 'kiwi-events' ); ?>">
+                                <button type="button" class="ke-org-an-pill" role="tab" data-range="day" aria-selected="false"><?php esc_html_e( 'Today', 'kiwi-events' ); ?></button>
+                                <button type="button" class="ke-org-an-pill is-active" role="tab" data-range="week" aria-selected="true"><?php esc_html_e( '7 days', 'kiwi-events' ); ?></button>
+                                <button type="button" class="ke-org-an-pill" role="tab" data-range="month" aria-selected="false"><?php esc_html_e( '30 days', 'kiwi-events' ); ?></button>
+                                <button type="button" class="ke-org-an-pill" role="tab" data-range="all" aria-selected="false"><?php esc_html_e( 'All time', 'kiwi-events' ); ?></button>
+                            </div>
+                        </header>
+                        <div class="ke-org-an-summary" id="keOrgAnSummary" aria-live="polite"></div>
+                        <div class="ke-org-an-events" id="keOrgAnalytics" aria-busy="true">
+                            <div class="ke-org-an-loading"><?php esc_html_e( 'Loading traffic…', 'kiwi-events' ); ?></div>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="ke-org-section">
                     <p class="ke-org-section-eyebrow"><?php esc_html_e( 'Attendees', 'kiwi-events' ); ?></p>
                     <div class="ke-org-card">

@@ -1,0 +1,110 @@
+/* KiwiEvents — Analytics admin page. Tokens only (dark-mode safe). */
+
+.ke-an-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 18px 28px;
+}
+.ke-an-filter { display: flex; flex-direction: column; gap: 6px; }
+.ke-an-filter label,
+.ke-an-filter-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--kiwi-text-muted);
+}
+.ke-an-filter--organizer .ke-select { min-width: 240px; }
+.ke-an-window { margin: 0 0 6px auto; font-size: 13px; align-self: flex-end; }
+
+.ke-an-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.ke-analytics-page .ke-an-pill,
+.ke-analytics-page .ke-an-pill:link,
+.ke-analytics-page .ke-an-pill:visited {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: var(--kiwi-radius-pill);
+    border: 1.5px solid var(--kiwi-border-strong);
+    background: var(--kiwi-surface);
+    color: var(--kiwi-text);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease;
+}
+.ke-analytics-page .ke-an-pill:hover,
+.ke-analytics-page .ke-an-pill:focus {
+    background: var(--kiwi-green-soft);
+    border-color: var(--kiwi-green-edge);
+    color: var(--kiwi-text);
+}
+.ke-analytics-page .ke-an-pill.is-active,
+.ke-analytics-page .ke-an-pill.is-active:hover,
+.ke-analytics-page .ke-an-pill.is-active:focus {
+    background: var(--kiwi-green);
+    border-color: var(--kiwi-green);
+    color: var(--kiwi-green-ink);
+}
+.ke-analytics-page .ke-an-pill:focus-visible { outline: 2px solid var(--kiwi-green); outline-offset: 2px; }
+
+.ke-an-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ke-an-kpi-grid .ke-kpi-label { white-space: nowrap; }
+
+.ke-an-table-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.ke-an-table-head h3 { margin: 0; display: flex; align-items: center; gap: 10px; }
+.ke-an-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: var(--kiwi-radius-pill);
+    background: var(--kiwi-surface-muted);
+    color: var(--kiwi-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+.ke-an-legend { display: flex; gap: 14px; font-size: 12px; color: var(--kiwi-text-muted); }
+.ke-an-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ke-an-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.ke-an-legend-v { background: var(--kiwi-green-darker); }
+.ke-an-legend-c { background: var(--kiwi-text); opacity: .3; }
+
+.ke-an-note {
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-surface-muted);
+    border: 1px solid var(--kiwi-border);
+    color: var(--kiwi-text-muted);
+    font-size: 13px;
+}
+
+.ke-an-table-wrap { overflow-x: auto; }
+.ke-an-table th.ke-an-num,
+.ke-an-table td.ke-an-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ke-an-table td.ke-an-num--views { font-weight: 800; color: var(--kiwi-green-text); }
+.ke-an-table th.ke-an-trend, .ke-an-table td.ke-an-trend { width: 180px; min-width: 140px; }
+.ke-an-table td.ke-an-actions { text-align: right; white-space: nowrap; }
+.ke-an-event-cell { min-width: 220px; }
+.ke-an-event-title { font-weight: 700; color: var(--kiwi-text); text-decoration: none; }
+.ke-an-event-title:hover { color: var(--kiwi-green-text); }
+.ke-an-event-meta { margin-top: 3px; font-size: 12px; }
+.ke-an-row--quiet td { color: var(--kiwi-text-muted); }
+.ke-an-row--quiet td.ke-an-num--views { color: var(--kiwi-text-muted); font-weight: 600; }
+
+.ke-an-spark { display: block; width: 100%; height: 36px; }
+.ke-an-bar-v { fill: var(--kiwi-green-darker); }
+.ke-an-bar-c { fill: var(--kiwi-text); opacity: .28; }
+.ke-an-bar-hit { fill: transparent; }
+.ke-an-bar-hit:hover { fill: var(--kiwi-green-soft); }
+
+.ke-btn-small { height: 30px; padding: 0 12px; font-size: 12px; }

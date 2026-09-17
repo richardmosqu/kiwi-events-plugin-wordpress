@@ -1098,4 +1098,14 @@ window.kePublicResv = <?php echo $resv_js; ?>;
 </div><!-- /#ke-resv-sheet -->
 <?php endif; ?>
 
+<?php
+// Audience analytics beacon — visits and CTA clicks per event, aggregated
+// per day with no visitor identity. Skipped for staff so previews don't
+// inflate the numbers. The decision is made per render: anonymous renders
+// (the ones the edge cache serves to real visitors) always carry it, and
+// the browser does the counting.
+if ( class_exists( 'KE_Event_Analytics' ) && KE_Event_Analytics::should_track_request() ) {
+    KE_Event_Analytics::enqueue_assets( $event_id );
+}
+?>
 <?php get_footer(); ?>
