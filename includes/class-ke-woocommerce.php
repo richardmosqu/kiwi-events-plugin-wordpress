@@ -48,6 +48,16 @@ class KE_WooCommerce {
         // for N yet received one QR without ever touching the stepper.
         add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_line_uid' ), 10, 3 );
 
+        // Tickets for an event that has already happened can never be bought,
+        // but WooCommerce keeps a cart per customer indefinitely (in the
+        // session for guests, in user meta for everyone signed in). Those
+        // lines therefore sat in the cart and the checkout for good and
+        // muddled the customer's next purchase. Drop them as soon as the cart
+        // is read, and again right before the cart is validated, which is the
+        // path the Store API takes.
+        add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'prune_dead_cart_items' ), 20 );
+        add_action( 'woocommerce_check_cart_items',         array( $this, 'prune_dead_cart_items' ), 5 );
+
         // Second-pass guard: if a ticket type's sale_end cutoff passes while
         // the buyer is sitting on the checkout page, block the order before
         // payment is taken. WooCommerce calls this on cart render and at the
@@ -895,6 +905,152 @@ class KE_WooCommerce {
                 $seen_events[ $ev_id ] = true;
                 wc_add_notice( KE_Sales_Schedule::closed_message( $ev_id ), 'error' );
             }
+        }
+    }
+
+    /**
+     * Why a cart line can never become a ticket, or null when it still can.
+     *
+     * Only terminal states are listed. A closed sale window, a pending
+     * scheduled opening or a sold-out type are all reversible by the
+     * organizer, so those stay as blocking errors (validate_cart_cutoffs)
+     * rather than silently emptying someone's cart.
+     *
+     * @return string|null 'past' | 'cancelled' | 'gone' | null
+     */
+    private static function dead_event_reason( $event_id ) {
+        $event_id = (int) $event_id;
+        $post     = $event_id > 0 ? get_post( $event_id ) : null;
+
+        if ( ! $post || $post->post_type !== 'ke_event'
+             || in_array( $post->post_status, array( 'trash', 'auto-draft' ), true ) ) {
+            return 'gone';
+        }
+        if ( (string) get_post_meta( $event_id, '_ke_event_status', true ) === 'cancelled' ) {
+            return 'cancelled';
+        }
+        // Fail-open by design: KE_Shortcodes::event_is_expired() answers false
+        // for a missing or unparseable end date, so a date quirk can never
+        // throw a paying customer's tickets away.
+        if ( class_exists( 'KE_Shortcodes' ) && KE_Shortcodes::event_is_expired( $event_id ) ) {
+            return 'past';
+        }
+        return null;
+    }
+
+    /**
+     * Remove cart lines whose event is over, cancelled or gone.
+     *
+     * Runs on cart load, so a customer who comes back weeks later sees a
+     * clean cart instead of last month's event still sitting in the checkout.
+     *
+     * Idempotent by construction rather than by a "ran already" flag: the
+     * second pass finds the dead lines gone, so it removes nothing and says
+     * nothing. That matters because the hooks below can both fire in one
+     * request, and because a flag would make this untestable.
+     */
+    public function prune_dead_cart_items() {
+        if ( ! function_exists( 'WC' ) || ! WC() || ! WC()->cart ) {
+            return;
+        }
+
+        $removed      = array();  // reason => [ event names ]
+        $reason_cache = array();  // event_id => reason|null
+        $types        = null;
+
+        foreach ( WC()->cart->get_cart() as $key => $cart_item ) {
+            $event_id = isset( $cart_item['ke_event_id'] ) ? (int) $cart_item['ke_event_id'] : 0;
+            if ( $event_id <= 0 ) {
+                $product_id = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
+                $event_id   = $product_id ? (int) get_post_meta( $product_id, '_ke_event_id', true ) : 0;
+            }
+            if ( $event_id <= 0 ) {
+                continue;  // not a ticket line — leave other products alone
+            }
+
+            if ( ! array_key_exists( $event_id, $reason_cache ) ) {
+                $reason_cache[ $event_id ] = self::dead_event_reason( $event_id );
+            }
+            $reason = $reason_cache[ $event_id ];
+
+            // A ticket type row that no longer exists can never mint a ticket
+            // either, however healthy its event looks.
+            if ( $reason === null ) {
+                $tt_id = isset( $cart_item['ke_ticket_type_id'] ) ? (int) $cart_item['ke_ticket_type_id'] : 0;
+                if ( $tt_id > 0 ) {
+                    if ( $types === null ) {
+                        $types = new KE_Ticket_Types();
+                    }
+                    if ( ! $types->get( $tt_id ) ) {
+                        $reason = 'gone';
+                    }
+                }
+            }
+            if ( $reason === null ) {
+                continue;
+            }
+
+            $name = (string) get_the_title( $event_id );
+            WC()->cart->remove_cart_item( $key );
+
+            // Drop it from the removed-items store too, so the line cannot be
+            // restored through WooCommerce's undo mechanism. Nothing should
+            // put a past event back in a cart.
+            if ( method_exists( WC()->cart, 'get_removed_cart_contents' ) ) {
+                $removed_contents = WC()->cart->get_removed_cart_contents();
+                if ( isset( $removed_contents[ $key ] ) ) {
+                    unset( $removed_contents[ $key ] );
+                    WC()->cart->set_removed_cart_contents( $removed_contents );
+                }
+            }
+
+            if ( ! isset( $removed[ $reason ] ) ) {
+                $removed[ $reason ] = array();
+            }
+            if ( $name !== '' && ! in_array( $name, $removed[ $reason ], true ) ) {
+                $removed[ $reason ][] = $name;
+            }
+        }
+
+        if ( ! empty( $removed ) ) {
+            $this->notify_pruned_cart_items( $removed );
+        }
+    }
+
+    /** One notice per reason, naming the events that were dropped. */
+    private function notify_pruned_cart_items( array $removed ) {
+        if ( ! function_exists( 'wc_add_notice' ) || ! did_action( 'woocommerce_init' ) ) {
+            return;
+        }
+
+        foreach ( $removed as $reason => $names ) {
+            $count = count( $names );
+            if ( $count === 0 ) {
+                // The event post was deleted outright, so there is no name to
+                // show — say what happened without pretending to know which.
+                wc_add_notice(
+                    __( 'Quitamos de tu carrito unos boletos porque su evento ya no está disponible.', 'kiwi-events' ),
+                    'notice'
+                );
+                continue;
+            }
+
+            $list = implode( ', ', $names );
+            if ( $reason === 'cancelled' ) {
+                $message = $count === 1
+                    ? sprintf( __( 'Quitamos de tu carrito los boletos de «%s» porque el evento fue cancelado.', 'kiwi-events' ), $list )
+                    : sprintf( __( 'Quitamos de tu carrito los boletos de estos eventos porque fueron cancelados: %s.', 'kiwi-events' ), $list );
+            } elseif ( $reason === 'gone' ) {
+                $message = $count === 1
+                    ? sprintf( __( 'Quitamos de tu carrito los boletos de «%s» porque ya no están disponibles.', 'kiwi-events' ), $list )
+                    : sprintf( __( 'Quitamos de tu carrito los boletos de estos eventos porque ya no están disponibles: %s.', 'kiwi-events' ), $list );
+            } else {
+                $message = $count === 1
+                    ? sprintf( __( 'Quitamos de tu carrito los boletos de «%s» porque el evento ya pasó.', 'kiwi-events' ), $list )
+                    : sprintf( __( 'Quitamos de tu carrito los boletos de estos eventos porque ya pasaron: %s.', 'kiwi-events' ), $list );
+            }
+
+            wc_add_notice( $message, 'notice' );
         }
     }
 
