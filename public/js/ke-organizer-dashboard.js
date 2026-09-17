@@ -1531,7 +1531,7 @@
      * GET /organizer/{slug}/analytics?range=day|week|month|all. Independent
      * of the sales range selector: its own pills, its own state. The server
      * counts nothing about the visitor, only per-day totals per event. */
-    var anState = { range: 'week', loading: false, data: null };
+    var anState = { range: 'week', seq: 0, data: null };
 
     var AN_METRIC_LABEL = {
         view:           'Visits',
@@ -1604,6 +1604,10 @@
         } else if (hasSeries) {
             html += '<div class="ke-org-an-legend"><span><i class="ke-org-an-legend-v"></i>Visits</span><span><i class="ke-org-an-legend-c"></i>Clicks</span><span class="ke-org-an-legend-days">' + escapeHtml(fmtDayLabel(d.days[0])) + ' – ' + escapeHtml(fmtDayLabel(d.days[d.days.length - 1])) + '</span></div>';
         }
+        // Days that came from the WordPress.com Stats import count page views,
+        // not sessions — say so whenever the range reaches back that far.
+        var hist = d.history || null;
+        var showHist = !!(hist && hist.cutover && (d.range === 'all' || (d.from && d.from < hist.cutover)));
         html += events.map(function (e) {
             var t = e.totals || {};
             var spark = (hasSeries && e.series) ? anSpark(d.days, e.series.view || [], e.series.clicks || []) : '';
@@ -1625,16 +1629,21 @@
                 '</div>' +
             '</div>';
         }).join('');
+        if (showHist) {
+            html += '<div class="ke-org-an-footnote">Visits before ' + escapeHtml(fmtDayLabel(hist.cutover)) + ' come from ' + escapeHtml(hist.provider || 'WordPress.com Stats') + ' and count page views, so they read a little higher than the one-per-session visits counted since. Clicks only exist from that date on.</div>';
+        }
         box.innerHTML = html;
     }
 
     function loadAnalytics(silent) {
         var box = $('keOrgAnalytics');
-        if (!box || anState.loading) return Promise.resolve();
-        anState.loading = true;
+        if (!box) return Promise.resolve();
+        // A pill tapped while a request is in flight must win: number the
+        // requests and only render the latest one, never drop the tap.
+        var seq = ++anState.seq;
         if (!silent) box.setAttribute('aria-busy', 'true');
         return getJson(cfg.restUrl + cfg.slug + '/analytics?range=' + encodeURIComponent(anState.range)).then(function (r) {
-            anState.loading = false;
+            if (seq !== anState.seq) return; // superseded by a newer request
             if (r.status === 401) { window.location.reload(); return; }
             if (!r.ok || !r.data) {
                 box.removeAttribute('aria-busy');
@@ -1644,7 +1653,7 @@
             anState.data = r.data;
             renderAnalytics(r.data);
         }).catch(function () {
-            anState.loading = false;
+            if (seq !== anState.seq) return;
             box.removeAttribute('aria-busy');
             if (!silent) box.innerHTML = '<div class="ke-org-stats-error">Network error. Please try again.</div>';
         });

@@ -339,7 +339,10 @@ class KE_Event_Analytics {
         } );
 
         unset( $data['per_event'] );
-        $data['events'] = $events;
+        $data['events']  = $events;
+        // Lets the dashboards label days that came from the WordPress.com
+        // Stats import rather than from the beacon (null = never imported).
+        $data['history'] = class_exists( 'KE_Analytics_History' ) ? KE_Analytics_History::public_summary() : null;
         return $data;
     }
 }
