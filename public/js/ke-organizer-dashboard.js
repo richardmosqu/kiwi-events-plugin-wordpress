@@ -1531,13 +1531,14 @@
      * GET /organizer/{slug}/analytics?range=day|week|month|all. Independent
      * of the sales range selector: its own pills, its own state. The server
      * counts nothing about the visitor, only per-day totals per event. */
-    var anState = { range: 'week', seq: 0, data: null };
+    var anState = { range: 'all', seq: 0, data: null };  // opens on all time; the pills switch it
 
+    // Same wording as the admin table headers so both surfaces read alike.
     var AN_METRIC_LABEL = {
         view:           'Visits',
         ticket_click:   'Ticket clicks',
-        reserve_click:  'Reservation clicks',
-        birthday_click: 'Birthday clicks',
+        reserve_click:  'Reservations',
+        birthday_click: 'Birthday',
         share_click:    'Shares'
     };
     var AN_RANGE_PHRASE = { day: 'today', week: 'in the last 7 days', month: 'in the last 30 days', all: 'so far' };

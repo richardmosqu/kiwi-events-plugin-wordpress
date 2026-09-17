@@ -121,12 +121,14 @@ $admin_email = get_option( 'admin_email' );
                     </div>
                 </div>
                 <div class="ke-org-header-controls">
+                    <?php /* Opens on all time so the dashboard shows the whole
+                             history on arrival instead of the last 30 days. */ ?>
                     <select class="ke-org-range" id="keOrgRange" aria-label="<?php esc_attr_e( 'Date range', 'kiwi-events' ); ?>">
                         <option value="7"><?php esc_html_e( 'Last 7 days', 'kiwi-events' ); ?></option>
-                        <option value="30" selected><?php esc_html_e( 'Last 30 days', 'kiwi-events' ); ?></option>
+                        <option value="30"><?php esc_html_e( 'Last 30 days', 'kiwi-events' ); ?></option>
                         <option value="90"><?php esc_html_e( 'Last 90 days', 'kiwi-events' ); ?></option>
                         <option value="365"><?php esc_html_e( 'Last year', 'kiwi-events' ); ?></option>
-                        <option value="all"><?php esc_html_e( 'All time', 'kiwi-events' ); ?></option>
+                        <option value="all" selected><?php esc_html_e( 'All time', 'kiwi-events' ); ?></option>
                     </select>
                     <button type="button" class="ke-org-logout" id="keOrgLogout">
                         <?php esc_html_e( 'Sign out', 'kiwi-events' ); ?>
@@ -200,9 +202,9 @@ $admin_email = get_option( 'admin_email' );
                             </div>
                             <div class="ke-org-an-pills" id="keOrgAnRange" role="tablist" aria-label="<?php esc_attr_e( 'Traffic range', 'kiwi-events' ); ?>">
                                 <button type="button" class="ke-org-an-pill" role="tab" data-range="day" aria-selected="false"><?php esc_html_e( 'Today', 'kiwi-events' ); ?></button>
-                                <button type="button" class="ke-org-an-pill is-active" role="tab" data-range="week" aria-selected="true"><?php esc_html_e( '7 days', 'kiwi-events' ); ?></button>
+                                <button type="button" class="ke-org-an-pill" role="tab" data-range="week" aria-selected="false"><?php esc_html_e( '7 days', 'kiwi-events' ); ?></button>
                                 <button type="button" class="ke-org-an-pill" role="tab" data-range="month" aria-selected="false"><?php esc_html_e( '30 days', 'kiwi-events' ); ?></button>
-                                <button type="button" class="ke-org-an-pill" role="tab" data-range="all" aria-selected="false"><?php esc_html_e( 'All time', 'kiwi-events' ); ?></button>
+                                <button type="button" class="ke-org-an-pill is-active" role="tab" data-range="all" aria-selected="true"><?php esc_html_e( 'All time', 'kiwi-events' ); ?></button>
                             </div>
                         </header>
                         <div class="ke-org-an-summary" id="keOrgAnSummary" aria-live="polite"></div>
