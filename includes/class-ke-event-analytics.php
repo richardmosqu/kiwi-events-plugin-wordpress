@@ -29,6 +29,13 @@ class KE_Event_Analytics {
     /** Reporting ranges. 'day' = today, 'week' = last 7 days, 'month' = last 30 days. */
     const RANGES = array( 'day', 'week', 'month', 'all' );
 
+    /**
+     * Longest span, in days, for which 'all' still returns a per-day series.
+     * Beyond this the report is totals only — a sparkline with 400 bars is
+     * noise, and building the arrays for it is pure waste.
+     */
+    const MAX_ALL_SERIES_DAYS = 180;
+
     // Per-IP ceiling on the public beacon. A person can produce maybe a
     // dozen hits per minute; this only exists to bound a script.
     const HIT_RATE_LIMIT  = 120;
@@ -151,8 +158,67 @@ class KE_Event_Analytics {
      * ────────────────────────────────────────────────────────────────── */
 
     /**
+     * Earliest day with any recorded hit for these events, or null.
+     * This is what gives the 'all' range a real lower bound instead of an
+     * open one, so reports can label their window and draw a series.
+     */
+    public static function first_recorded_day( array $event_ids ) {
+        global $wpdb;
+        $ids = array_filter( array_map( 'absint', $event_ids ) );
+        if ( empty( $ids ) ) {
+            return null;
+        }
+        $table = self::table();
+        $day   = $wpdb->get_var( 'SELECT MIN(day) FROM ' . $table . ' WHERE event_id IN (' . implode( ',', $ids ) . ')' );
+        return ( is_string( $day ) && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $day ) ) ? $day : null;
+    }
+
+    /**
+     * What the table actually holds right now — the answer to "do I have any
+     * history?". Read-only; used by the admin page so an operator can see at
+     * a glance whether the WordPress.com import ever landed.
+     *
+     * @param array|null $event_ids Restrict to these events, or null for the whole table.
+     */
+    public static function data_state( $event_ids = null ) {
+        global $wpdb;
+        $empty = array( 'rows' => 0, 'views' => 0, 'clicks' => 0, 'events' => 0, 'first_day' => null, 'last_day' => null );
+
+        $where = '';
+        if ( is_array( $event_ids ) ) {
+            $ids = array_filter( array_map( 'absint', $event_ids ) );
+            if ( empty( $ids ) ) {
+                return $empty;
+            }
+            $where = ' WHERE event_id IN (' . implode( ',', $ids ) . ')';
+        }
+
+        $click_in = "'" . implode( "','", array_map( 'esc_sql', self::CLICK_METRICS ) ) . "'";
+        $row = $wpdb->get_row(
+            "SELECT COUNT(*) AS rows_total,
+                    COALESCE(SUM(CASE WHEN metric = 'view' THEN hits ELSE 0 END), 0) AS views,
+                    COALESCE(SUM(CASE WHEN metric IN ({$click_in}) THEN hits ELSE 0 END), 0) AS clicks,
+                    COUNT(DISTINCT event_id) AS events,
+                    MIN(day) AS first_day,
+                    MAX(day) AS last_day
+               FROM " . self::table() . $where
+        );
+        if ( ! $row ) {
+            return $empty;
+        }
+        return array(
+            'rows'      => (int) $row->rows_total,
+            'views'     => (int) $row->views,
+            'clicks'    => (int) $row->clicks,
+            'events'    => (int) $row->events,
+            'first_day' => $row->first_day ? (string) $row->first_day : null,
+            'last_day'  => $row->last_day ? (string) $row->last_day : null,
+        );
+    }
+
+    /**
      * Resolve a range keyword into [from, to] site-local dates (inclusive).
-     * 'all' has no lower bound and no per-day series.
+     * 'all' has no fixed lower bound — report() resolves it from the data.
      */
     public static function range_bounds( $range ) {
         $range = self::is_valid_range( $range ) ? (string) $range : 'week';
@@ -192,10 +258,22 @@ class KE_Event_Analytics {
         $bounds    = self::range_bounds( $range );
         $event_ids = array_values( array_unique( array_filter( array_map( 'absint', $event_ids ) ) ) );
 
+        // 'all' means "since the first day we ever recorded", which is a real
+        // date once there is data (including days brought in by the
+        // WordPress.com import). Resolving it here is what lets an all-time
+        // report label its window and, when the history is short enough,
+        // still draw a per-day series instead of bare totals.
+        if ( $bounds['range'] === 'all' && ! empty( $event_ids ) ) {
+            $bounds['from'] = self::first_recorded_day( $event_ids );
+        }
+
         $days = array();
         if ( $bounds['from'] ) {
-            for ( $ts = strtotime( $bounds['from'] ), $end = strtotime( $bounds['to'] ); $ts <= $end; $ts += DAY_IN_SECONDS ) {
-                $days[] = date( 'Y-m-d', $ts );
+            $span = (int) floor( ( strtotime( $bounds['to'] ) - strtotime( $bounds['from'] ) ) / DAY_IN_SECONDS ) + 1;
+            if ( $bounds['range'] !== 'all' || $span <= self::MAX_ALL_SERIES_DAYS ) {
+                for ( $ts = strtotime( $bounds['from'] ), $end = strtotime( $bounds['to'] ); $ts <= $end; $ts += DAY_IN_SECONDS ) {
+                    $days[] = date( 'Y-m-d', $ts );
+                }
             }
         }
         $day_index = array_flip( $days );

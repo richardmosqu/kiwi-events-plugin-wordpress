@@ -50,8 +50,24 @@
 }
 .ke-analytics-page .ke-an-pill:focus-visible { outline: 2px solid var(--kiwi-green); outline-offset: 2px; }
 
-.ke-an-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.ke-an-kpi-grid .ke-kpi-label { white-space: normal; line-height: 1.25; }
+/* Six metrics in a deterministic 3 × 2 block. auto-fit squeezed them into
+   six ~160px columns where a single long word like "Reservations" could not
+   fit, and the shared KPI card clips overflow — so the label came out as
+   "RESERVA". Three wide columns leave every label on one line.
+   min-width:0 on the flex child is still required: without it a flex item
+   never shrinks below its content and the card clips it again. */
+.ke-an-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .ke-an-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px)  { .ke-an-kpi-grid { grid-template-columns: minmax(0, 1fr); } }
+.ke-an-kpi-grid .ke-kpi-card { padding: 18px; gap: 12px; }
+.ke-an-kpi-grid .ke-kpi-icon { flex-shrink: 0; }
+.ke-an-kpi-grid .ke-kpi-content { min-width: 0; }
+.ke-an-kpi-grid .ke-kpi-label {
+    white-space: normal;
+    line-height: 1.25;
+    letter-spacing: 0.4px;
+}
+.ke-an-kpi-grid .ke-kpi-value { font-size: 24px; }
 
 .ke-an-table-head {
     display: flex;
@@ -139,3 +155,14 @@
 .ke-an-history-summary.is-error { background: var(--kiwi-red-fill-soft); border-color: var(--kiwi-red-edge-soft); color: var(--kiwi-red-text); }
 .ke-an-history-row--error td { color: var(--kiwi-red-text); }
 .ke-an-history-row--empty td { color: var(--kiwi-text-muted); }
+.ke-an-history-state {
+    margin: 14px 0 0;
+    padding: 10px 14px;
+    border-radius: var(--kiwi-radius-md);
+    background: var(--kiwi-surface-muted);
+    border: 1px solid var(--kiwi-border);
+    font-size: 13px;
+    color: var(--kiwi-text);
+    line-height: 1.5;
+}
+.ke-an-history-state em { color: var(--kiwi-text-muted); font-style: normal; }

@@ -138,14 +138,14 @@ $ke_an_spark = function ( array $days, array $views, array $clicks ) {
             <div class="ke-kpi-card ke-kpi-checkin">
                 <div class="ke-kpi-icon">🍽</div>
                 <div class="ke-kpi-content">
-                    <span class="ke-kpi-label"><?php esc_html_e( 'Reservation clicks', 'kiwi-events' ); ?></span>
+                    <span class="ke-kpi-label"><?php esc_html_e( 'Reservations', 'kiwi-events' ); ?></span>
                     <span class="ke-kpi-value"><?php echo esc_html( number_format_i18n( (int) $totals['reserve_click'] ) ); ?></span>
                 </div>
             </div>
             <div class="ke-kpi-card ke-kpi-revenue">
                 <div class="ke-kpi-icon">🎂</div>
                 <div class="ke-kpi-content">
-                    <span class="ke-kpi-label"><?php esc_html_e( 'Birthday clicks', 'kiwi-events' ); ?></span>
+                    <span class="ke-kpi-label"><?php esc_html_e( 'Birthday', 'kiwi-events' ); ?></span>
                     <span class="ke-kpi-value"><?php echo esc_html( number_format_i18n( (int) $totals['birthday_click'] ) ); ?></span>
                 </div>
             </div>
@@ -278,6 +278,27 @@ $ke_an_spark = function ( array $days, array $views, array $clicks ) {
                     <?php esc_html_e( 'The plugin’s own counter only started the day this version went live. WordPress.com Stats has counted views of every event page since the site exists; this brings those days in, event by event, for dates before today only. Days the plugin already counted are never touched, and running it again only fills gaps. WordPress.com counts page views (a repeat open counts twice) while the plugin counts one visit per session, so imported days read a little higher. Clicks cannot be recovered: nothing ever recorded them.', 'kiwi-events' ); ?>
                 </p>
             </div>
+        </div>
+
+        <div class="ke-an-history-state">
+            <?php if ( ! empty( $data_state['rows'] ) ) : ?>
+                <?php
+                printf(
+                    /* translators: 1: visits, 2: clicks, 3: number of events, 4: first date, 5: last date */
+                    esc_html__( 'Recorded so far: %1$s visits and %2$s clicks across %3$s events, from %4$s to %5$s.', 'kiwi-events' ),
+                    '<strong>' . esc_html( number_format_i18n( (int) $data_state['views'] ) ) . '</strong>',
+                    '<strong>' . esc_html( number_format_i18n( (int) $data_state['clicks'] ) ) . '</strong>',
+                    esc_html( number_format_i18n( (int) $data_state['events'] ) ),
+                    '<strong>' . esc_html( date_i18n( 'M j, Y', strtotime( $data_state['first_day'] ) ) ) . '</strong>',
+                    '<strong>' . esc_html( date_i18n( 'M j, Y', strtotime( $data_state['last_day'] ) ) ) . '</strong>'
+                );
+                ?>
+                <?php if ( $data_state['first_day'] === current_time( 'Y-m-d' ) ) : ?>
+                    <em><?php esc_html_e( 'Everything recorded is from today — no history has been imported yet.', 'kiwi-events' ); ?></em>
+                <?php endif; ?>
+            <?php else : ?>
+                <?php esc_html_e( 'Nothing recorded yet.', 'kiwi-events' ); ?>
+            <?php endif; ?>
         </div>
 
         <div class="ke-an-history-status">

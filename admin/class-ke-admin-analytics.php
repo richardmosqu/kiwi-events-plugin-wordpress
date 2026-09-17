@@ -14,9 +14,12 @@ class KE_Admin_Analytics {
 
     public function render() {
         $organizer_id = isset( $_GET['organizer_id'] ) ? absint( $_GET['organizer_id'] ) : 0;
-        $range        = isset( $_GET['range'] ) ? sanitize_key( wp_unslash( $_GET['range'] ) ) : 'week';
+        // Opens on all time: the page's job is "how is this event doing",
+        // and a short default window hid every day imported from
+        // WordPress.com Stats behind an extra click.
+        $range        = isset( $_GET['range'] ) ? sanitize_key( wp_unslash( $_GET['range'] ) ) : 'all';
         if ( ! KE_Event_Analytics::is_valid_range( $range ) ) {
-            $range = 'week';
+            $range = 'all';
         }
 
         $organizers = get_terms( array(
@@ -41,6 +44,10 @@ class KE_Admin_Analytics {
         $report = $organizer_id > 0
             ? KE_Event_Analytics::report_for_organizer( $organizer_id, $range )
             : KE_Event_Analytics::report_for_all( $range );
+
+        // What the table actually holds — lets an admin see whether any
+        // history exists without reading the database.
+        $data_state = KE_Event_Analytics::data_state();
 
         $range_labels = array(
             'day'   => __( 'Today', 'kiwi-events' ),
