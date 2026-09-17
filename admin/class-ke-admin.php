@@ -430,6 +430,16 @@ class KE_Admin {
             array( $this, 'render_promoters_page' )
         );
 
+        // Coupons — per-event discount codes applied at WooCommerce checkout
+        add_submenu_page(
+            'kiwi-events',
+            'Cupones',
+            'Cupones',
+            'manage_kiwi_events',
+            'ke-coupons',
+            array( $this, 'render_coupons_page' )
+        );
+
         // Attendees
         add_submenu_page(
             'kiwi-events',
@@ -535,6 +545,7 @@ class KE_Admin {
         $plugin_pages = array(
             'toplevel_page_kiwi-events',
             'kiwievents_page_ke-analytics',
+            'kiwievents_page_ke-coupons',
             'kiwievents_page_kiwi-events-attendees',
             'kiwievents_page_kiwi-events-reservations',
             'kiwievents_page_kiwi-events-waitlist',
@@ -675,6 +686,16 @@ class KE_Admin {
             }
         }
 
+        // Coupons page — form + table chrome on top of the shared admin CSS.
+        if ( $hook === 'kiwievents_page_ke-coupons' ) {
+            wp_enqueue_style(
+                'ke-coupons-css',
+                KE_PLUGIN_URL . 'admin/css/ke-coupons.css',
+                array( 'ke-admin-css' ),
+                $ke_admin_css_ver
+            );
+        }
+
         // Waitlist admin page — read-only listing, so it only needs the
         // shared table chrome plus the reservations status-pill styles it
         // borrows for the Waiting / Notified / Cancelled pills. No JS.
@@ -756,6 +777,14 @@ class KE_Admin {
     public function render_analytics_page() {
         $analytics = new KE_Admin_Analytics();
         $analytics->render();
+    }
+
+    /**
+     * Render the Cupones page (per-event discount codes)
+     */
+    public function render_coupons_page() {
+        $coupons = new KE_Admin_Coupons();
+        $coupons->render();
     }
 
     /**
