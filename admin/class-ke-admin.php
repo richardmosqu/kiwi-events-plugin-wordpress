@@ -361,6 +361,16 @@ class KE_Admin {
             array( $this, 'render_dashboard_page' )
         );
 
+        // Analytics — visits + CTA clicks per event, by organizer
+        add_submenu_page(
+            'kiwi-events',
+            'Analytics',
+            'Analytics',
+            'manage_kiwi_events',
+            'ke-analytics',
+            array( $this, 'render_analytics_page' )
+        );
+
         // Events (CPT) — link to the CPT admin page
         add_submenu_page(
             'kiwi-events',
@@ -524,6 +534,7 @@ class KE_Admin {
         // Only load on our plugin pages
         $plugin_pages = array(
             'toplevel_page_kiwi-events',
+            'kiwievents_page_ke-analytics',
             'kiwievents_page_kiwi-events-attendees',
             'kiwievents_page_kiwi-events-reservations',
             'kiwievents_page_kiwi-events-waitlist',
@@ -634,6 +645,17 @@ class KE_Admin {
             ) );
         }
 
+        // Analytics page — PHP-rendered; a thin stylesheet for the range
+        // pills, KPI grid tweaks and the inline sparklines.
+        if ( $hook === 'kiwievents_page_ke-analytics' ) {
+            wp_enqueue_style(
+                'ke-analytics-css',
+                KE_PLUGIN_URL . 'admin/css/ke-analytics.css',
+                array( 'ke-admin-css' ),
+                $ke_admin_css_ver
+            );
+        }
+
         // Waitlist admin page — read-only listing, so it only needs the
         // shared table chrome plus the reservations status-pill styles it
         // borrows for the Waiting / Notified / Cancelled pills. No JS.
@@ -707,6 +729,14 @@ class KE_Admin {
     public function render_dashboard_page() {
         $dashboard = new KE_Admin_Dashboard();
         $dashboard->render();
+    }
+
+    /**
+     * Render analytics page (visits + CTA clicks per event, by organizer)
+     */
+    public function render_analytics_page() {
+        $analytics = new KE_Admin_Analytics();
+        $analytics->render();
     }
 
     /**

@@ -458,6 +458,24 @@ class KE_Rest_API {
         // Real-time sales beacon. Cheap: one transient read, no DB query.
         // Client polls every 8s while the dashboard tab is visible and
         // triggers a full stats refresh when the timestamp advances.
+        // Audience analytics for the organizer dashboard: visits + CTA clicks
+        // per event in a day/week/month/all range. Same cookie session as
+        // the rest of the dashboard.
+        register_rest_route( $this->namespace, '/organizer/(?P<slug>[a-z0-9_-]+)/analytics', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => $this->safe_organizer_callback( 'organizer_analytics' ),
+            'permission_callback' => array( $this, 'organizer_session_permission_check' ),
+        ) );
+
+        // Public analytics beacon. POST { event_id, metric } from the event
+        // page; anonymous by design (credentials are omitted client-side), so
+        // it is bounded by a per-IP fixed-window limit and a metric allowlist.
+        register_rest_route( $this->namespace, '/analytics/hit', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'analytics_hit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
         register_rest_route( $this->namespace, '/organizer/(?P<slug>[a-z0-9_-]+)/last-sale', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => $this->safe_organizer_callback( 'organizer_last_sale' ),
@@ -3794,6 +3812,72 @@ class KE_Rest_API {
         $result = KE_Organizer_Dashboard::require_session_for_slug( $slug );
         if ( is_wp_error( $result ) ) return $result;
         return true;
+    }
+
+    /**
+     * POST /analytics/hit
+     *
+     * Body: { event_id: int, metric: 'view'|'ticket_click'|'reserve_click'|'birthday_click'|'share_click' }
+     * Accepts application/json and the text/plain body navigator.sendBeacon()
+     * sends. Answers 200 {ok:true}; never cached.
+     */
+    public function analytics_hit( WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        if ( ! is_array( $params ) || empty( $params ) ) {
+            $raw    = json_decode( (string) $request->get_body(), true );
+            $params = is_array( $raw ) ? $raw : array(
+                'event_id' => $request->get_param( 'event_id' ),
+                'metric'   => $request->get_param( 'metric' ),
+            );
+        }
+        $event_id = absint( $params['event_id'] ?? 0 );
+        $metric   = sanitize_key( (string) ( $params['metric'] ?? '' ) );
+
+        if ( ! class_exists( 'KE_Event_Analytics' ) || ! KE_Event_Analytics::is_valid_metric( $metric ) ) {
+            return new WP_Error( 'invalid_metric', 'Unknown metric.', array( 'status' => 400 ) );
+        }
+        $post = $event_id > 0 ? get_post( $event_id ) : null;
+        if ( ! $post || $post->post_type !== 'ke_event' || ! in_array( $post->post_status, array( 'publish', 'private' ), true ) ) {
+            return new WP_Error( 'invalid_event', 'Unknown event.', array( 'status' => 404 ) );
+        }
+        if ( ! KE_Event_Analytics::check_hit_rate() ) {
+            return new WP_Error( 'rate_limited', 'Too many hits.', array( 'status' => 429 ) );
+        }
+
+        KE_Event_Analytics::record_hit( $event_id, $metric );
+
+        $resp = new WP_REST_Response( array( 'ok' => true ), 200 );
+        $resp->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        return $resp;
+    }
+
+    /**
+     * GET /organizer/{slug}/analytics?range=day|week|month|all
+     *
+     * Visits and CTA clicks per event for this organizer. Admin users may
+     * read any organizer (same rule as the rest of the dashboard).
+     */
+    public function organizer_analytics( WP_REST_Request $request ) {
+        $slug = (string) $request->get_param( 'slug' );
+        $term = KE_Organizer_Dashboard::require_session_for_slug( $slug );
+        if ( is_wp_error( $term ) ) return $term;
+
+        $range = sanitize_key( (string) $request->get_param( 'range' ) );
+        if ( ! KE_Event_Analytics::is_valid_range( $range ) ) {
+            $range = 'week';
+        }
+
+        $payload = KE_Event_Analytics::report_for_organizer( (int) $term->term_id, $range );
+        $payload['organizer'] = array(
+            'id'   => (int) $term->term_id,
+            'slug' => $term->slug,
+            'name' => $term->name,
+        );
+        $payload['generated_at'] = current_time( 'c' );
+
+        $resp = rest_ensure_response( $payload );
+        $resp->header( 'Cache-Control', 'no-store, private, max-age=0' );
+        return $resp;
     }
 
     /**

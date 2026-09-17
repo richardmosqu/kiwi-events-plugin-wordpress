@@ -3,7 +3,7 @@
  * Plugin Name: KiwiEvents
  * Plugin URI:  https://kiwievents.com
  * Description: A complete event management and ticketing solution for WordPress. Create events, sell tickets (free & paid via WooCommerce), generate QR code tickets, scan at the door, track attendees, and view sales dashboards.
- * Version:     2.5.5
+ * Version:     2.6.0
  * Author:      KiwiEvents
  * Author URI:  https://kiwievents.com
  * License:     GPL-2.0+
@@ -23,11 +23,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 // header for the plugins list and update checks, while KE_VERSION is what
 // asset enqueues and schema guards use. They drifted before (header stuck at
 // 1.0.0 while the code shipped 2.x); bump both together.
-define( 'KE_VERSION', '2.5.5' );
+define( 'KE_VERSION', '2.6.0' );
 define( 'KE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'KE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-define( 'KE_DB_VERSION', '2.8.0' );
+define( 'KE_DB_VERSION', '2.9.0' );
 
 // Diagnostic logging for promoter attribution. Flip to true ONLY while
 // debugging a missing-commission report; leaves a banner in wp-admin while
@@ -55,7 +55,7 @@ define( 'KE_TOKENS_ASSETS_VER', '0.9.2' );
 // ke-admin-reservations.css). KE_VERSION moves with the plugin code; admin
 // styling iterates faster during the Kiwi-brand rollout, so it gets its own
 // version line. Bump whenever any of those CSS files change.
-define( 'KE_ADMIN_CSS_VER', '0.17.1' );
+define( 'KE_ADMIN_CSS_VER', '0.18.0' );
 
 // Cache-bust for the promoter portal assets (ke-promoter-portal.css,
 // ke-promoter-login.js). Bump when either file changes so WordPress.com edge
@@ -78,6 +78,10 @@ define( 'KE_WALLET_ASSETS_VER', '0.1.1' );
 // the [kiwi_board] / [kiwi_create_board] shortcodes and the /board/ single).
 // Bump when either file changes so WordPress.com edge cache picks them up.
 define( 'KE_BOARD_ASSETS_VER', '0.1.1' );
+
+// Cache-bust for the audience-analytics beacon (public/js/ke-analytics.js),
+// loaded on every public event page. Bump when the file changes.
+define( 'KE_ANALYTICS_ASSETS_VER', '0.1.0' );
 
 // Cache-bust for the scheduled-sales notice assets (ke-waitlist.css,
 // ke-waitlist.js — the "Boletos disponibles a partir de …" block and its
@@ -130,6 +134,7 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-scanner-password.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-dashboard.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-public.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-stats.php';
+require_once KE_PLUGIN_DIR . 'includes/class-ke-event-analytics.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-organizer-report-pdf.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-admin-reservations-pdf.php';
 require_once KE_PLUGIN_DIR . 'includes/class-ke-promoter-attribution.php';
@@ -148,6 +153,7 @@ require_once KE_PLUGIN_DIR . 'includes/class-ke-admin-color-mode.php';
 require_once KE_PLUGIN_DIR . 'includes/class-kiwi-events.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-dashboard.php';
+require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-analytics.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-attendees.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-reservations.php';
 require_once KE_PLUGIN_DIR . 'admin/class-ke-admin-waitlist.php';

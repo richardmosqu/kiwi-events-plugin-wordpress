@@ -1527,6 +1527,148 @@
         loadHighlights();
     }
 
+    /* ─── Audience analytics (visits + CTA clicks per event) ─────────────
+     * GET /organizer/{slug}/analytics?range=day|week|month|all. Independent
+     * of the sales range selector: its own pills, its own state. The server
+     * counts nothing about the visitor, only per-day totals per event. */
+    var anState = { range: 'week', loading: false, data: null };
+
+    var AN_METRIC_LABEL = {
+        view:           'Visits',
+        ticket_click:   'Ticket clicks',
+        reserve_click:  'Reservation clicks',
+        birthday_click: 'Birthday clicks',
+        share_click:    'Shares'
+    };
+    var AN_RANGE_PHRASE = { day: 'today', week: 'in the last 7 days', month: 'in the last 30 days', all: 'so far' };
+
+    function fmtDayLabel(ymd) {
+        try {
+            var p = String(ymd).split('-');
+            var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        } catch (e) { return String(ymd); }
+    }
+
+    function anChip(label, value) {
+        return '<span class="ke-org-event-chip"><span class="ke-org-event-chip-label">' + label + '</span><span class="ke-org-event-chip-value">' + value + '</span></span>';
+    }
+
+    // One bar pair per day: accent = visits, grey = clicks. Pure SVG, so it
+    // needs no chart library and scales to the row width.
+    function anSpark(days, views, clicks) {
+        if (!days || days.length < 2) return '';
+        var n = days.length, w = n * 10, h = 36, max = 1, i;
+        for (i = 0; i < n; i++) { max = Math.max(max, views[i] || 0, clicks[i] || 0); }
+        var bars = '';
+        for (i = 0; i < n; i++) {
+            var v = views[i] || 0, c = clicks[i] || 0;
+            var vh = Math.round((v / max) * (h - 2));
+            var ch = Math.round((c / max) * (h - 2));
+            var x = i * 10;
+            bars += '<rect class="ke-org-an-bar-v" x="' + (x + 1) + '" y="' + (h - vh) + '" width="4" height="' + vh + '" rx="1"/>' +
+                    '<rect class="ke-org-an-bar-c" x="' + (x + 5) + '" y="' + (h - ch) + '" width="4" height="' + ch + '" rx="1"/>' +
+                    '<rect class="ke-org-an-bar-hit" x="' + x + '" y="0" width="10" height="' + h + '"><title>' + escapeHtml(fmtDayLabel(days[i])) + ' · ' + v + ' visits · ' + c + ' clicks</title></rect>';
+        }
+        return '<svg class="ke-org-an-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" role="img" aria-label="Daily visits and clicks">' + bars + '</svg>';
+    }
+
+    function renderAnalytics(d) {
+        var sum = $('keOrgAnSummary');
+        var box = $('keOrgAnalytics');
+        if (!box) return;
+        box.removeAttribute('aria-busy');
+        var totals = d.totals || {};
+        var views  = parseInt(totals.view, 10) || 0;
+        if (sum) {
+            var kpis = ['view', 'ticket_click', 'reserve_click', 'birthday_click', 'share_click'].map(function (m) {
+                return '<div class="ke-org-an-kpi' + (m === 'view' ? ' ke-org-an-kpi--accent' : '') + '">' +
+                           '<div class="ke-org-an-kpi-label">' + AN_METRIC_LABEL[m] + '</div>' +
+                           '<div class="ke-org-an-kpi-value">' + fmtInt(totals[m] || 0) + '</div>' +
+                       '</div>';
+            });
+            kpis.push('<div class="ke-org-an-kpi"><div class="ke-org-an-kpi-label">Ticket CTR</div><div class="ke-org-an-kpi-value">' +
+                      fmtPct(views > 0 ? ((parseInt(totals.ticket_click, 10) || 0) / views) * 100 : 0) + '</div></div>');
+            sum.innerHTML = kpis.join('');
+        }
+        var events = d.events || [];
+        if (!events.length) {
+            box.innerHTML = '<div class="ke-org-empty">No events yet.</div>';
+            return;
+        }
+        var anyTraffic = events.some(function (e) { return ((e.totals && e.totals.view) || 0) + (e.clicks || 0) > 0; });
+        var hasSeries  = !!(d.days && d.days.length > 1);
+        var html = '';
+        if (!anyTraffic) {
+            html += '<div class="ke-org-an-note">No visits recorded ' + (AN_RANGE_PHRASE[d.range] || '') + '. Share your event links and the numbers will show up here.</div>';
+        } else if (hasSeries) {
+            html += '<div class="ke-org-an-legend"><span><i class="ke-org-an-legend-v"></i>Visits</span><span><i class="ke-org-an-legend-c"></i>Clicks</span><span class="ke-org-an-legend-days">' + escapeHtml(fmtDayLabel(d.days[0])) + ' – ' + escapeHtml(fmtDayLabel(d.days[d.days.length - 1])) + '</span></div>';
+        }
+        html += events.map(function (e) {
+            var t = e.totals || {};
+            var spark = (hasSeries && e.series) ? anSpark(d.days, e.series.view || [], e.series.clicks || []) : '';
+            return '<div class="ke-org-an-event" data-event-id="' + e.id + '">' +
+                '<div class="ke-org-an-event-head">' +
+                    '<div class="ke-org-an-event-main">' +
+                        '<div class="ke-org-event-name">' + escapeHtml(e.title) + '</div>' +
+                        '<div class="ke-org-event-date">' + escapeHtml(fmtDate(e.date)) + '</div>' +
+                    '</div>' +
+                    '<div class="ke-org-an-event-visits"><span class="ke-org-an-event-visits-num">' + fmtInt(t.view || 0) + '</span><span class="ke-org-an-event-visits-label">' + ((t.view || 0) === 1 ? 'visit' : 'visits') + '</span></div>' +
+                '</div>' +
+                (spark ? '<div class="ke-org-an-event-spark">' + spark + '</div>' : '') +
+                '<div class="ke-org-event-chips">' +
+                    anChip('Ticket clicks', fmtInt(t.ticket_click || 0)) +
+                    anChip('Reservations', fmtInt(t.reserve_click || 0)) +
+                    anChip('Birthday', fmtInt(t.birthday_click || 0)) +
+                    anChip('Shares', fmtInt(t.share_click || 0)) +
+                    anChip('Ticket CTR', fmtPct(e.ticket_ctr || 0)) +
+                '</div>' +
+            '</div>';
+        }).join('');
+        box.innerHTML = html;
+    }
+
+    function loadAnalytics(silent) {
+        var box = $('keOrgAnalytics');
+        if (!box || anState.loading) return Promise.resolve();
+        anState.loading = true;
+        if (!silent) box.setAttribute('aria-busy', 'true');
+        return getJson(cfg.restUrl + cfg.slug + '/analytics?range=' + encodeURIComponent(anState.range)).then(function (r) {
+            anState.loading = false;
+            if (r.status === 401) { window.location.reload(); return; }
+            if (!r.ok || !r.data) {
+                box.removeAttribute('aria-busy');
+                if (!silent) box.innerHTML = '<div class="ke-org-stats-error">' + escapeHtml((r.data && r.data.message) || 'Could not load traffic data.') + '</div>';
+                return;
+            }
+            anState.data = r.data;
+            renderAnalytics(r.data);
+        }).catch(function () {
+            anState.loading = false;
+            box.removeAttribute('aria-busy');
+            if (!silent) box.innerHTML = '<div class="ke-org-stats-error">Network error. Please try again.</div>';
+        });
+    }
+
+    function initAnalytics() {
+        var pills = $('keOrgAnRange');
+        if (!pills || !$('keOrgAnalytics')) return;
+        pills.addEventListener('click', function (e) {
+            var b = e.target.closest && e.target.closest('.ke-org-an-pill');
+            if (!b) return;
+            var range = b.getAttribute('data-range') || 'week';
+            if (range === anState.range) return;
+            anState.range = range;
+            Array.prototype.forEach.call(pills.querySelectorAll('.ke-org-an-pill'), function (p) {
+                var active = p === b;
+                p.classList.toggle('is-active', active);
+                p.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            loadAnalytics(false);
+        });
+        loadAnalytics(false);
+    }
+
     function initDashboard() {
         var range = $('keOrgRange');
         if (range) {
@@ -1541,6 +1683,7 @@
         initExports();
         initReservations();
         initHighlights();
+        initAnalytics();
 
         fetchDashboardStats(false);
         loadAttendees();
@@ -1558,6 +1701,7 @@
             } else {
                 fetchDashboardStats(true);
                 loadActivity();
+                loadAnalytics(true);
                 tickLastUpdated();
                 pollSalesBeacon(); // catch up immediately on tab return
                 startPolling();

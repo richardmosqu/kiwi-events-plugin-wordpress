@@ -350,6 +350,22 @@ class KE_Activator {
             KEY ke_event_status (event_id, status)
         ) $charset_collate;";
 
+        // Audience analytics: one counter per (event, site-local day, metric).
+        // Metrics are an allowlist in KE_Event_Analytics::METRICS; the row is
+        // upserted with ON DUPLICATE KEY UPDATE, hence the unique key.
+        $table_event_analytics = $wpdb->prefix . 'ke_event_analytics';
+        $sql_event_analytics = "CREATE TABLE $table_event_analytics (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            event_id bigint(20) unsigned NOT NULL,
+            day date NOT NULL,
+            metric varchar(24) NOT NULL,
+            hits int(10) unsigned NOT NULL DEFAULT 0,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uq_event_day_metric (event_id, day, metric),
+            KEY day (day),
+            KEY event_id (event_id)
+        ) $charset_collate;";
+
         dbDelta( $sql_ticket_types );
         dbDelta( $sql_orders );
         dbDelta( $sql_tickets );
@@ -365,6 +381,7 @@ class KE_Activator {
         dbDelta( $sql_email_log );
         dbDelta( $sql_board_likes );
         dbDelta( $sql_waitlist );
+        dbDelta( $sql_event_analytics );
 
         // Belt-and-suspenders migration: dbDelta can miss column additions
         // in some edge cases, so add is_archived explicitly if missing.

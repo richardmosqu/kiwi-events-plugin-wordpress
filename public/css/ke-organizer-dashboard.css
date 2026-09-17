@@ -1778,3 +1778,131 @@ body.ke-org-resv-drawer-open { overflow: hidden; }
 .ke-org-dash .ke-org-hl-btn:focus-visible { outline: 2px solid rgba(var(--kep-accent-rgb), 0.5); outline-offset: 2px; }
 .ke-org-hl-error { color: #b91c1c; font-size: 13px; margin: 0; }
 .ke-org-hl-drawer-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 18px; border-top: 1px solid #e2e8f0; }
+
+
+/* ── Audience analytics — "Event traffic" card ────────────────────────
+   Range pills + a KPI strip + one row per event with a two-tone daily
+   sparkline (accent = visits, grey = clicks). Buttons redeclare every state
+   under .ke-org-dash (WP.com button guard). */
+.ke-org-an-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.ke-org-dash .ke-org-an-pill,
+.ke-org-dash .ke-org-an-pill:link,
+.ke-org-dash .ke-org-an-pill:visited {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: var(--kep-r-pill);
+    border: 1.5px solid var(--kep-border);
+    background: #ffffff;
+    color: var(--kep-text-2);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.ke-org-dash .ke-org-an-pill:hover,
+.ke-org-dash .ke-org-an-pill:focus,
+.ke-org-dash .ke-org-an-pill:active {
+    background: rgba(var(--kep-accent-rgb), 0.08);
+    border-color: rgba(var(--kep-accent-rgb), 0.35);
+    color: var(--kep-text);
+    box-shadow: none;
+}
+.ke-org-dash .ke-org-an-pill.is-active,
+.ke-org-dash .ke-org-an-pill.is-active:hover,
+.ke-org-dash .ke-org-an-pill.is-active:focus,
+.ke-org-dash .ke-org-an-pill.is-active:active {
+    background: var(--kep-accent-1);
+    border-color: var(--kep-accent-1);
+    color: #ffffff;
+}
+.ke-org-dash .ke-org-an-pill:focus-visible { outline: 2px solid var(--kep-accent-1); outline-offset: 2px; }
+
+.ke-org-an-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 1px;
+    background: var(--kep-border-soft);
+    border-top: 1px solid var(--kep-border-soft);
+    border-bottom: 1px solid var(--kep-border-soft);
+}
+.ke-org-an-summary:empty { display: none; }
+.ke-org-an-kpi { background: var(--kep-bg); padding: 14px 18px 12px; }
+.ke-org-an-kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--kep-muted);
+    margin-bottom: 4px;
+    white-space: nowrap;
+}
+.ke-org-an-kpi-value {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--kep-text);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.ke-org-an-kpi--accent .ke-org-an-kpi-value { color: var(--kep-accent-1); }
+
+.ke-org-an-events { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ke-org-an-loading { padding: 32px; text-align: center; color: var(--kep-muted); font-size: 14px; }
+.ke-org-an-note {
+    margin: 4px 0 2px;
+    padding: 12px 14px;
+    border-radius: var(--kep-radius-sm);
+    background: rgba(var(--kep-accent-rgb), 0.06);
+    color: var(--kep-text-2);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ke-org-an-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 6px 8px 2px;
+    font-size: 11.5px;
+    color: var(--kep-muted);
+}
+.ke-org-an-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ke-org-an-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.ke-org-an-legend-v { background: var(--kep-accent-1); }
+.ke-org-an-legend-c { background: var(--kep-text); opacity: .28; }
+.ke-org-an-legend-days { margin-left: auto; }
+
+.ke-org-an-event {
+    padding: 14px 16px;
+    border: 1px solid var(--kep-border-soft);
+    border-radius: var(--kep-radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--kep-bg);
+}
+.ke-org-an-event-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ke-org-an-event-main { min-width: 0; flex: 1 1 auto; }
+.ke-org-an-event-visits { display: flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
+.ke-org-an-event-visits-num {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--kep-accent-1);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.ke-org-an-event-visits-label { font-size: 12px; color: var(--kep-muted); font-weight: 600; }
+.ke-org-an-event-spark { height: 36px; }
+.ke-org-an-spark { display: block; width: 100%; height: 36px; }
+.ke-org-an-bar-v { fill: var(--kep-accent-1); opacity: .9; }
+.ke-org-an-bar-c { fill: var(--kep-text); opacity: .26; }
+.ke-org-an-bar-hit { fill: transparent; }
+.ke-org-an-bar-hit:hover { fill: rgba(var(--kep-accent-rgb), 0.10); }
+
+@media (max-width: 560px) {
+    .ke-org-an-summary { grid-template-columns: repeat(2, 1fr); }
+    .ke-org-an-kpi-value { font-size: 19px; }
+}
